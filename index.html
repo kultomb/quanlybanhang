@@ -744,8 +744,9 @@
                 document.getElementById('page-title').textContent = titles.title;
                 document.getElementById('page-subtitle').textContent = titles.subtitle;
                 const mainEl = document.getElementById('main-content');
-                mainEl.classList.remove('page-sales');
+                mainEl.classList.remove('page-sales', 'page-customers');
                 if (pageName === 'sales') mainEl.classList.add('page-sales');
+                if (pageName === 'customers') mainEl.classList.add('page-customers');
                 mainEl.innerHTML = content;
                 
                 // Add fade in animation
@@ -929,18 +930,24 @@
                         ` | MST: ${customer.taxCode}` : '';
                     
                     return `
-                        <div class="activity-item">
-                            <div class="activity-icon ${iconClass}">${iconSymbol}</div>
-                            <div class="activity-content">
-                                <div class="activity-title">${customer.name} (${customer.id})</div>
-                                <div class="activity-desc">${typeDisplay}${companyInfo}${departmentInfo}${taxCodeInfo}</div>
-                                <div class="activity-desc">📞 ${customer.phone} | 📧 ${customer.email} | 📍 ${customer.address}</div>
+                        <div class="activity-item customer-card">
+                            <div class="customer-card-header">
+                                <div class="activity-icon ${iconClass}">${iconSymbol}</div>
+                                <div class="customer-card-main">
+                                    <div class="activity-title">${customer.name} <span class="customer-id">(${customer.id})</span></div>
+                                    <div class="activity-desc customer-type">${typeDisplay}${companyInfo}${departmentInfo}${taxCodeInfo}</div>
+                                </div>
+                                <div class="customer-debt-badge ${customer.debt > 0 ? 'has-debt' : ''}">${customer.debt > 0 ? (customer.debt.toLocaleString('vi-VN') + ' đ') : 'Không nợ'}</div>
                             </div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <div class="activity-time">${customer.debt > 0 ? `Nợ: ${customer.debt.toLocaleString('vi-VN')} VNĐ` : 'Không nợ'}</div>
-                                <button onclick="app.showCustomerDetails(${index})" style="background: #059669; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Chi tiết</button>
-                                <button onclick="app.editCustomer(${index})" style="background: #3b82f6; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Sửa</button>
-                                <button onclick="app.deleteCustomer(${index})" style="background: #ef4444; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Xóa</button>
+                            <div class="customer-card-contact">
+                                <div class="activity-desc">📞 ${customer.phone || '—'}</div>
+                                <div class="activity-desc">📧 ${customer.email || '—'}</div>
+                                <div class="activity-desc">📍 ${customer.address || '—'}</div>
+                            </div>
+                            <div class="customer-card-actions">
+                                <button type="button" class="btn-customer-detail" onclick="app.showCustomerDetails(${index})">Chi tiết</button>
+                                <button type="button" class="btn-customer-edit" onclick="app.editCustomer(${index})">Sửa</button>
+                                <button type="button" class="btn-customer-delete" onclick="app.deleteCustomer(${index})">Xóa</button>
                             </div>
                         </div>
                     `;
@@ -1601,6 +1608,17 @@
                                 </button>
                             </div>
                         </div>
+                        <div id="pos-mobile-footer" class="pos-mobile-footer">
+                            <div class="pos-mobile-footer-total">
+                                <span>Tổng tiền hàng</span>
+                                <span id="pos-mobile-count" class="pos-mobile-badge">0</span>
+                                <span id="pos-mobile-total" class="pos-mobile-amount">0</span>
+                            </div>
+                            <div class="pos-mobile-footer-btns">
+                                <button type="button" class="pos-mobile-btn-save" onclick="app.submitPOSOrderAsDebt()">Lưu tạm</button>
+                                <button type="button" class="pos-mobile-btn-pay" onclick="app.submitPOSOrder()">Thanh toán</button>
+                            </div>
+                        </div>
                     </div>
                 `;
             }
@@ -1793,6 +1811,11 @@
                     discountInp.value = dt === 'percent' && s.totalGoods > 0 ? Math.round(((this.posCart.discount||0)/s.totalGoods)*100) : this.formatPrice(this.posCart.discount || 0);
                 }
                 if (toPayEl) toPayEl.textContent = s.toPay.toLocaleString('vi-VN');
+                const itemCount = (this.posCart.items || []).reduce((n, i) => n + (i.quantity || 1), 0);
+                const mc = document.getElementById('pos-mobile-count');
+                const mt = document.getElementById('pos-mobile-total');
+                if (mc) mc.textContent = itemCount;
+                if (mt) mt.textContent = s.toPay.toLocaleString('vi-VN');
                 this.updatePOSDiscountHint();
                 this.posCart.amountPaid = s.toPay;
                 if (amountPaidInp) amountPaidInp.value = this.formatPrice(s.toPay);
@@ -1818,7 +1841,7 @@
                 const html = products.slice(0, 80).map(p => {
                     const stock = (p.hasImei && p.imeis) ? p.imeis.length : (p.stock || 0);
                     const canSell = stock > 0;
-                    return `<div class="pos-product-card" onclick="app.addProductToPOS('${p.id}')" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 12px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};" onmouseover="if(${canSell}) this.style.borderColor='#059669'; this.style.background='#ecfdf5';" onmouseout="if(${canSell}) this.style.borderColor='#e5e7eb'; this.style.background='white';"><div style="width: 52px; height: 52px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">📦</div><div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 15px; color: #1f2937;">${(p.name||'').replace(/</g,'&lt;')}</div><div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${(p.id||'')} • Tồn: ${stock}</div></div><div style="font-weight: 700; font-size: 16px; color: #059669; flex-shrink: 0;">${(p.price||0).toLocaleString('vi-VN')}</div></div>`;
+                    return `<div class="pos-product-card" onclick="${canSell ? `app.addProductToPOS('${p.id}')` : ''}" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 12px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};" onmouseover="if(${canSell}) this.style.borderColor='#059669'; this.style.background='#ecfdf5';" onmouseout="if(${canSell}) this.style.borderColor='#e5e7eb'; this.style.background='white';"><div style="width: 52px; height: 52px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">📦</div><div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 15px; color: #1f2937;">${(p.name||'').replace(/</g,'&lt;')}</div><div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${(p.id||'')} • Tồn: ${stock}</div></div><div style="font-weight: 700; font-size: 16px; color: #059669; flex-shrink: 0;">${(p.price||0).toLocaleString('vi-VN')}</div>${canSell ? `<button type="button" class="pos-product-add-btn" onclick="event.stopPropagation(); app.addProductToPOS('${p.id}')" title="Thêm vào đơn">+</button>` : ''}</div>`;
                 }).join('');
                 listEl.innerHTML = html;
             }
@@ -1941,9 +1964,22 @@
                 this.posCart.amountPaid = null;
                 this.saveToLocalStorage();
                 this.refreshPOSUI();
-                this.showNotification('Đã thanh toán đơn ' + newOrder.id, 'success');
+                const isDebt = this.posCart._saveAsDebt;
+                this.showNotification(isDebt ? 'Đã lưu đơn công nợ ' + newOrder.id : 'Đã thanh toán đơn ' + newOrder.id, 'success');
                 this.addActivityLog('success', '💰', `Đơn ${newOrder.id}`, `${customer.name} - ${total.toLocaleString('vi-VN')} VNĐ`, 'order');
                 this.showPrintOptionsPopup(0);
+            }
+            
+            submitPOSOrderAsDebt() {
+                if (!this.posCart.items || this.posCart.items.length === 0) {
+                    this.showNotification('Chưa có sản phẩm trong đơn', 'error');
+                    return;
+                }
+                const inp = document.getElementById('pos-amount-paid');
+                if (inp) inp.value = '0';
+                this.posCart._saveAsDebt = true;
+                this.submitPOSOrder();
+                this.posCart._saveAsDebt = false;
             }
             
             getPurchasesContent() {
@@ -5108,32 +5144,33 @@
                     (customer.taxCode && customer.taxCode.includes(query))
                 );
                 
-                const customersTable = filteredCustomers.map((customer, index) => {
-                    // Sử dụng cùng logic hiển thị như danh sách chính
+                const customersTable = filteredCustomers.map((customer) => {
+                    const idx = this.demoData.customers.indexOf(customer);
                     const typeDisplay = customer.type === 'doanh-nghiep' ? '🏢 Doanh nghiệp' : '👤 Cá nhân';
                     const iconClass = customer.type === 'doanh-nghiep' ? 'warning' : 'info';
                     const iconSymbol = customer.type === 'doanh-nghiep' ? '🏢' : '👤';
-                    
-                    const companyInfo = customer.type === 'doanh-nghiep' && customer.companyName ? 
-                        ` | 🏢 ${customer.companyName}` : '';
-                    const departmentInfo = customer.type === 'doanh-nghiep' && customer.department ? 
-                        ` | 🏬 ${customer.department}` : '';
-                    const taxCodeInfo = customer.type === 'doanh-nghiep' && customer.taxCode ? 
-                        ` | 🆔 MST: ${customer.taxCode}` : '';
-                    
+                    const companyInfo = customer.type === 'doanh-nghiep' && customer.companyName ? ` | Công ty: ${customer.companyName}` : '';
+                    const departmentInfo = customer.type === 'doanh-nghiep' && customer.department ? ` | Phòng ban: ${customer.department}` : '';
+                    const taxCodeInfo = customer.type === 'doanh-nghiep' && customer.taxCode ? ` | MST: ${customer.taxCode}` : '';
                     return `
-                        <div class="activity-item">
-                            <div class="activity-icon ${iconClass}">${iconSymbol}</div>
-                            <div class="activity-content">
-                                <div class="activity-title">${customer.name} (${customer.id})</div>
-                                <div class="activity-desc">${typeDisplay}${companyInfo}${departmentInfo}${taxCodeInfo}</div>
-                                <div class="activity-desc">📞 ${customer.phone} | 📧 ${customer.email} | 📍 ${customer.address}</div>
+                        <div class="activity-item customer-card">
+                            <div class="customer-card-header">
+                                <div class="activity-icon ${iconClass}">${iconSymbol}</div>
+                                <div class="customer-card-main">
+                                    <div class="activity-title">${customer.name} <span class="customer-id">(${customer.id})</span></div>
+                                    <div class="activity-desc customer-type">${typeDisplay}${companyInfo}${departmentInfo}${taxCodeInfo}</div>
+                                </div>
+                                <div class="customer-debt-badge ${customer.debt > 0 ? 'has-debt' : ''}">${customer.debt > 0 ? (customer.debt.toLocaleString('vi-VN') + ' đ') : 'Không nợ'}</div>
                             </div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <div class="activity-time">${customer.debt > 0 ? `Nợ: ${customer.debt.toLocaleString('vi-VN')} VNĐ` : 'Không nợ'}</div>
-                                <button onclick="app.showCustomerDetails(${this.demoData.customers.indexOf(customer)})" style="background: #059669; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Chi tiết</button>
-                                <button onclick="app.editCustomer(${this.demoData.customers.indexOf(customer)})" style="background: #3b82f6; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Sửa</button>
-                                <button onclick="app.deleteCustomer(${this.demoData.customers.indexOf(customer)})" style="background: #ef4444; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Xóa</button>
+                            <div class="customer-card-contact">
+                                <div class="activity-desc">📞 ${customer.phone || '—'}</div>
+                                <div class="activity-desc">📧 ${customer.email || '—'}</div>
+                                <div class="activity-desc">📍 ${customer.address || '—'}</div>
+                            </div>
+                            <div class="customer-card-actions">
+                                <button type="button" class="btn-customer-detail" onclick="app.showCustomerDetails(${idx})">Chi tiết</button>
+                                <button type="button" class="btn-customer-edit" onclick="app.editCustomer(${idx})">Sửa</button>
+                                <button type="button" class="btn-customer-delete" onclick="app.deleteCustomer(${idx})">Xóa</button>
                             </div>
                         </div>
                     `;
