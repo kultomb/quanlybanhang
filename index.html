@@ -6484,13 +6484,14 @@
             }
             
             // Product Management Functions  
-            showAddProductForm() {
+            showAddProductForm(prefill) {
                 const supplierOptions = this.demoData.suppliers.map(s => 
                     `<option value="${s.id}">${s.name}</option>`
                 ).join('');
+                const minStockVal = (prefill && prefill.minStock !== undefined && prefill.minStock !== null) ? prefill.minStock : 10;
                 
                 const formHTML = `
-                    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
+                    <div id="add-product-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) { var m=document.getElementById('add-product-modal'); if(m)m.remove(); }">
                         <div style="background: white; padding: 32px; border-radius: 12px; width: 500px; max-width: 90vw; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
                             <h3 style="margin-bottom: 24px; color: var(--text-primary);">Thêm sản phẩm mới</h3>
                             <form onsubmit="app.addProduct(event)">
@@ -6515,7 +6516,7 @@
                                 </div>
                                 <div style="margin-bottom: 16px;">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">Danh mục:</label>
-                                    <select name="category" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" id="categorySelect">
+                                    <select name="category" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" id="add-product-category-select">
                                         ${this.getCategoryOptions()}
                                     </select>
                                 </div>
@@ -6538,7 +6539,7 @@
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">🔔 Tồn kho tối thiểu:</label>
-                                        <input type="number" name="minStock" value="10" required min="0" style="width: 100%; padding: 12px; border: 2px solid #f59e0b; border-radius: 8px;" placeholder="Cảnh báo khi dưới...">
+                                        <input type="number" name="minStock" value="${minStockVal}" required min="0" style="width: 100%; padding: 12px; border: 2px solid #f59e0b; border-radius: 8px;" placeholder="Cảnh báo khi dưới...">
                                     </div>
                                 </div>
                                 <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
@@ -6558,17 +6559,32 @@
                                     </div>
                                     <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">Chưa có nhà cung cấp? Nhấn <strong>+ Thêm NCC</strong> để tạo mới.</p>
                                 </div>
-                                <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                                    <button type="button" onclick="closeModal(this.closest('div[style*=\"fixed\"]'))" 
+                                <div style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
+                                    <button type="button" onclick="var m=document.getElementById('add-product-modal');if(m)m.remove();" 
                                             style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Hủy</button>
-                                    <button type="submit" 
+                                    <button type="submit" name="action" value="add" 
                                             style="padding: 12px 24px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer;">Thêm sản phẩm</button>
+                                    <button type="submit" name="action" value="addAndCreate" 
+                                            style="padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer;" title="Thêm sản phẩm và mở form mới với danh mục, tồn tối thiểu của SP vừa tạo">Thêm & Tạo thêm</button>
                                 </div>
                             </form>
                         </div>
                     </div>
                 `;
                 document.body.insertAdjacentHTML('beforeend', formHTML);
+                if (prefill) {
+                    const modalEl = document.getElementById('add-product-modal');
+                    if (modalEl) {
+                        if (prefill.category) {
+                            const catSel = modalEl.querySelector('select[name="category"]');
+                            if (catSel) catSel.value = prefill.category;
+                        }
+                        if (prefill.supplier) {
+                            const supSel = modalEl.querySelector('#add-product-supplier-select');
+                            if (supSel) supSel.value = prefill.supplier;
+                        }
+                    }
+                }
             }
             showQuickAddSupplierInProductForm() {
                 const modalHTML = `
@@ -6648,8 +6664,14 @@
                 this.demoData.products.push(newProduct);
                 this.saveToLocalStorage();
                 this.showNotification(`Đã thêm sản phẩm ${newProduct.name}`, 'success');
-                this.loadPage('products');
-                const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
+                const modal = document.getElementById('add-product-modal') || form.closest("div[style*=\"fixed\"]");
+                if (modal) modal.remove();
+                const createAnother = formData.get('action') === 'addAndCreate';
+                if (createAnother) {
+                    this.showAddProductForm({ category: newProduct.category, minStock: newProduct.minStock, supplier: newProduct.supplier });
+                } else {
+                    this.loadPage('products');
+                }
             }
 
             handleStockModeChange(checkbox) {
