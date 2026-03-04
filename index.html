@@ -6489,12 +6489,16 @@
                     `<option value="${s.id}">${s.name}</option>`
                 ).join('');
                 const minStockVal = (prefill && prefill.minStock !== undefined && prefill.minStock !== null) ? prefill.minStock : 10;
+                const stockVal = (prefill && prefill.stock !== undefined && prefill.stock !== null) ? prefill.stock : '';
+                const importPriceVal = (prefill && prefill.importPrice != null) ? this.formatPrice(prefill.importPrice) : '';
+                const priceVal = (prefill && prefill.price != null) ? this.formatPrice(prefill.price) : '';
+                const isImeiMode = !!(prefill && prefill.hasImei);
                 
                 const formHTML = `
                     <div id="add-product-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) { var m=document.getElementById('add-product-modal'); if(m)m.remove(); }">
                         <div style="background: white; padding: 32px; border-radius: 12px; width: 500px; max-width: 90vw; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
                             <h3 style="margin-bottom: 24px; color: var(--text-primary);">Thêm sản phẩm mới</h3>
-                            <form onsubmit="app.addProduct(event)">
+                            <form onsubmit="event.preventDefault(); app.addProductFromForm(this, false)">
                                 <div style="margin-bottom: 16px;">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">Tên sản phẩm:</label>
                                     <input type="text" name="name" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
@@ -6502,11 +6506,11 @@
                                 <div style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 4px;">
                                     <div style="display: flex; gap: 16px; flex-wrap: wrap;">
                                         <label style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
-                                            <input type="checkbox" name="stockModeQuantity" checked onchange="app.handleStockModeChange(this)" style="width: 16px; height: 16px;">
+                                            <input type="checkbox" name="stockModeQuantity" ${isImeiMode ? '' : 'checked'} onchange="app.handleStockModeChange(this)" style="width: 16px; height: 16px;">
                                             Quản lý theo số lượng
                                         </label>
                                         <label style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
-                                            <input type="checkbox" name="stockModeImei" onchange="app.handleStockModeChange(this)" style="width: 16px; height: 16px;">
+                                            <input type="checkbox" name="stockModeImei" ${isImeiMode ? 'checked' : ''} onchange="app.handleStockModeChange(this)" style="width: 16px; height: 16px;">
                                             Quản lý theo IMEI
                                         </label>
                                     </div>
@@ -6520,22 +6524,22 @@
                                         ${this.getCategoryOptions()}
                                     </select>
                                 </div>
-                                <div data-stock-mode="imei" style="margin-bottom: 16px; display: none;">
+                                <div data-stock-mode="imei" style="margin-bottom: 16px; display: ${isImeiMode ? 'block' : 'none'};">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">IMEI</label>
-                                    <input type="text" name="imei" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px;">
+                                    <input type="text" name="imei" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px;" placeholder="Nhập IMEI cho sản phẩm mới">
                                 </div>
                                 <div style="margin-bottom: 16px;">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">Giá nhập:</label>
-                                    <input type="text" class="price-input" name="importPrice" required placeholder="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" inputmode="numeric">
+                                    <input type="text" class="price-input" name="importPrice" required placeholder="0" value="${importPriceVal}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" inputmode="numeric">
                                 </div>
                                 <div style="margin-bottom: 16px;">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">Giá bán:</label>
-                                    <input type="text" class="price-input" name="price" required placeholder="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" inputmode="numeric">
+                                    <input type="text" class="price-input" name="price" required placeholder="0" value="${priceVal}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" inputmode="numeric">
                                 </div>
-                                <div data-stock-mode="quantity" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                                <div data-stock-mode="quantity" style="display: ${isImeiMode ? 'none' : 'grid'}; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                                     <div>
                                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Số lượng tồn kho:</label>
-                                        <input type="number" name="stock" required min="0" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                                        <input type="number" name="stock" required min="0" value="${stockVal}" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
                                     </div>
                                     <div>
                                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">🔔 Tồn kho tối thiểu:</label>
@@ -6562,19 +6566,19 @@
                                 <div style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
                                     <button type="button" onclick="var m=document.getElementById('add-product-modal');if(m)m.remove();" 
                                             style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Hủy</button>
-                                    <button type="submit" name="action" value="add" 
+                                    <button type="button" onclick="app.addProductFromForm(this.form, false)" 
                                             style="padding: 12px 24px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer;">Thêm sản phẩm</button>
-                                    <button type="submit" name="action" value="addAndCreate" 
-                                            style="padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer;" title="Thêm sản phẩm và mở form mới với danh mục, tồn tối thiểu của SP vừa tạo">Thêm & Tạo thêm</button>
+                                    <button type="button" onclick="app.addProductFromForm(this.form, true)" 
+                                            style="padding: 12px 24px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer;" title="Thêm sản phẩm và giữ form mở để thêm tiếp">Thêm & Tạo thêm</button>
                                 </div>
                             </form>
                         </div>
                     </div>
                 `;
                 document.body.insertAdjacentHTML('beforeend', formHTML);
-                if (prefill) {
-                    const modalEl = document.getElementById('add-product-modal');
-                    if (modalEl) {
+                const modalEl = document.getElementById('add-product-modal');
+                if (modalEl) {
+                    if (prefill) {
                         if (prefill.category) {
                             const catSel = modalEl.querySelector('select[name="category"]');
                             if (catSel) catSel.value = prefill.category;
@@ -6584,6 +6588,8 @@
                             if (supSel) supSel.value = prefill.supplier;
                         }
                     }
+                    const imeiCb = modalEl.querySelector('input[name="stockModeImei"]');
+                    if (imeiCb) this.handleStockModeChange(imeiCb);
                 }
             }
             showQuickAddSupplierInProductForm() {
@@ -6636,9 +6642,7 @@
                 this.showNotification(`Đã thêm nhà cung cấp "${name}" và chọn trong form.`, 'success');
             }
             
-            addProduct(event) {
-                event.preventDefault();
-                const form = event.target;
+            addProductFromForm(form, createAnother) {
                 this.clearFieldErrors(form);
                 if (!this.validateFormProduct(form)) return;
                 const formData = new FormData(form);
@@ -6664,12 +6668,20 @@
                 this.demoData.products.push(newProduct);
                 this.saveToLocalStorage();
                 this.showNotification(`Đã thêm sản phẩm ${newProduct.name}`, 'success');
-                const modal = document.getElementById('add-product-modal') || form.closest("div[style*=\"fixed\"]");
-                if (modal) modal.remove();
-                const createAnother = formData.get('action') === 'addAndCreate';
                 if (createAnother) {
-                    this.showAddProductForm({ category: newProduct.category, minStock: newProduct.minStock, supplier: newProduct.supplier });
+                    form.querySelector('input[name="name"]').value = '';
+                    const imeiInput = form.querySelector('input[name="imei"]');
+                    if (imeiInput) imeiInput.value = '';
+                    const importPriceInput = form.querySelector('input[name="importPrice"]');
+                    if (importPriceInput) importPriceInput.value = '';
+                    const priceInput = form.querySelector('input[name="price"]');
+                    if (priceInput) priceInput.value = '';
+                    const stockInput = form.querySelector('input[name="stock"]');
+                    if (stockInput) stockInput.value = '';
+                    form.querySelector('input[name="name"]').focus();
                 } else {
+                    const modal = document.getElementById('add-product-modal') || form.closest("div[style*=\"fixed\"]");
+                    if (modal) modal.remove();
                     this.loadPage('products');
                 }
             }
