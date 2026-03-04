@@ -895,6 +895,12 @@
                 const yesterdayRepairRev = yesterdayRepairs.reduce((s, r) => s + calcRepairRevenue(r), 0);
                 const todayRevenue = todayOrderRev + todayRepairRev;
                 const yesterdayRevenue = yesterdayOrderRev + yesterdayRepairRev;
+                const todayOrderProfit = todayOrders.reduce((s, o) => s + this.calcOrderProfit(o), 0);
+                const yesterdayOrderProfit = yesterdayOrders.reduce((s, o) => s + this.calcOrderProfit(o), 0);
+                const todayRepairProfit = todayRepairs.reduce((s, r) => s + this.calcRepairProfit(r), 0);
+                const yesterdayRepairProfit = yesterdayRepairs.reduce((s, r) => s + this.calcRepairProfit(r), 0);
+                const todayProfit = todayOrderProfit + todayRepairProfit;
+                const yesterdayProfit = yesterdayOrderProfit + yesterdayRepairProfit;
                 const revenueChange = yesterdayRevenue > 0 ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100).toFixed(1) : (todayOrders.length > 0 ? '100' : '0');
                 const orderChange = yesterdayOrders.length > 0 ? ((todayOrders.length - yesterdayOrders.length) / yesterdayOrders.length * 100).toFixed(1) : (todayOrders.length > 0 ? '100' : '0');
                 return `
@@ -931,6 +937,14 @@
                                 </div>
                                 <div class="stat-value">${products.length}</div>
                                 <div class="stat-change positive">Tổng ${products.length} mặt hàng</div>
+                            </div>
+                            <div class="stat-card info">
+                                <div class="stat-header">
+                                    <span class="stat-title">Lợi nhuận hôm nay</span>
+                                    <span class="stat-icon">💎</span>
+                                </div>
+                                <div class="stat-value">${todayProfit.toLocaleString('vi-VN')} VNĐ</div>
+                                <div class="stat-change ${todayProfit >= yesterdayProfit ? 'positive' : 'negative'}">${yesterdayProfit > 0 ? (todayProfit >= yesterdayProfit ? '↗' : '↘') + ' ' + ((todayProfit - yesterdayProfit) / yesterdayProfit * 100).toFixed(1) + '% so với hôm qua' : (todayProfit > 0 ? 'Có lợi nhuận' : 'Chưa có')}</div>
                             </div>
                         </div>
                         <div class="quick-actions">
