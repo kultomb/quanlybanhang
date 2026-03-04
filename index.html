@@ -348,12 +348,32 @@
                 // Migrate repairs: thêm amountPaid, paymentStatus cho phiếu cũ
                 if (this.demoData.repairs) {
                     this.demoData.repairs.forEach(rep => {
+                        const cost = Number(rep.repairCost) || 0;
                         if (rep.amountPaid == null && rep.paymentStatus == null) {
-                            const cost = Number(rep.repairCost) || 0;
                             rep.amountPaid = (rep.status || '') === 'Đã trả' ? cost : 0;
                             rep.paymentStatus = rep.amountPaid >= cost ? 'Đã thanh toán' : 'Công nợ';
                             needsSave = true;
+                        } else if ((rep.status || '') === 'Đã trả' && rep.paymentStatus === 'Công nợ' && (Number(rep.amountPaid) ?? 0) < cost) {
+                            rep.amountPaid = cost;
+                            rep.paymentStatus = 'Đã thanh toán';
+                            needsSave = true;
                         }
+                    });
+                }
+                // Migrate orders: trừ tồn kho cho đơn cũ chưa được trừ (fix đơn hàng đã bán nhưng tồn kho không bị trừ)
+                if (this.demoData.orders && this.demoData.products) {
+                    this.demoData.orders.forEach(order => {
+                        if (order.stockDeducted) return;
+                        (order.products || []).forEach(op => {
+                            const pid = op.id || op.productId;
+                            if (!pid) return;
+                            const prod = this.demoData.products.find(p => p.id === pid);
+                            if (!prod) return;
+                            const qty = op.quantity || 1;
+                            prod.stock = Math.max(0, (prod.stock ?? (prod.hasImei && prod.imeis ? prod.imeis.length : 0)) - qty);
+                        });
+                        order.stockDeducted = true;
+                        needsSave = true;
                     });
                 }
                 // Xóa hết khách lẻ (KH_LE, KL_*) - không lưu trong danh sách, chỉ ghi "Khách lẻ" trong hóa đơn khi không chọn khách
@@ -417,9 +437,9 @@
                         const isImei = product.hasImei && product.imeis && product.imeis.length > 0;
                         const cat = (product.category || '').trim();
                         const inCategoryMay = cat === 'Máy' || cat.startsWith('Máy >') || cat.startsWith('Máy/');
-                        if (isImei && product.minStock !== 0) {
-                            product.minStock = 0;
-                            needsSave = true;
+                        if (isImei) {
+                            if (product.minStock !== 0) { product.minStock = 0; needsSave = true; }
+                            if (product.stock == null && product.imeis) { product.stock = product.imeis.length; needsSave = true; }
                         } else if (inCategoryMay && !isImei && product.minStock !== 1) {
                             product.minStock = 1;
                             needsSave = true;
@@ -1161,7 +1181,7 @@
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
                 filtered = [...filtered].reverse();
                 const selectAllChecked = filtered.length > 0 && filtered.every(p => this.selectedProductIds.has(p.id));
-                const totalStock = filtered.reduce((sum, p) => sum + (p.hasImei && p.imeis ? p.imeis.length : (p.stock || 0)), 0);
+                const totalStock = filtered.reduce((sum, p) => sum + ((p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0)), 0);
                 const rows = this.getProductTableRowsHtml(filtered);
 
                 const selectedCount = this.selectedProductIds.size;
@@ -1194,7 +1214,7 @@
                                 </div>
                                 <div class="stat-value">${this.demoData.products.filter(p => {
                                     const min = (p.hasImei && p.imeis) ? 0 : (p.minStock ?? 10);
-                                    const stock = (p.hasImei && p.imeis) ? p.imeis.length : (p.stock || 0);
+                                    const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
                                     return min > 0 && stock <= min;
                                 }).length}</div>
                                 <div class="stat-change negative">Cần nhập thêm</div>
@@ -1214,6 +1234,10 @@
                                 <div class="action-button" onclick="app.showUploadProductsForm()">
                                     <div class="action-icon">📤</div>
                                     <div class="action-title">Upload Excel</div>
+                                </div>
+                                <div class="action-button" onclick="app.showImeiLookupModal()">
+                                    <div class="action-icon">🔍</div>
+                                    <div class="action-title">Tra cứu IMEI đã bán</div>
                                 </div>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
@@ -1257,7 +1281,7 @@
                 if (!filtered || filtered.length === 0) return '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Không có sản phẩm nào.</td></tr>';
                 return filtered.map((product, index) => {
                     const isImei = product.hasImei && product.imeis && product.imeis.length > 0;
-                    const stockVal = isImei ? product.imeis.length : (product.stock || 0);
+                    const stockVal = isImei ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
                     const checked = this.selectedProductIds.has(product.id);
                     const price = product.price || 0;
                     const importPrice = product.importPrice != null && product.importPrice !== '' ? Number(product.importPrice) : 0;
@@ -1328,7 +1352,7 @@
                 }
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
                 filtered = [...filtered].reverse();
-                const totalStock = filtered.reduce((sum, p) => sum + (p.hasImei && p.imeis ? p.imeis.length : (p.stock || 0)), 0);
+                const totalStock = filtered.reduce((sum, p) => sum + ((p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0)), 0);
                 const tbody = document.getElementById('products-table-tbody');
                 const footer = document.getElementById('products-table-footer');
                 if (tbody) tbody.innerHTML = this.getProductTableRowsHtml(filtered);
@@ -1373,6 +1397,55 @@
             clearProductsSelection() {
                 this.selectedProductIds.clear();
                 this.updateProductsSelectionUI();
+            }
+            showImeiLookupModal() {
+                const modalHTML = `
+                    <div id="imei-lookup-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this) document.getElementById('imei-lookup-modal').remove()">
+                        <div style="background: white; padding: 24px; border-radius: 12px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                            <h3 style="margin: 0 0 16px 0; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">🔍 Tra cứu IMEI đã bán</h3>
+                            <p style="margin: 0 0 16px 0; font-size: 13px; color: #6b7280;">Nhập IMEI để xem sản phẩm nào đã bán, đơn hàng nào, khách hàng.</p>
+                            <div style="display: flex; gap: 8px; margin-bottom: 20px;">
+                                <input type="text" id="imei-lookup-input" placeholder="VD: 123456789012345" style="flex: 1; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 15px;" onkeypress="if(event.key==='Enter') app.searchImeiSold()">
+                                <button type="button" onclick="app.searchImeiSold()" style="padding: 12px 20px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">Tìm</button>
+                            </div>
+                            <div id="imei-lookup-result" style="min-height: 60px; font-size: 14px; color: #374151;"></div>
+                            <button type="button" onclick="document.getElementById('imei-lookup-modal').remove()" style="margin-top: 16px; padding: 10px 20px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Đóng</button>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+                document.getElementById('imei-lookup-input').focus();
+            }
+            searchImeiSold() {
+                const inp = document.getElementById('imei-lookup-input');
+                const resultEl = document.getElementById('imei-lookup-result');
+                if (!inp || !resultEl) return;
+                const q = (inp.value || '').trim();
+                if (!q) {
+                    resultEl.innerHTML = '<p style="color: #f59e0b;">Vui lòng nhập IMEI cần tra cứu.</p>';
+                    return;
+                }
+                const found = [];
+                (this.demoData.orders || []).forEach((order, oi) => {
+                    (order.products || []).forEach(op => {
+                        const imeis = op.soldImeis || [];
+                        if (imeis.some(imei => String(imei || '').trim().toLowerCase().includes(q.toLowerCase()))) {
+                            found.push({
+                                orderId: order.id,
+                                orderDate: (order.date || '') + ' ' + (order.time || ''),
+                                customer: order.customerName || '-',
+                                productName: op.name || op.productName || '-',
+                                quantity: op.quantity || 1
+                            });
+                        }
+                    });
+                });
+                if (found.length === 0) {
+                    resultEl.innerHTML = '<p style="color: #6b7280;">Không tìm thấy IMEI <strong>' + escapeHtml(q) + '</strong> trong đơn hàng đã bán.</p>';
+                } else {
+                    resultEl.innerHTML = '<div style="background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 12px; margin-bottom: 8px;"><strong style="color: #059669;">✓ Tìm thấy ' + found.length + ' kết quả</strong></div>' +
+                        found.map(f => '<div style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; background: #f8fafc;"><strong>' + escapeHtml(f.productName) + '</strong> x' + f.quantity + '<br><span style="font-size: 12px; color: #6b7280;">Đơn ' + escapeHtml(f.orderId) + ' · ' + escapeHtml(f.orderDate) + ' · Khách: ' + escapeHtml(f.customer) + '</span></div>').join('');
+                }
             }
             bulkDeleteProducts() {
                 if (this.selectedProductIds.size === 0) return;
@@ -1479,7 +1552,7 @@
             }
             
             getInventoryContent() {
-                const getStock = (p) => (p.hasImei && p.imeis) ? p.imeis.length : (p.stock || 0);
+                const getStock = (p) => (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
                 const getMinStock = (p) => (p.hasImei && p.imeis) ? 0 : (p.minStock ?? 10);
                 const totalValue = this.demoData.products.reduce((sum, p) => sum + (getStock(p) * (p.importPrice || 0)), 0);
                 const lowStockProducts = this.demoData.products.filter(p => {
@@ -1503,7 +1576,7 @@
                             </div>
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">
                                 ${lowStockProducts.map(p => {
-                                    const stock = (p.hasImei && p.imeis) ? p.imeis.length : (p.stock || 0);
+                                    const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
                                     const min = (p.hasImei && p.imeis) ? 0 : (p.minStock ?? 10);
                                     return `
                                     <div style="background: white; padding: 12px; border-radius: 8px; border: 1px solid #f59e0b;">
@@ -1594,7 +1667,7 @@
                                     <div>Thao tác</div>
                                 </div>
                                 ${this.demoData.products.map((product, index) => {
-                                    const stockVal = (product.hasImei && product.imeis) ? product.imeis.length : (product.stock || 0);
+                                    const stockVal = (product.hasImei && product.imeis) ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
                                     const minVal = (product.hasImei && product.imeis) ? 0 : (product.minStock ?? 10);
                                     const stockStatus = stockVal === 0 ? 'out' : minVal > 0 && stockVal <= minVal ? 'low' : minVal > 0 && stockVal <= minVal * 1.5 ? 'warning' : 'good';
                                     const statusColor = stockStatus === 'out' ? '#ef4444' : stockStatus === 'low' ? '#ef4444' : stockStatus === 'warning' ? '#f59e0b' : '#10b981';
@@ -1877,7 +1950,7 @@
             addProductToPOS(productId) {
                 const p = (this.demoData.products || []).find(x => x.id === productId);
                 if (!p) return;
-                const stock = (p.hasImei && p.imeis) ? p.imeis.length : (p.stock || 0);
+                const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
                 if (stock < 1) { this.showNotification('Sản phẩm hết hàng', 'error'); return; }
                 const existing = this.posCart.items.find(x => x.productId === productId);
                 if (existing) {
@@ -1899,7 +1972,7 @@
                 const item = this.posCart.items[index];
                 if (!item) return;
                 const p = (this.demoData.products || []).find(x => x.id === item.productId);
-                const stock = p ? ((p.hasImei && p.imeis) ? p.imeis.length : (p.stock || 0)) : 999;
+                const stock = p ? ((p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0)) : 999;
                 if (qty > stock) { this.showNotification('Không đủ tồn kho: ' + stock, 'error'); return; }
                 item.quantity = qty;
                 this.refreshPOSUI();
@@ -1947,7 +2020,7 @@
                     return;
                 }
                 const html = products.slice(0, 80).map(p => {
-                    const stock = (p.hasImei && p.imeis) ? p.imeis.length : (p.stock || 0);
+                    const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
                     const canSell = stock > 0;
                     return `<div class="pos-product-card" onclick="${canSell ? `app.addProductToPOS('${p.id}')` : ''}" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 12px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};" onmouseover="if(${canSell}) this.style.borderColor='#059669'; this.style.background='#ecfdf5';" onmouseout="if(${canSell}) this.style.borderColor='#e5e7eb'; this.style.background='white';"><div style="width: 52px; height: 52px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">📦</div><div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 15px; color: #1f2937;">${(p.name||'').replace(/</g,'&lt;')}</div><div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${(p.id||'')} • Tồn: ${stock}</div></div><div style="font-weight: 700; font-size: 16px; color: #059669; flex-shrink: 0;">${(p.price||0).toLocaleString('vi-VN')}</div>${canSell ? `<button type="button" class="pos-product-add-btn" onclick="event.stopPropagation(); app.addProductToPOS('${p.id}')" title="Thêm vào đơn">+</button>` : ''}</div>`;
                 }).join('');
@@ -2005,7 +2078,7 @@
                     const p = (this.demoData.products || []).find(x => x.id === item.productId);
                     if (!p) continue;
                     const qty = item.quantity || 1;
-                    const stock = (p.hasImei && p.imeis) ? p.imeis.length : (p.stock || 0);
+                    const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
                     if (stock < qty) {
                         stockWarnings.push(`${p.name}: cần ${qty}, còn ${stock}`);
                         continue;
@@ -2060,7 +2133,8 @@
                     status: 'Hoàn thành',
                     notes: '',
                     totalGoods: totalGoods,
-                    discount: discount
+                    discount: discount,
+                    stockDeducted: true
                 };
                 this.demoData.orders = this.demoData.orders || [];
                 this.demoData.orders.unshift(newOrder);
@@ -2076,9 +2150,8 @@
                         const toSell = Math.min(qty, prod.imeis.length);
                         const soldImeis = prod.imeis.splice(0, toSell);
                         pr.soldImeis = soldImeis;
-                    } else {
-                        prod.stock = Math.max(0, (prod.stock || 0) - qty);
                     }
+                    prod.stock = Math.max(0, (prod.stock ?? (prod.hasImei && prod.imeis ? prod.imeis.length : 0)) - qty);
                 }
                 this.posCart.items = [];
                 this.posCart.discount = 0;
@@ -2412,6 +2485,7 @@
                             <span style="padding: 3px 6px; border-radius: 6px; font-size: 11px; white-space: nowrap; display: inline-block; background: ${payStatus === 'Đã thanh toán' ? '#dcfce7' : payStatus === 'Công nợ' ? '#fef3c7' : '#f3f4f6'}; color: ${payStatus === 'Đã thanh toán' ? '#166534' : payStatus === 'Công nợ' ? '#b45309' : '#6b7280'};">
                                 ${payStatus}
                             </span>
+                            ${payStatus === 'Công nợ' && (r.status || '') === 'Đã trả' ? `<button onclick="app.markRepairPaid(${index})" style="margin-left: 4px; padding: 2px 6px; background: #16a34a; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 10px;" title="Đánh dấu đã thanh toán">✓ Đã TT</button>` : ''}
                         </td>
                         <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">
                             <span style="padding: 3px 6px; border-radius: 6px; font-size: 11px; white-space: nowrap; display: inline-block; background: ${r.status === 'Hoàn thành' ? '#dcfce7' : r.status === 'Đã trả' ? '#e0e7ff' : '#fef3c7'}; color: ${r.status === 'Hoàn thành' ? '#166534' : r.status === 'Đã trả' ? '#3730a3' : '#b45309'};">
@@ -2787,7 +2861,7 @@
                         this.showNotification('Không tìm thấy sản phẩm trong kho', 'error');
                         return;
                     }
-                    const stock = (prod.hasImei && prod.imeis) ? prod.imeis.length : (prod.stock || 0);
+                    const stock = (prod.hasImei && prod.imeis) ? (prod.stock != null ? prod.stock : prod.imeis.length) : (prod.stock || 0);
                     if (stock < neededByProduct[pid]) {
                         this.showNotification(`Tồn kho ${prod.name} không đủ (cần ${neededByProduct[pid]}, hiện ${stock})`, 'error');
                         return;
@@ -3160,7 +3234,7 @@
                     const newQty = newByProduct[pid] || 0;
                     const delta = newQty - oldQty;
                     if (delta > 0) {
-                        const stock = (prod.hasImei && prod.imeis) ? prod.imeis.length : (prod.stock || 0);
+                        const stock = (prod.hasImei && prod.imeis) ? (prod.stock != null ? prod.stock : prod.imeis.length) : (prod.stock || 0);
                         if (stock < delta) {
                             this.showNotification(`Tồn kho ${prod.name} không đủ (cần thêm ${delta}, hiện ${stock})`, 'error');
                             return;
@@ -3218,6 +3292,22 @@
                 this.showNotification('Đã cập nhật phiếu ' + r.id, 'success');
                 this.loadPage('repairs');
                 const modal = form.closest('div[style*="fixed"]'); if (modal) modal.remove();
+            }
+
+            markRepairPaid(index) {
+                const r = this.demoData.repairs[index];
+                if (!r) return;
+                const cost = Number(r.repairCost) || 0;
+                const oldDebt = (r.status === 'Đã trả' && r.paymentStatus === 'Công nợ' && r.customerId) ? Math.max(0, cost - (Number(r.amountPaid) ?? 0)) : 0;
+                r.amountPaid = cost;
+                r.paymentStatus = 'Đã thanh toán';
+                if (oldDebt > 0 && r.customerId) {
+                    const cust = this.demoData.customers.find(c => c.id === r.customerId);
+                    if (cust) cust.debt = Math.max(0, (cust.debt || 0) - oldDebt);
+                }
+                this.saveToLocalStorage();
+                this.showNotification(`Đã đánh dấu phiếu ${r.id || ''} thanh toán xong`, 'success');
+                this.loadPage('repairs');
             }
 
             deleteRepair(index) {
@@ -5459,7 +5549,7 @@
                 }
 
                 const rows = products.slice(0, 50).map(product => {
-                    const stockVal = (product.hasImei && product.imeis) ? product.imeis.length : (product.stock || 0);
+                    const stockVal = (product.hasImei && product.imeis) ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
                     const minVal = (product.hasImei && product.imeis) ? 0 : (product.minStock ?? 10);
                     const stockStatus = stockVal === 0 ? 'danger' : (minVal > 0 && stockVal < minVal) ? 'warning' : 'success';
                     const actionColor = stockStatus === 'danger' ? '#ef4444' : stockStatus === 'warning' ? '#f59e0b' : '#10b981';
@@ -6709,7 +6799,7 @@
                 const quantitySection = form.querySelector('[data-stock-mode="quantity"]');
                 const imeiSection = form.querySelector('[data-stock-mode="imei"]');
                 const stockInput = form.querySelector('input[name="stock"]');
-                const imeiField = form.querySelector('textarea[name="imeis"]') || form.querySelector('input[name="imei"]');
+                const imeiField = form.querySelector('[name="imeis"]') || form.querySelector('input[name="imei"]');
 
                 if (quantitySection) quantitySection.style.display = mode === 'quantity' ? 'grid' : 'none';
                 if (imeiSection) imeiSection.style.display = mode === 'imei' ? 'block' : 'none';
@@ -6734,7 +6824,7 @@
                 const supplierOptions = this.demoData.suppliers.map(s => 
                     `<option value="${s.id}" ${s.id === product.supplier ? 'selected' : ''}>${s.name}</option>`
                 ).join('');
-                const imeiText = (product.imeis || []).join('\n');
+                const imeiText = (product.imeis || [])[0] || '';
                 
                 const formHTML = `
                     <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
@@ -6767,8 +6857,8 @@
                                     </select>
                                 </div>
                                 <div data-stock-mode="imei" style="margin-bottom: 16px; ${product.hasImei ? '' : 'display: none;'}">
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Danh sách IMEI (mỗi dòng 1 IMEI):</label>
-                                    <textarea name="imeis" rows="3" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px;" placeholder="Nhập hoặc cập nhật danh sách IMEI...">${imeiText}</textarea>
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">IMEI</label>
+                                    <input type="text" name="imeis" value="${(imeiText || '').replace(/"/g, '&quot;')}" placeholder="Số IMEI thiết bị" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px;">
                                 </div>
                                 <div style="margin-bottom: 16px;">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600;">Giá nhập:</label>
@@ -7835,7 +7925,7 @@
                 console.log('Found product:', product);
                 
                 const isImei = product.hasImei && product.imeis && product.imeis.length > 0;
-                const effectiveStock = isImei ? product.imeis.length : product.stock;
+                const effectiveStock = isImei ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
                 const profit = product.importPrice ? product.price - product.importPrice : 0;
                 const profitPercent = product.importPrice ? ((profit / product.importPrice) * 100).toFixed(1) : 0;
                 const totalValue = product.price * effectiveStock;
@@ -9341,7 +9431,7 @@
                         const product = this.demoData.products.find(p => p.id === productIds[i]);
                         if (product) {
                             const requestedQty = parseInt(quantities[i]) || 1;
-                            const stock = (product.hasImei && product.imeis) ? product.imeis.length : (product.stock || 0);
+                            const stock = (product.hasImei && product.imeis) ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
                             if (stock < requestedQty) {
                                 outOfStockItems.push(`${product.name}: cần ${requestedQty}, chỉ còn ${stock}`);
                                 continue;
@@ -9399,7 +9489,8 @@
                     amountPaid: amountPaid,
                     status: paymentStatus === 'Đã thanh toán' ? 'Hoàn thành' : 'Đang xử lý',
                     paymentMethod: formData.get('paymentMethod'),
-                    paymentStatus: paymentStatus
+                    paymentStatus: paymentStatus,
+                    stockDeducted: true
                 };
 
                 // TRỪ TỒN KHO TỰ ĐỘNG (hỗ trợ cả IMEI và sản phẩm thường)
@@ -9412,12 +9503,11 @@
                         const toSell = Math.min(qty, prod.imeis.length);
                         const soldImeis = prod.imeis.splice(0, toSell);
                         ordProduct.soldImeis = soldImeis;
-                        ordProduct.productId = ordProduct.id;
-                    } else {
-                        prod.stock = Math.max(0, (prod.stock || 0) - qty);
                     }
+                    prod.stock = Math.max(0, (prod.stock || (prod.hasImei && prod.imeis ? prod.imeis.length : 0)) - qty);
+                    ordProduct.productId = ordProduct.id;
                     const minS = (prod.hasImei && prod.imeis) ? 0 : (prod.minStock ?? 10);
-                    const stockS = (prod.hasImei && prod.imeis) ? prod.imeis.length : (prod.stock || 0);
+                    const stockS = (prod.stock ?? (prod.hasImei && prod.imeis ? prod.imeis.length : 0));
                     if (minS > 0 && stockS <= minS) {
                         lowStockAlerts.push({ name: prod.name, current: stockS, minimum: minS });
                     }
@@ -9787,12 +9877,9 @@
                     if (!prod) continue;
                     const needQty = newByPid[pid];
                     const oldInfo = oldByPid[pid];
-                    let available = 0;
-                    if (prod.hasImei && prod.imeis) {
-                        available = prod.imeis.length + (oldInfo && oldInfo.soldImeis ? oldInfo.soldImeis.length : 0);
-                    } else {
-                        available = (prod.stock || 0) + (oldInfo ? oldInfo.qty : 0);
-                    }
+                    const available = prod.hasImei && prod.imeis
+                        ? (prod.imeis.length + (oldInfo && oldInfo.soldImeis ? oldInfo.soldImeis.length : 0))
+                        : (prod.stock || 0) + (oldInfo ? oldInfo.qty : 0);
                     if (available < needQty) {
                         this.showNotification(`${prod.name}: cần ${needQty}, khả dụng ${available} (sau khi hoàn trả từ đơn cũ)`, 'error');
                         return;
@@ -9809,7 +9896,7 @@
                         prod.stock = (prod.stock || 0) + op.quantity;
                     }
                 });
-                
+
                 for (const pr of products) {
                     const prod = productsData.find(p => p.id === (pr.id || pr.productId));
                     if (!prod) continue;
@@ -9818,10 +9905,9 @@
                         const toSell = Math.min(qty, prod.imeis.length);
                         const soldImeis = prod.imeis.splice(0, toSell);
                         pr.soldImeis = soldImeis;
-                        pr.productId = pr.id || pr.productId;
-                    } else {
-                        prod.stock = Math.max(0, (prod.stock || 0) - qty);
                     }
+                    prod.stock = Math.max(0, (prod.stock || (prod.hasImei && prod.imeis ? prod.imeis.length : 0)) - qty);
+                    pr.productId = pr.id || pr.productId;
                 }
                 
                 oldCustomer.debt -= oldOrderDebt;
@@ -9835,6 +9921,7 @@
                 order.status = newStatus;
                 order.paymentMethod = formData.get('paymentMethod');
                 order.notes = formData.get('notes') || '';
+                order.stockDeducted = true;
                 if (newOrderDebt > 0) {
                     newCustomer.debt += newOrderDebt;
                 }
@@ -12527,7 +12614,7 @@
                                     sold: 0,
                                     revenue: 0,
                                     cost: 0,
-                                    stock: product ? ((product.hasImei && product.imeis) ? product.imeis.length : product.stock || 0) : 0
+                                    stock: product ? ((product.hasImei && product.imeis) ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0)) : 0
                                 };
                             }
                             const quantity = item.quantity || 1;
