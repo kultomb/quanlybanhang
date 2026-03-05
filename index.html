@@ -1134,7 +1134,6 @@
                                 ${supplier.notes ? `<div class="activity-desc">📝 ${escapeHtml(supplier.notes)}</div>` : ''}
                             </div>
                             <div style="display: flex; gap: 8px; align-items: center;">
-                                <div class="activity-time">${supplier.products}</div>
                                 <button onclick="app.editSupplier(${index})" style="background: var(--primary-blue); color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Sửa</button>
                                 <button onclick="app.deleteSupplier(${index})" style="background: #ef4444; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Xóa</button>
                             </div>
@@ -1652,10 +1651,11 @@
                         <div class="inventory-low-stock-alert">
                             <div class="inventory-low-stock-header">
                                 <span class="inventory-low-stock-icon">⚠️</span>
-                                <div>
+                                <div style="flex: 1;">
                                     <h3 class="inventory-low-stock-title">Cảnh báo: ${lowStockProducts.length} sản phẩm sắp hết hàng!</h3>
                                     <p class="inventory-low-stock-desc">Các sản phẩm dưới đây đã dưới ngưỡng tồn kho tối thiểu</p>
                                 </div>
+                                <button type="button" class="inventory-low-stock-btn" onclick="app.showLowStockCopyModal()">📥 Nhập ngay</button>
                             </div>
                             <div class="inventory-low-stock-grid">
                                 ${lowStockProducts.map(p => {
@@ -8778,6 +8778,34 @@
                             <div style="display: flex; gap: 10px; margin-top: 14px;">
                                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('out-of-stock-copy-text').value); app.showNotification('Đã copy vào clipboard!', 'success');" style="flex: 1; padding: 12px; background: #059669; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">📋 Copy</button>
                                 <button type="button" onclick="document.getElementById('out-of-stock-copy-modal').remove()" style="padding: 12px 20px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Đóng</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+            }
+            
+            showLowStockCopyModal() {
+                const getStock = (p) => (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
+                const getMinStock = (p) => (p.hasImei && p.imeis) ? 0 : (p.minStock ?? 10);
+                const lowStockProducts = this.demoData.products.filter(p => {
+                    const min = getMinStock(p);
+                    return min > 0 && getStock(p) <= min;
+                });
+                if (lowStockProducts.length === 0) {
+                    this.showNotification('Không có sản phẩm nào sắp hết hàng.', 'info');
+                    return;
+                }
+                const copyText = lowStockProducts.map(p => `${(p.name || '').toUpperCase()} : 1`).join('\n');
+                const modalHTML = `
+                    <div id="low-stock-copy-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this) document.getElementById('low-stock-copy-modal').remove()">
+                        <div style="background: white; padding: 24px; border-radius: 12px; width: 560px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column;" onclick="event.stopPropagation()">
+                            <h3 style="margin: 0 0 12px 0; color: #92400e; font-size: 16px;">📋 Danh sách nhập hàng - Sắp hết (copy gửi nhà phân phối)</h3>
+                            <p style="margin: 0 0 12px 0; font-size: 12px; color: #6b7280;">Định dạng: TÊN SẢN PHẨM : 1 — Bạn có thể sửa số lượng trước khi gửi.</p>
+                            <textarea id="low-stock-copy-text" style="width: 100%; min-height: 220px; padding: 14px; border: 2px solid #e5e7eb; border-radius: 8px; font-family: monospace; font-size: 13px; resize: vertical;">${escapeHtml(copyText)}</textarea>
+                            <div style="display: flex; gap: 10px; margin-top: 14px;">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('low-stock-copy-text').value); app.showNotification('Đã copy vào clipboard!', 'success');" style="flex: 1; padding: 12px; background: #059669; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">📋 Copy</button>
+                                <button type="button" onclick="document.getElementById('low-stock-copy-modal').remove()" style="padding: 12px 20px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Đóng</button>
                             </div>
                         </div>
                     </div>
