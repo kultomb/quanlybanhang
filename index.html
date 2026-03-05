@@ -233,6 +233,8 @@
                 this.posCart = { items: [], customerId: 'KH_LE', customerName: 'Khách lẻ', discount: 0 };
                 this.productsSearchQuery = '';
                 this.productsCategoryFilter = '';
+                this.productsPage = 1;
+                this.productsPerPage = 50;
                 this.demoData = this.generateDemoData(); // Tạm dùng demo cho đến khi load xong
                 this._ready = false;
                 this._saveDebounceTimer = null;
@@ -1168,6 +1170,8 @@
                 if (!this.selectedProductIds) this.selectedProductIds = new Set();
                 if (this.productsSearchQuery === undefined) this.productsSearchQuery = '';
                 if (this.productsCategoryFilter === undefined) this.productsCategoryFilter = '';
+                if (this.productsPage === undefined) this.productsPage = 1;
+                if (this.productsPerPage === undefined) this.productsPerPage = 50;
                 if (!Array.isArray(this.demoData.products)) this.demoData.products = [];
                 const q = (this.productsSearchQuery || '').trim().toLowerCase();
                 const catFilter = (this.productsCategoryFilter || '').trim();
@@ -1180,9 +1184,16 @@
                 }
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
                 filtered = [...filtered].reverse();
-                const selectAllChecked = filtered.length > 0 && filtered.every(p => this.selectedProductIds.has(p.id));
+                const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
+                const totalFiltered = filtered.length;
+                const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
+                let page = Math.max(1, Math.min(this.productsPage || 1, totalPages));
+                this.productsPage = page;
+                const startIdx = (page - 1) * perPage;
+                const paginated = filtered.slice(startIdx, startIdx + perPage);
+                const selectAllChecked = paginated.length > 0 && paginated.every(p => this.selectedProductIds.has(p.id));
                 const totalStock = filtered.reduce((sum, p) => sum + ((p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0)), 0);
-                const rows = this.getProductTableRowsHtml(filtered);
+                const rows = this.getProductTableRowsHtml(paginated);
 
                 const selectedCount = this.selectedProductIds.size;
                 const selectionBar = `
@@ -1270,7 +1281,26 @@
                                         ${rows || '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Không có sản phẩm nào.</td></tr>'}
                                     </tbody>
                                 </table>
-                                <div id="products-table-footer" style="padding: 10px 16px; background: #f8fafc; border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280;">${filtered.length > 0 ? `Tổng tồn kho (${filtered.length} SP): <strong>${totalStock.toLocaleString('vi-VN')}</strong>` : ''}</div>
+                                <div id="products-table-footer" class="products-table-footer">
+                                    <div class="products-pagination">
+                                        <span class="products-pagination-label">Hiển thị</span>
+                                        <select id="products-per-page" onchange="app.setProductsPerPage(parseInt(this.value,10))" class="products-per-page-select">
+                                            <option value="10" ${perPage === 10 ? 'selected' : ''}>10 dòng</option>
+                                            <option value="20" ${perPage === 20 ? 'selected' : ''}>20 dòng</option>
+                                            <option value="50" ${perPage === 50 ? 'selected' : ''}>50 dòng</option>
+                                            <option value="100" ${perPage === 100 ? 'selected' : ''}>100 dòng</option>
+                                        </select>
+                                        <div class="products-pagination-nav">
+                                            <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(1)" ${page <= 1 ? 'disabled' : ''} title="Trang đầu">≪</button>
+                                            <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${page-1})" ${page <= 1 ? 'disabled' : ''} title="Trang trước">‹</button>
+                                            <span class="products-pagination-current">${page}</span>
+                                            <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${page+1})" ${page >= totalPages ? 'disabled' : ''} title="Trang sau">›</button>
+                                            <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${totalPages})" ${page >= totalPages ? 'disabled' : ''} title="Trang cuối">≫</button>
+                                        </div>
+                                        <span class="products-pagination-info">${totalFiltered > 0 ? `${startIdx + 1} - ${Math.min(startIdx + perPage, totalFiltered)} trong ${totalFiltered} hàng hóa` : '0 hàng hóa'}</span>
+                                    </div>
+                                    ${filtered.length > 0 ? `<span class="products-table-total">Tổng tồn kho (${filtered.length} SP): <strong>${totalStock.toLocaleString('vi-VN')}</strong></span>` : ''}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1326,6 +1356,7 @@
             }
             setProductsSearch(q) {
                 this.productsSearchQuery = (q || '').trim();
+                this.productsPage = 1;
                 if (this._productsSearchTimeout) clearTimeout(this._productsSearchTimeout);
                 this._productsSearchTimeout = setTimeout(() => {
                     this._productsSearchTimeout = null;
@@ -1334,7 +1365,23 @@
             }
             setProductsCategoryFilter(val) {
                 this.productsCategoryFilter = (val || '').trim();
+                this.productsPage = 1;
                 this.refreshProductsTableBody();
+            }
+            setProductsPage(page) {
+                const p = Math.max(1, parseInt(page, 10) || 1);
+                if (this.productsPage !== p) {
+                    this.productsPage = p;
+                    this.refreshProductsTableBody();
+                }
+            }
+            setProductsPerPage(n) {
+                const v = Math.max(10, Math.min(200, parseInt(n, 10) || 50));
+                if (this.productsPerPage !== v) {
+                    this.productsPerPage = v;
+                    this.productsPage = 1;
+                    this.refreshProductsTableBody();
+                }
             }
             refreshProductsTableBody() {
                 const input = document.getElementById('products-search-input');
@@ -1352,20 +1399,51 @@
                 }
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
                 filtered = [...filtered].reverse();
+                const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
+                const totalFiltered = filtered.length;
+                const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
+                let page = Math.max(1, Math.min(this.productsPage || 1, totalPages));
+                this.productsPage = page;
+                const startIdx = (page - 1) * perPage;
+                const paginated = filtered.slice(startIdx, startIdx + perPage);
                 const totalStock = filtered.reduce((sum, p) => sum + ((p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0)), 0);
                 const tbody = document.getElementById('products-table-tbody');
                 const footer = document.getElementById('products-table-footer');
-                if (tbody) tbody.innerHTML = this.getProductTableRowsHtml(filtered);
-                if (footer) footer.innerHTML = filtered.length > 0 ? `Tổng tồn kho (${filtered.length} SP): <strong>${totalStock.toLocaleString('vi-VN')}</strong>` : '';
+                if (tbody) tbody.innerHTML = this.getProductTableRowsHtml(paginated);
+                if (footer) {
+                    footer.innerHTML = `<div class="products-pagination">
+                        <span class="products-pagination-label">Hiển thị</span>
+                        <select id="products-per-page" onchange="app.setProductsPerPage(parseInt(this.value,10))" class="products-per-page-select">
+                            <option value="10" ${perPage === 10 ? 'selected' : ''}>10 dòng</option>
+                            <option value="20" ${perPage === 20 ? 'selected' : ''}>20 dòng</option>
+                            <option value="50" ${perPage === 50 ? 'selected' : ''}>50 dòng</option>
+                            <option value="100" ${perPage === 100 ? 'selected' : ''}>100 dòng</option>
+                        </select>
+                        <div class="products-pagination-nav">
+                            <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(1)" ${page <= 1 ? 'disabled' : ''} title="Trang đầu">≪</button>
+                            <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${page-1})" ${page <= 1 ? 'disabled' : ''} title="Trang trước">‹</button>
+                            <span class="products-pagination-current">${page}</span>
+                            <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${page+1})" ${page >= totalPages ? 'disabled' : ''} title="Trang sau">›</button>
+                            <button type="button" class="products-pagination-btn" onclick="app.setProductsPage(${totalPages})" ${page >= totalPages ? 'disabled' : ''} title="Trang cuối">≫</button>
+                        </div>
+                        <span class="products-pagination-info">${totalFiltered > 0 ? `${startIdx + 1} - ${Math.min(startIdx + perPage, totalFiltered)} trong ${totalFiltered} hàng hóa` : '0 hàng hóa'}</span>
+                    </div>
+                    ${filtered.length > 0 ? `<span class="products-table-total">Tổng tồn kho (${filtered.length} SP): <strong>${totalStock.toLocaleString('vi-VN')}</strong></span>` : ''}`;
+                }
                 this.updateProductsSelectionUI();
             }
             toggleProductsSelectAll(checked) {
                 const q = (this.productsSearchQuery || '').trim().toLowerCase();
                 const catFilter = (this.productsCategoryFilter || '').trim();
-                let list = this.demoData.products;
-                if (q) list = list.filter(p => (p.name && p.name.toLowerCase().includes(q)) || (p.category && p.category.toLowerCase().includes(q)));
-                if (catFilter) list = list.filter(p => this.productMatchesCategoryFilter(p, catFilter));
-                list.forEach(p => {
+                let filtered = this.demoData.products;
+                if (q) filtered = filtered.filter(p => (p.name && p.name.toLowerCase().includes(q)) || (p.category && p.category.toLowerCase().includes(q)));
+                if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
+                filtered = [...filtered].reverse();
+                const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
+                const page = Math.max(1, this.productsPage || 1);
+                const startIdx = (page - 1) * perPage;
+                const paginated = filtered.slice(startIdx, startIdx + perPage);
+                paginated.forEach(p => {
                     if (checked) this.selectedProductIds.add(p.id); else this.selectedProductIds.delete(p.id);
                 });
                 this.updateProductsSelectionUI();
@@ -1387,8 +1465,13 @@
                 let filtered = this.demoData.products;
                 if (q) filtered = filtered.filter(p => (p.name && p.name.toLowerCase().includes(q)) || (p.category && p.category.toLowerCase().includes(q)));
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
+                filtered = [...filtered].reverse();
+                const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
+                const page = Math.max(1, this.productsPage || 1);
+                const startIdx = (page - 1) * perPage;
+                const paginated = filtered.slice(startIdx, startIdx + perPage);
                 const selectAll = document.getElementById('products-select-all');
-                if (selectAll) selectAll.checked = filtered.length > 0 && filtered.every(p => this.selectedProductIds.has(p.id));
+                if (selectAll) selectAll.checked = paginated.length > 0 && paginated.every(p => this.selectedProductIds.has(p.id));
                 document.querySelectorAll('input[data-product-id]').forEach(cb => {
                     const id = cb.getAttribute('data-product-id');
                     cb.checked = this.selectedProductIds.has(id);
@@ -1566,23 +1649,46 @@
                     <div class="fade-in">
                         <!-- Cảnh báo hàng sắp hết -->
                         ${lowStockProducts.length > 0 ? `
-                        <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                                <span style="font-size: 24px;">⚠️</span>
+                        <div class="inventory-low-stock-alert">
+                            <div class="inventory-low-stock-header">
+                                <span class="inventory-low-stock-icon">⚠️</span>
                                 <div>
-                                    <h3 style="margin: 0; color: #92400e; font-size: 18px;">Cảnh báo: ${lowStockProducts.length} sản phẩm sắp hết hàng!</h3>
-                                    <p style="margin: 4px 0 0 0; color: #a16207; font-size: 14px;">Các sản phẩm dưới đây đã dưới ngưỡng tồn kho tối thiểu</p>
+                                    <h3 class="inventory-low-stock-title">Cảnh báo: ${lowStockProducts.length} sản phẩm sắp hết hàng!</h3>
+                                    <p class="inventory-low-stock-desc">Các sản phẩm dưới đây đã dưới ngưỡng tồn kho tối thiểu</p>
                                 </div>
                             </div>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">
+                            <div class="inventory-low-stock-grid">
                                 ${lowStockProducts.map(p => {
                                     const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
                                     const min = (p.hasImei && p.imeis) ? 0 : (p.minStock ?? 10);
                                     return `
-                                    <div style="background: white; padding: 12px; border-radius: 8px; border: 1px solid #f59e0b;">
-                                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${escapeHtml(p.name)}</div>
-                                        <div style="color: #ef4444; font-size: 14px;">Tồn: ${stock} / Tối thiểu: ${min}</div>
-                                        <div style="color: #6b7280; font-size: 12px;">Cần nhập: ${Math.max(0, min - stock + 10)} sản phẩm</div>
+                                    <div class="inventory-low-stock-card">
+                                        <div class="inventory-low-stock-name">${escapeHtml(p.name)}</div>
+                                        <div class="inventory-low-stock-info">Tồn: ${stock} / Tối thiểu: ${min}</div>
+                                        <div class="inventory-low-stock-need">Cần nhập thêm</div>
+                                    </div>
+                                `}).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        
+                        <!-- Cảnh báo sản phẩm hết hàng -->
+                        ${outOfStockProducts.length > 0 ? `
+                        <div class="inventory-out-of-stock-alert">
+                            <div class="inventory-out-of-stock-header">
+                                <span class="inventory-out-of-stock-icon">🚫</span>
+                                <div style="flex: 1;">
+                                    <h3 class="inventory-out-of-stock-title">Cảnh báo: ${outOfStockProducts.length} sản phẩm hết hàng!</h3>
+                                    <p class="inventory-out-of-stock-desc">Các sản phẩm dưới đây không còn tồn kho, cần nhập ngay để bán được</p>
+                                </div>
+                                <button type="button" class="inventory-out-of-stock-btn" onclick="app.showOutOfStockCopyModal()">📥 Nhập ngay</button>
+                            </div>
+                            <div class="inventory-out-of-stock-grid">
+                                ${outOfStockProducts.map(p => {
+                                    return `
+                                    <div class="inventory-out-of-stock-card">
+                                        <div class="inventory-out-of-stock-name">${escapeHtml(p.name)}</div>
+                                        <div class="inventory-out-of-stock-info">Tồn: 0 | Cần nhập thêm</div>
                                     </div>
                                 `}).join('')}
                             </div>
@@ -2259,55 +2365,17 @@
                             
                             <h3 style="margin-bottom: 16px; color: var(--text-primary);">Khách hàng có công nợ:</h3>
                             ${customersWithDebt.map(customer => `
-                                <div class="activity-item">
+                                <div class="activity-item debt-customer-row">
                                     <div class="activity-icon warning">💳</div>
                                     <div class="activity-content">
                                         <div class="activity-title">${escapeHtml(customer.name)} (${escapeHtml(customer.id)})</div>
                                         <div class="activity-desc">📞 ${escapeHtml(customer.phone)} | 📍 ${escapeHtml(customer.address)}</div>
                                     </div>
-                                    <div style="display: flex; gap: 8px; align-items: center;">
-                                        <div class="activity-time" style="color: #dc2626; font-weight: bold;">
-                                            ${customer.debt.toLocaleString('vi-VN')} VNĐ
-                                        </div>
-                                        <button ondblclick="app.toggleCustomerDebtStatus('${customer.id}')" style="
-                                            background: #f59e0b; 
-                                            color: white; 
-                                            border: none; 
-                                            padding: 6px 12px; 
-                                            border-radius: 6px; 
-                                            cursor: pointer; 
-                                            font-size: 12px; 
-                                            font-weight: 600;
-                                            margin-right: 4px;
-                                            transition: all 0.3s ease;
-                                        " title="Double click để chuyển trạng thái">
-                                            Công nợ
-                                        </button>
-                                        <button onclick="app.showPaymentFormForCustomer('${customer.id}')" style="
-                                            background: var(--primary-blue); 
-                                            color: white; 
-                                            border: none; 
-                                            padding: 6px 12px; 
-                                            border-radius: 6px; 
-                                            cursor: pointer; 
-                                            font-size: 12px; 
-                                            font-weight: 600;
-                                            margin-right: 4px;
-                                        ">
-                                            Ghi nhận thanh toán
-                                        </button>
-                                        <button onclick="app.showCustomerDebtDetail('${customer.id}')" style="
-                                            background: #059669; 
-                                            color: white; 
-                                            border: none; 
-                                            padding: 6px 12px; 
-                                            border-radius: 6px; 
-                                            cursor: pointer; 
-                                            font-size: 12px; 
-                                            font-weight: 600;
-                                        ">
-                                            Chi tiết
-                                        </button>
+                                    <div class="debt-customer-actions">
+                                        <span class="debt-amount">${customer.debt.toLocaleString('vi-VN')} VNĐ</span>
+                                        <button ondblclick="app.toggleCustomerDebtStatus('${customer.id}')" class="debt-status-btn" title="Double click để chuyển trạng thái">Công nợ</button>
+                                        <button onclick="app.showPaymentFormForCustomer('${customer.id}')" class="debt-pay-btn">Ghi nhận thanh toán</button>
+                                        <button onclick="app.showCustomerDebtDetail('${customer.id}')" class="debt-detail-btn">Chi tiết</button>
                                     </div>
                                 </div>
                             `).join('')}
@@ -3606,6 +3674,39 @@
                                 <div class="stat-value">${totalProfit.toLocaleString('vi-VN')} VNĐ</div>
                                 <div class="stat-change positive">Biên lợi nhuận ${profitMargin}%</div>
                                 <div id="profit-debt-notice" class="stat-change" style="${profitFromDebt > 0 ? 'color: #f59e0b; margin-top: 6px; font-weight: 600;' : 'display: none;'}">${profitFromDebt > 0 ? '⚠️ Chú ý: Bao gồm ' + profitFromDebt.toLocaleString('vi-VN') + ' từ đơn công nợ' : ''}</div>
+                            </div>
+                        </div>
+                        
+                        <div id="reports-orders-section" style="background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); ${filteredOrders.length === 0 ? 'display: none;' : ''}">
+                            <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                <span>📋</span> Đơn hàng trong khoảng chọn (${filteredOrders.length})
+                            </h3>
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f8fafc;">
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Mã đơn</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Khách hàng</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Sản phẩm</th>
+                                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Tổng tiền</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Thanh toán</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Trạng thái</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${filteredOrders.map(o => {
+                                            const productsStr = (o.products || []).map(p => (p.name || p.productName || '-') + ' x' + (p.quantity || 1)).join(', ');
+                                            return `<tr style="border-bottom: 1px solid #e5e7eb;">
+                                                <td style="padding: 12px;">${(o.id || '').replace(/</g, '&lt;')}</td>
+                                                <td style="padding: 12px;">${(o.customerName || '-').replace(/</g, '&lt;')}</td>
+                                                <td style="padding: 12px; max-width: 360px; font-size: 13px;" title="${(productsStr || '-').replace(/"/g, '&quot;')}">${(productsStr || '-').replace(/</g, '&lt;').substring(0, 80)}${(productsStr || '').length > 80 ? '…' : ''}</td>
+                                                <td style="padding: 12px; text-align: right; font-weight: 600;">${(o.total || 0).toLocaleString('vi-VN')} đ</td>
+                                                <td style="padding: 12px;"><span style="padding: 3px 8px; border-radius: 6px; font-size: 11px; background: ${o.paymentStatus === 'Đã thanh toán' ? '#dcfce7' : '#fef3c7'}; color: ${o.paymentStatus === 'Đã thanh toán' ? '#166534' : '#b45309'};">${(o.paymentStatus || '-').replace(/</g, '&lt;')}</span></td>
+                                                <td style="padding: 12px;">${(o.status || '-').replace(/</g, '&lt;')}</td>
+                                            </tr>`;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                         
@@ -8658,6 +8759,30 @@
                     this.loadPage('products');
                 }
                 const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
+            }
+            
+            showOutOfStockCopyModal() {
+                const getStock = (p) => (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
+                const outOfStockProducts = this.demoData.products.filter(p => getStock(p) === 0);
+                if (outOfStockProducts.length === 0) {
+                    this.showNotification('Không có sản phẩm nào hết hàng.', 'info');
+                    return;
+                }
+                const copyText = outOfStockProducts.map(p => `${(p.name || '').toUpperCase()} : 1`).join('\n');
+                const modalHTML = `
+                    <div id="out-of-stock-copy-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this) document.getElementById('out-of-stock-copy-modal').remove()">
+                        <div style="background: white; padding: 24px; border-radius: 12px; width: 560px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column;" onclick="event.stopPropagation()">
+                            <h3 style="margin: 0 0 12px 0; color: #b91c1c; font-size: 16px;">📋 Danh sách nhập hàng (copy gửi nhà phân phối)</h3>
+                            <p style="margin: 0 0 12px 0; font-size: 12px; color: #6b7280;">Định dạng: TÊN SẢN PHẨM : 1 — Bạn có thể sửa số lượng trước khi gửi.</p>
+                            <textarea id="out-of-stock-copy-text" style="width: 100%; min-height: 220px; padding: 14px; border: 2px solid #e5e7eb; border-radius: 8px; font-family: monospace; font-size: 13px; resize: vertical;">${escapeHtml(copyText)}</textarea>
+                            <div style="display: flex; gap: 10px; margin-top: 14px;">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('out-of-stock-copy-text').value); app.showNotification('Đã copy vào clipboard!', 'success');" style="flex: 1; padding: 12px; background: #059669; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">📋 Copy</button>
+                                <button type="button" onclick="document.getElementById('out-of-stock-copy-modal').remove()" style="padding: 12px 20px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Đóng</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
             }
             
             showStockUpdateForm() {
