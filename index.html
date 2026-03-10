@@ -2268,6 +2268,50 @@
                     this.showNotification('Chưa có sản phẩm trong đơn', 'error');
                     return;
                 }
+                // Đồng bộ toàn bộ từ ô nhập vào posCart trước khi tính (đơn giá, SL, giảm từng món, giảm đơn) - tránh tính sai công nợ
+                const cartEl = document.getElementById('pos-cart-items');
+                if (cartEl) {
+                    const rows = cartEl.querySelectorAll('.pos-cart-row');
+                    rows.forEach((row, idx) => {
+                        const item = this.posCart.items[idx];
+                        if (!item) return;
+                        const priceInp = row.querySelector('input[data-pos-price-idx]');
+                        const discountInp = row.querySelector('input[data-pos-discount-idx]');
+                        const qtyInp = row.querySelector('input[type="number"]');
+                        const typeSelect = row.querySelector('select');
+                        if (priceInp) {
+                            const p = this.parsePrice(priceInp.value);
+                            if (p >= 0) item.price = p;
+                        }
+                        if (qtyInp) {
+                            const q = Math.max(1, parseInt(qtyInp.value, 10) || 1);
+                            item.quantity = q;
+                        }
+                        if (discountInp && typeSelect) {
+                            const dt = typeSelect.value === 'percent' ? 'percent' : 'vnd';
+                            const val = discountInp.value;
+                            if (dt === 'percent') {
+                                const pct = Math.min(100, Math.max(0, parseInt(val, 10) || 0));
+                                const rawTotal = (item.quantity || 1) * (item.price || 0);
+                                item.discount = rawTotal > 0 ? Math.round(rawTotal * pct / 100) : 0;
+                            } else {
+                                item.discount = Math.max(0, this.parsePrice(val) || 0);
+                            }
+                            item.discountType = dt;
+                        }
+                    });
+                }
+                const discountInp = document.getElementById('pos-discount-input');
+                if (discountInp) {
+                    const dt = this.posCart.discountType || 'vnd';
+                    const s = this.getPOSSummary();
+                    if (dt === 'percent') {
+                        const pct = Math.min(100, Math.max(0, parseInt(discountInp.value, 10) || 0));
+                        this.posCart.discount = s.totalGoods > 0 ? Math.round(s.totalGoods * pct / 100) : 0;
+                    } else {
+                        this.posCart.discount = Math.max(0, this.parsePrice(discountInp.value) || 0);
+                    }
+                }
                 const customerId = this.posCart.customerId || 'KH_LE';
                 let customer = (this.demoData.customers || []).find(c => c.id === customerId);
                 if (!customer || customerId === 'KH_LE') {
@@ -2284,7 +2328,7 @@
                         stockWarnings.push(`${p.name}: cần ${qty}, còn ${stock}`);
                         continue;
                     }
-                    const price = item.price || p.price || 0;
+                    const price = (item.price === 0 || item.price === '0') ? 0 : (item.price || p.price || 0);
                     const itemDisc = Math.max(0, parseInt(item.discount, 10) || 0);
                     const rawSub = qty * price;
                     const subtotal = Math.max(0, rawSub - Math.min(itemDisc, rawSub));
@@ -2310,7 +2354,10 @@
                 const totalGoods = products.reduce((s, x) => s + x.subtotal, 0);
                 const discount = Math.max(0, parseInt(this.posCart.discount, 10) || 0);
                 const total = Math.max(0, totalGoods - discount);
-                const amountPaid = Math.min(total, Math.max(0, this.parsePrice(document.getElementById('pos-amount-paid')?.value) || total));
+                let amountPaid = Math.max(0, this.parsePrice(document.getElementById('pos-amount-paid')?.value) || 0);
+                if (this.posCart._saveAsDebt) amountPaid = 0;
+                else if (amountPaid === 0) amountPaid = total;
+                amountPaid = Math.min(total, amountPaid);
                 const orderDebt = Math.max(0, total - amountPaid);
                 const isPaidFull = orderDebt === 0;
                 const orders = this.demoData.orders || [];
@@ -8381,37 +8428,47 @@
                     const oldDebt = this.getActualDebtForCustomer(customer);
                     const todayStr = this.getVietnamTime().toISOString().split('T')[0];
                     (this.demoData.debtPayments || []).push({ customerId, customerName: customer.name, amount, date: todayStr });
-                    customer.debt = Math.max(0, oldDebt - amount);
-                    console.log(`🟢 AFTER: ${customer.name} nợ ${customer.debt.toLocaleString('vi-VN')} VNĐ`);
                     
+                    let remaining = amount;
+                    const matchC = (o) => (o.customerId === customerId || o.customerName === customer.name);
+                    const unpaidOrders = (this.demoData.orders || []).filter(o => matchC(o) && Math.max(0, (o.total || 0) - (o.amountPaid != null ? o.amountPaid : (o.paymentStatus === 'Đã thanh toán' ? o.total : 0))) > 0);
+                    const unpaidRepairs = (this.demoData.repairs || []).filter(r => {
+                        if ((r.status || '') !== 'Đã trả') return false;
+                        const cost = Number(r.repairCost) || 0;
+                        const paid = Number(r.amountPaid) || 0;
+                        if (cost <= 0 || paid >= cost) return false;
+                        return matchC(r);
+                    });
+                    unpaidOrders.forEach(order => {
+                        const owed = Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : 0));
+                        if (owed <= 0 || remaining <= 0) return;
+                        const pay = Math.min(remaining, owed);
+                        order.amountPaid = (order.amountPaid != null ? order.amountPaid : 0) + pay;
+                        if (order.amountPaid >= (order.total || 0)) order.paymentStatus = 'Đã thanh toán';
+                        remaining -= pay;
+                    });
+                    unpaidRepairs.forEach(r => {
+                        const cost = Number(r.repairCost) || 0;
+                        const paid = Number(r.amountPaid) || 0;
+                        const owed = Math.max(0, cost - paid);
+                        if (owed <= 0 || remaining <= 0) return;
+                        const pay = Math.min(remaining, owed);
+                        r.amountPaid = paid + pay;
+                        if (r.amountPaid >= cost) r.paymentStatus = 'Đã thanh toán';
+                        remaining -= pay;
+                    });
+                    
+                    this.syncCustomerDebt();
+                    customer.debt = this.getActualDebtForCustomer(customer);
                     this.saveToLocalStorage();
-                    const savedCustomer = this.demoData.customers.find(c => c.id === customerId);
-                    if (savedCustomer) console.log(`✅ Đã cập nhật: ${savedCustomer.name} nợ ${savedCustomer.debt.toLocaleString('vi-VN')} VNĐ`);
                     
                     let syncMessage = '';
-                    if (customer.debt === 0) {
-                        const unpaidOrders = this.demoData.orders.filter(order => 
-                            (order.customerId === customerId || order.customerName === customer.name) && 
-                            (order.paymentStatus === 'Công nợ')
-                        );
-                        unpaidOrders.forEach(order => { order.paymentStatus = 'Đã thanh toán'; });
-                        const unpaidRepairs = (this.demoData.repairs || []).filter(r => {
-                            if ((r.status || '') !== 'Đã trả') return false;
-                            const cost = Number(r.repairCost) || 0;
-                            const paid = Number(r.amountPaid) || 0;
-                            if (cost <= 0 || paid >= cost) return false;
-                            return r.customerId === customerId || r.customerName === customer.name;
-                        });
-                        unpaidRepairs.forEach(r => { r.amountPaid = Number(r.repairCost) || 0; r.paymentStatus = 'Đã thanh toán'; });
+                    if (customer.debt === 0 && amount >= oldDebt) {
                         const parts = [];
                         if (unpaidOrders.length > 0) parts.push(`${unpaidOrders.length} đơn hàng`);
                         if (unpaidRepairs.length > 0) parts.push(`${unpaidRepairs.length} phiếu sửa chữa`);
                         if (parts.length > 0) syncMessage = ` và cập nhật ${parts.join(', ')} thành "Đã thanh toán"`;
                     }
-                    
-                    // FORCE reload toàn bộ ứng dụng để đảm bảo đồng bộ
-                    console.log('🔄 FORCE RELOADING APP DATA...');
-                    this.initializeData();
                     
                     this.showNotification(`✅ Đã ghi nhận thanh toán ${amount.toLocaleString('vi-VN')} VNĐ từ ${customer.name}. Nợ còn lại: ${customer.debt.toLocaleString('vi-VN')} VNĐ${syncMessage}`, 'success');
                     
