@@ -813,6 +813,11 @@
                     if (dd && !e.target.closest('#pos-customer-dropdown') && !e.target.closest('#pos-customer-search')) {
                         dd.style.display = 'none';
                     }
+                    const headerDd = document.getElementById('pos-header-customer-dropdown');
+                    const headerTrigger = document.querySelector('.pos-header-customer-trigger');
+                    if (headerDd && !e.target.closest('#pos-header-customer-dropdown') && !e.target.closest('.pos-header-customer-trigger')) {
+                        headerDd.style.display = 'none';
+                    }
                 });
                 // Đóng dropdown tìm sản phẩm (sửa chữa, đơn hàng...) khi click ra ngoài - dùng mousedown vì click có thể bị stopPropagation trong modal
                 document.addEventListener('mousedown', (e) => {
@@ -823,8 +828,19 @@
                 document.addEventListener('keydown', (e) => {
                     if (this.currentPage !== 'sales') return;
                     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-                    if (e.key === 'F3') { e.preventDefault(); const el = document.getElementById('pos-product-search'); if (el) el.focus(); }
-                    if (e.key === 'F4') { e.preventDefault(); const el = document.getElementById('pos-customer-search'); if (el) el.focus(); }
+                    if (e.key === 'F3') { e.preventDefault(); const mobile = document.getElementById('pos-product-search-mobile'); const el = (window.innerWidth <= 768 && mobile && window.getComputedStyle(mobile).display !== 'none') ? mobile : document.getElementById('pos-product-search'); if (el) el.focus(); }
+                    if (e.key === 'F4') {
+                        e.preventDefault();
+                        if (window.innerWidth <= 768) {
+                            const dd = document.getElementById('pos-header-customer-dropdown');
+                            if (dd && dd.style.display !== 'block') {
+                                app.togglePOSHeaderCustomer();
+                                setTimeout(() => dd.querySelector('.pos-header-customer-search')?.focus(), 50);
+                            }
+                        } else {
+                            const el = document.getElementById('pos-customer-search'); if (el) el.focus();
+                        }
+                    }
                 });
             }
             
@@ -1889,7 +1905,7 @@
                 const now = this.getVietnamTime();
                 const dateStr = now.toLocaleDateString('vi-VN');
                 const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-                const productPlaceholder = '<div style="padding: 48px 24px; text-align: center; color: #9ca3af; font-size: 15px;"><div style="font-size: 48px; margin-bottom: 16px;">🔍</div><div style="font-weight: 500; color: #6b7280;">Gõ tên, mã hoặc danh mục sản phẩm để tìm kiếm</div><div style="font-size: 13px; margin-top: 12px;">Sản phẩm sẽ hiển thị khi bạn nhập từ khóa</div></div>';
+                const productPlaceholder = '<div class="pos-product-placeholder"><span class="pos-product-placeholder-icon">🔍</span><div class="pos-product-placeholder-texts"><div>Gõ tên, mã hoặc danh mục sản phẩm để tìm kiếm</div><div>Sản phẩm sẽ hiển thị khi bạn nhập từ khóa</div></div></div>';
                 const cartHtml = this.renderPOSCart();
                 const summary = this.getPOSSummary();
                 const realCustomers = (this.demoData.customers || []).filter(c => c.id !== 'KH_LE' && !(c.id && c.id.startsWith('KL_')));
@@ -1899,37 +1915,50 @@
                 
                 return `
                     <div class="fade-in pos-kiotviet" style="margin: 0; padding: 0; max-width: none;">
-                        <div style="background: var(--header-gradient); color: white; padding: 16px 24px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-                            <input type="text" id="pos-product-search" placeholder="Q Tìm hàng hóa (F3)" 
-                                   oninput="app.searchPOSProducts(this.value)"
+                        <div class="pos-header" style="background: var(--header-gradient); color: white; padding: 16px 24px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                            <input type="text" id="pos-product-search" class="pos-header-search" placeholder="Q Tìm hàng hóa (F3)" 
+                                   oninput="app.syncPosSearch(this.value)"
                                    style="flex: 1; min-width: 240px; padding: 12px 20px; border: none; border-radius: 8px; font-size: 15px;"
                                    value="">
-                            <span style="font-size: 14px;">${dateStr} ${timeStr}</span>
-                            <a href="#orders" style="color: white; text-decoration: none; font-weight: 600;">📋 Đơn hàng</a>
-                            <a href="#reports" style="color: white; text-decoration: none;">📊 Báo cáo</a>
-                        </div>
-                        <div class="pos-grid" style="display: grid; grid-template-columns: 500px minmax(300px, 1fr) 360px; height: calc(100vh - 180px); min-height: 0; gap: 0;">
-                            <div class="pos-products-col" style="border-right: 1px solid #e5e7eb; padding: 24px; overflow: hidden; min-height: 0; background: #fafafa; display: flex; flex-direction: column;">
-                                <div style="font-weight: 700; margin-bottom: 16px; font-size: 16px; color: #1f2937; flex-shrink: 0;">📦 Hàng hóa</div>
-                                <div id="pos-product-list" style="flex: 1; min-height: 0; overflow-y: auto;">${productPlaceholder}</div>
-                                <div style="margin-top: 12px; flex-shrink: 0;">
-                                    <a href="#products" style="font-size: 14px; color: #059669; text-decoration: none; font-weight: 500;">+ Thêm mới hàng hóa</a>
+                            <span class="pos-header-datetime" style="font-size: 14px;">${dateStr} ${timeStr}</span>
+                            <a href="#orders" class="pos-header-link-orders" style="color: white; text-decoration: none; font-weight: 600;">📋 Đơn hàng</a>
+                            <a href="#reports" class="pos-header-link-reports" style="color: white; text-decoration: none;">📊 Báo cáo</a>
+                            <div class="pos-header-customer" style="display: none;">
+                                <div class="pos-header-customer-trigger" onclick="app.togglePOSHeaderCustomer()">
+                                    <span class="pos-header-customer-icon">👤</span>
+                                    <span id="pos-header-customer-name">${this.posCart.customerName}</span>
+                                    <span class="pos-header-customer-chevron">▼</span>
+                                </div>
+                                <button type="button" class="pos-header-customer-add" onclick="event.stopPropagation(); app.showQuickAddCustomer()" title="Thêm khách hàng">+</button>
+                                <div id="pos-header-customer-dropdown" class="pos-header-customer-dropdown" style="display: none;">
+                                    ${customerOptions}
                                 </div>
                             </div>
-                            <div class="pos-cart-col" style="padding: 24px; overflow-y: auto; min-height: 0; background: white; display: flex; flex-direction: column;">
+                        </div>
+                        <div class="pos-grid" style="display: grid; grid-template-columns: 500px minmax(300px, 1fr) 360px; height: calc(100vh - 180px); min-height: 0; gap: 0;">
+                            <div class="pos-products-col pos-products-card" style="border-right: 1px solid #e5e7eb; padding: 24px; overflow: hidden; min-height: 0; background: #fafafa; display: flex; flex-direction: column;">
+                                <div class="pos-products-header" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; flex-shrink: 0;">
+                                    <div style="font-weight: 700; font-size: 16px; color: #1f2937;">📦 Hàng hóa</div>
+                                    <input type="text" id="pos-product-search-mobile" class="pos-mobile-search-input" placeholder="Tên, mã hàng, mã vạch..." oninput="app.syncPosSearch(this.value)" style="display: none;">
+                                    <button type="button" class="pos-mobile-btn-add" onclick="location.href='#products'" title="Thêm hàng hóa" style="display: none;">+</button>
+                                </div>
+                                <div id="pos-product-list" class="pos-product-list-inner" style="flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;">${productPlaceholder}</div>
+                            </div>
+                            <div class="pos-cart-col pos-cart-card" style="padding: 24px; overflow-y: auto; min-height: 0; background: white; display: flex; flex-direction: column;">
                                 <div style="font-weight: 700; margin-bottom: 16px; font-size: 18px; color: #1f2937; flex-shrink: 0;">🛒 Hóa đơn 1</div>
                                 <div id="pos-cart-items" style="flex: 1; min-height: 120px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background: white; overflow-y: auto;">
                                     ${cartHtml}
                                 </div>
-                                <div style="margin-top: 8px; font-size: 13px; color: #6b7280; flex-shrink: 0;">📝 Ghi chú đơn hàng</div>
                             </div>
-                            <div class="pos-checkout-col" style="border-left: 1px solid #e5e7eb; padding: 20px; background: #f8fafc; display: flex; flex-direction: column; min-height: 0; align-self: stretch; overflow: hidden;">
+                            <div class="pos-checkout-col pos-checkout-card" style="border-left: 1px solid #e5e7eb; padding: 20px; background: #f8fafc; display: flex; flex-direction: column; min-height: 0; align-self: stretch; overflow: hidden;">
+                                <div class="pos-checkout-card-inner">
                                 <div style="margin-bottom: 10px;">
                                     <div style="font-size: 12px; color: #6b7280; margin-bottom: 6px; font-weight: 500;">Khách hàng</div>
-                                    <div style="position: relative;">
-                                        <input type="text" id="pos-customer-search" placeholder="Q Tìm khách hàng (F4)" 
+                                    <div class="pos-customer-search-wrap" style="position: relative;">
+                                        <span class="pos-customer-search-icon" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 16px; pointer-events: none;">🔍</span>
+                                        <input type="text" id="pos-customer-search" placeholder="Tìm khách hàng (F4)" 
                                                onfocus="app.showPOSCustomerList()" oninput="app.filterPOSCustomer(this.value)"
-                                               style="width: 100%; padding: 10px 36px 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                               style="width: 100%; padding: 10px 36px 10px 36px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
                                         <button type="button" onclick="app.showQuickAddCustomer()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: #059669; color: white; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-weight: bold;">+</button>
                                         <div id="pos-customer-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
                                             ${customerOptions}
@@ -1963,6 +1992,7 @@
                                     </div>
                                     <div id="pos-debt-hint" style="display: none; font-size: 11px; color: #dc2626; padding: 2px 0; font-weight: 500;">Còn nợ: <span id="pos-debt-amount">0</span></div>
                                 </div>
+                                </div>
                                 <button type="button" onclick="app.submitPOSOrder()" 
                                         style="width: 100%; padding: 14px 20px; background: var(--header-gradient); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: auto; flex-shrink: 0;">
                                     THANH TOÁN
@@ -1987,9 +2017,9 @@
             renderPOSCart() {
                 const items = this.posCart.items || [];
                 if (items.length === 0) {
-                    return '<div style="text-align: center; color: #9ca3af; padding: 24px 16px; font-size: 15px;">Chọn sản phẩm bên trái để thêm vào đơn</div>';
+                    return '<div class="pos-cart-empty">Chọn sản phẩm bên trái để thêm vào đơn</div>';
                 }
-                const header = '<div style="display: flex; align-items: center; gap: 12px; padding: 10px 0 12px; border-bottom: 2px solid #e5e7eb; font-size: 13px; font-weight: 600; color: #374151;"><span style="width: 28px;">TT</span><span style="width: 36px;"></span><span style="flex: 1; min-width: 140px;">Tên hàng</span><span style="width: 56px; text-align: center;">SL</span><span style="width: 100px; text-align: right;">Đơn giá</span><span style="width: 140px; text-align: center;">Giảm (VNĐ / %)</span><span style="width: 110px; text-align: right;">Thành tiền</span></div>';
+                const header = '<div class="pos-cart-header"><span>TT</span><span></span><span>Tên hàng</span><span>SL</span><span>Đơn giá</span><span>Giảm</span><span>Thành tiền</span></div>';
                 return header + items.map((item, i) => {
                     const rawTotal = (item.quantity||1)*(item.price||0);
                     const itemDisc = Math.max(0, parseInt(item.discount, 10) || 0);
@@ -1998,20 +2028,38 @@
                     const rawRow = (item.quantity||1)*(item.price||0);
                     const discVal = dt === 'percent' && rawRow > 0 ? (Math.round((itemDisc/rawRow)*100) || 0) : (itemDisc || 0);
                     return `
-                    <div class="pos-cart-row" style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px;">
-                        <span style="width: 28px; color: #6b7280; flex-shrink: 0;">${i+1}</span>
-                        <button type="button" onclick="app.removeFromPOS(${i})" style="flex-shrink: 0; background: transparent; border: none; padding: 4px; cursor: pointer; color: #9ca3af; font-size: 15px;" title="Xóa">🗑️</button>
-                        <div style="flex: 1; min-width: 140px; font-weight: 500; word-break: break-word;">${(item.name||'').replace(/</g,'&lt;')}</div>
-                        <input type="number" min="1" value="${item.quantity}" onchange="app.updatePOSQty(${i}, this.value)" style="width: 56px; padding: 6px 4px; border: 1px solid #e5e7eb; border-radius: 6px; text-align: center; font-size: 14px; flex-shrink: 0;">
-                        <input type="text" class="price-input" value="${this.formatPrice(item.price||0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.updatePOSItemPrice(${i}, this.value)" onblur="app.priceInputBlur(this); app.updatePOSItemPrice(${i}, this.value)" data-pos-price-idx="${i}" style="width: 100px; padding: 6px 4px; border: 1px solid #e5e7eb; border-radius: 6px; text-align: right; font-size: 14px; flex-shrink: 0;" inputmode="numeric" placeholder="0" title="Click để sửa đơn giá">
-                        <div style="width: 140px; display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
-                            <select onchange="app.updatePOSItemDiscountType(${i}, this.value)" style="width: 50px; padding: 6px 2px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px;">
-                                <option value="vnd" ${dt==='vnd'?'selected':''}>VNĐ</option>
-                                <option value="percent" ${dt==='percent'?'selected':''}>%</option>
-                            </select>
-                            <input type="text" class="price-input" value="${dt==='percent' ? discVal : this.formatPrice(discVal)}" onfocus="app.priceInputFocus(this)" oninput="app.updatePOSItemDiscount(${i}, this.value)" onblur="app.priceInputBlur(this)" data-pos-discount-idx="${i}" style="flex: 1; min-width: 60px; padding: 6px 4px; border: 1px solid #e5e7eb; border-radius: 6px; text-align: center; font-size: 13px;" inputmode="numeric" placeholder="0">
+                    <div class="pos-cart-row" data-idx="${i}">
+                        <div class="pos-cart-row-desktop">
+                            <span class="pos-cart-tt">${i+1}</span>
+                            <button type="button" onclick="app.removeFromPOS(${i})" class="pos-cart-del" title="Xóa">🗑️</button>
+                            <div class="pos-cart-name">${(item.name||'').replace(/</g,'&lt;')}</div>
+                            <input type="number" min="1" value="${item.quantity}" onchange="app.updatePOSQty(${i}, this.value)" class="pos-cart-qty">
+                            <input type="text" class="price-input pos-cart-price" value="${this.formatPrice(item.price||0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.updatePOSItemPrice(${i}, this.value)" onblur="app.priceInputBlur(this); app.updatePOSItemPrice(${i}, this.value)" data-pos-price-idx="${i}" inputmode="numeric" placeholder="0" title="Đơn giá">
+                            <div class="pos-cart-discount-wrap">
+                                <select onchange="app.updatePOSItemDiscountType(${i}, this.value)">
+                                    <option value="vnd" ${dt==='vnd'?'selected':''}>VNĐ</option>
+                                    <option value="percent" ${dt==='percent'?'selected':''}>%</option>
+                                </select>
+                                <input type="text" class="price-input" value="${dt==='percent' ? discVal : this.formatPrice(discVal)}" onfocus="app.priceInputFocus(this)" oninput="app.updatePOSItemDiscount(${i}, this.value)" onblur="app.priceInputBlur(this)" data-pos-discount-idx="${i}" inputmode="numeric" placeholder="0">
+                            </div>
+                            <div id="pos-item-total-${i}" class="pos-cart-total">${itemTotal.toLocaleString('vi-VN')}</div>
                         </div>
-                        <div id="pos-item-total-${i}" style="width: 110px; text-align: right; font-weight: 600; flex-shrink: 0;">${itemTotal.toLocaleString('vi-VN')}</div>
+                        <div class="pos-cart-row-mobile">
+                            <div class="pos-cart-mobile-top">
+                                <div class="pos-cart-mobile-name">${(item.name||'').replace(/</g,'&lt;')}</div>
+                                <input type="text" class="price-input pos-cart-mobile-price" value="${this.formatPrice(item.price||0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.updatePOSItemPrice(${i}, this.value)" onblur="app.priceInputBlur(this); app.updatePOSItemPrice(${i}, this.value)" data-pos-price-idx="${i}" inputmode="numeric" placeholder="0" title="Nhấn để sửa đơn giá">
+                            </div>
+                            <div class="pos-cart-mobile-bottom">
+                                <div class="pos-cart-mobile-thumb">📦</div>
+                                <div class="pos-cart-mobile-stepper">
+                                    <button type="button" onclick="app.updatePOSQtyDelta(${i}, -1)">−</button>
+                                    <span>${item.quantity||1}</span>
+                                    <button type="button" onclick="app.updatePOSQtyDelta(${i}, 1)">+</button>
+                                </div>
+                                <div class="pos-cart-mobile-total">${itemTotal.toLocaleString('vi-VN')}</div>
+                                <button type="button" onclick="app.removeFromPOS(${i})" class="pos-cart-mobile-del">🗑️</button>
+                            </div>
+                        </div>
                     </div>
                 `}).join('');
             }
@@ -2171,6 +2219,13 @@
                 this.refreshPOSUI();
             }
             
+            updatePOSQtyDelta(index, delta) {
+                const item = this.posCart.items[index];
+                if (!item) return;
+                const qty = (item.quantity || 1) + delta;
+                if (qty <= 0) { this.removeFromPOS(index); return; }
+                this.updatePOSQty(index, String(qty));
+            }
             updatePOSQty(index, val) {
                 const qty = Math.max(1, parseInt(val, 10) || 1);
                 const item = this.posCart.items[index];
@@ -2182,6 +2237,15 @@
                 this.refreshPOSUI();
             }
             
+            decreasePOSProduct(productId) {
+                const idx = this.posCart.items.findIndex(x => x.productId === productId);
+                if (idx < 0) return;
+                const item = this.posCart.items[idx];
+                const qty = (item.quantity || 1) - 1;
+                if (qty <= 0) this.posCart.items.splice(idx, 1);
+                else item.quantity = qty;
+                this.refreshPOSUI();
+            }
             refreshPOSUI() {
                 const cartEl = document.getElementById('pos-cart-items');
                 const totalEl = document.getElementById('pos-total-goods');
@@ -2189,6 +2253,8 @@
                 const toPayEl = document.getElementById('pos-to-pay');
                 const amountPaidInp = document.getElementById('pos-amount-paid');
                 if (cartEl) cartEl.innerHTML = this.renderPOSCart();
+                const searchInp = document.getElementById('pos-product-search') || document.getElementById('pos-product-search-mobile');
+                if (searchInp && searchInp.value.trim()) this.searchPOSProducts(searchInp.value);
                 const s = this.getPOSSummary();
                 if (totalEl) totalEl.textContent = s.totalGoods.toLocaleString('vi-VN');
                 if (discountInp) {
@@ -2205,14 +2271,28 @@
                 this.posCart.amountPaid = s.toPay;
                 if (amountPaidInp) amountPaidInp.value = this.formatPrice(s.toPay);
                 this.updatePOSDebtHint();
+                const custInp = document.getElementById('pos-customer-search');
+                const custNameEl = document.getElementById('pos-customer-name');
+                const headerCustName = document.getElementById('pos-header-customer-name');
+                const custName = this.posCart.customerName || 'Khách lẻ';
+                if (custInp) custInp.value = custName === 'Khách lẻ' ? '' : custName;
+                if (custNameEl) custNameEl.textContent = custName;
+                if (headerCustName) headerCustName.textContent = custName;
             }
             
+            syncPosSearch(val) {
+                const h = document.getElementById('pos-product-search');
+                const m = document.getElementById('pos-product-search-mobile');
+                if (h) h.value = val || '';
+                if (m) m.value = val || '';
+                this.searchPOSProducts(val);
+            }
             searchPOSProducts(query) {
                 const term = (query || '').trim().toLowerCase();
                 const listEl = document.getElementById('pos-product-list');
                 if (!listEl) return;
                 if (!term) {
-                    listEl.innerHTML = '<div style="padding: 48px 24px; text-align: center; color: #9ca3af; font-size: 15px;"><div style="font-size: 48px; margin-bottom: 16px;">🔍</div><div style="font-weight: 500; color: #6b7280;">Gõ tên, mã hoặc danh mục sản phẩm để tìm kiếm</div><div style="font-size: 13px; margin-top: 12px;">Sản phẩm sẽ hiển thị khi bạn nhập từ khóa</div></div>';
+                    listEl.innerHTML = '<div class="pos-product-placeholder"><span class="pos-product-placeholder-icon">🔍</span><div class="pos-product-placeholder-texts"><div>Gõ tên, mã hoặc danh mục sản phẩm để tìm kiếm</div><div>Sản phẩm sẽ hiển thị khi bạn nhập từ khóa</div></div></div>';
                     return;
                 }
                 let products = (this.demoData.products || []).filter(p => this.productMatchesSearchQuery(p, term));
@@ -2223,7 +2303,10 @@
                 const html = products.slice(0, 80).map(p => {
                     const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
                     const canSell = stock > 0;
-                    return `<div class="pos-product-card" onclick="${canSell ? `app.addProductToPOS('${p.id}')` : ''}" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 12px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};" onmouseover="if(${canSell}) this.style.borderColor='#059669'; this.style.background='#ecfdf5';" onmouseout="if(${canSell}) this.style.borderColor='#e5e7eb'; this.style.background='white';"><div style="width: 52px; height: 52px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">📦</div><div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 15px; color: #1f2937;">${(p.name||'').replace(/</g,'&lt;')}</div><div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${(p.id||'')} • Tồn: ${stock}</div></div><div style="font-weight: 700; font-size: 16px; color: #059669; flex-shrink: 0;">${(p.price||0).toLocaleString('vi-VN')}</div>${canSell ? `<button type="button" class="pos-product-add-btn" onclick="event.stopPropagation(); app.addProductToPOS('${p.id}')" title="Thêm vào đơn">+</button>` : ''}</div>`;
+                    const inCart = this.posCart.items.find(x => x.productId === p.id);
+                    const qty = inCart ? (inCart.quantity || 1) : 0;
+                    const stepper = canSell ? `<div class="pos-product-stepper"><button type="button" class="pos-stepper-btn" onclick="event.stopPropagation(); app.decreasePOSProduct('${p.id}')">−</button><span class="pos-stepper-qty">${qty}</span><button type="button" class="pos-stepper-btn" onclick="event.stopPropagation(); app.addProductToPOS('${p.id}')">+</button></div>` : '';
+                    return `<div class="pos-product-card" data-product-id="${p.id}" onclick="${canSell && !qty ? `app.addProductToPOS('${p.id}')` : ''}" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 12px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};" onmouseover="if(${canSell}) this.style.borderColor='#059669'; this.style.background='#ecfdf5';" onmouseout="if(${canSell}) this.style.borderColor='#e5e7eb'; this.style.background='white';"><div class="pos-product-thumb" style="width: 52px; height: 52px; background: linear-gradient(135deg,#e0f2fe 0%,#bae6fd 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">📦</div><div class="pos-product-info" style="flex: 1; min-width: 0;"><div class="pos-product-name">${(p.name||'').replace(/</g,'&lt;')}</div><div class="pos-product-meta">${(p.id||'')} • Tồn: ${stock}</div><div class="pos-product-price">${(p.price||0).toLocaleString('vi-VN')}</div></div>${stepper}</div>`;
                 }).join('');
                 listEl.innerHTML = html;
             }
@@ -2234,9 +2317,35 @@
                 const inp = document.getElementById('pos-customer-search');
                 const nameEl = document.getElementById('pos-customer-name');
                 const dd = document.getElementById('pos-customer-dropdown');
+                const headerName = document.getElementById('pos-header-customer-name');
+                const headerDd = document.getElementById('pos-header-customer-dropdown');
                 if (inp) inp.value = name;
                 if (nameEl) nameEl.textContent = name;
                 if (dd) dd.style.display = 'none';
+                if (headerName) headerName.textContent = name;
+                if (headerDd) headerDd.style.display = 'none';
+            }
+            togglePOSHeaderCustomer() {
+                const dd = document.getElementById('pos-header-customer-dropdown');
+                if (!dd) return;
+                const isOpen = dd.style.display === 'block';
+                dd.style.display = isOpen ? 'none' : 'block';
+                if (!isOpen) this.renderHeaderCustomerDropdown('');
+            }
+            renderHeaderCustomerDropdown(filter) {
+                const dd = document.getElementById('pos-header-customer-dropdown');
+                if (!dd) return;
+                const term = (filter || '').trim();
+                const realCustomers = (this.demoData.customers || []).filter(c => c.id !== 'KH_LE' && !(c.id && c.id.startsWith('KL_')));
+                const customers = realCustomers.filter(c =>
+                    !term || this.searchMatch(c.name, term) || (c.phone && this.searchMatch(c.phone, term))
+                );
+                const searchHtml = `<input type="text" class="pos-header-customer-search" placeholder="Tìm tên, SĐT..." value="${(term||'').replace(/"/g,'&quot;')}" oninput="app.renderHeaderCustomerDropdown(this.value)" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;border:none;border-bottom:1px solid #e5e7eb;font-size:13px;box-sizing:border-box;">`;
+                const khachLeHtml = `<div onclick="app.selectPOSCustomer('KH_LE','Khách lẻ')" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-weight: 600; color: #059669;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">Khách lẻ</div>`;
+                const listHtml = customers.length ? customers.map(c =>
+                    `<div onclick="app.selectPOSCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">${(c.name||'').replace(/</g,'&lt;')}${c.phone ? ' - ' + c.phone : ''}</div>`
+                ).join('') : '<div style="padding: 12px; color: #6b7280; font-size: 13px;">Không tìm thấy</div>';
+                dd.innerHTML = searchHtml + khachLeHtml + listHtml;
             }
             
             showPOSCustomerList() {
@@ -2252,7 +2361,7 @@
                 const term = (q || '').trim();
                 const realCustomers = (this.demoData.customers || []).filter(c => c.id !== 'KH_LE' && !(c.id && c.id.startsWith('KL_')));
                 const customers = realCustomers.filter(c =>
-                    !term || this.searchMatch(c.name, term) || (c.phone && c.phone.includes(term))
+                    !term || this.searchMatch(c.name, term) || (c.phone && this.searchMatch(c.phone, term))
                 );
                 const dd = document.getElementById('pos-customer-dropdown');
                 if (!dd) return;
@@ -2275,10 +2384,11 @@
                     rows.forEach((row, idx) => {
                         const item = this.posCart.items[idx];
                         if (!item) return;
-                        const priceInp = row.querySelector('input[data-pos-price-idx]');
-                        const discountInp = row.querySelector('input[data-pos-discount-idx]');
-                        const qtyInp = row.querySelector('input[type="number"]');
-                        const typeSelect = row.querySelector('select');
+                        const desktop = row.querySelector('.pos-cart-row-desktop');
+                        const priceInp = desktop ? desktop.querySelector('input[data-pos-price-idx]') : row.querySelector('input[data-pos-price-idx]');
+                        const discountInp = desktop ? desktop.querySelector('input[data-pos-discount-idx]') : row.querySelector('input[data-pos-discount-idx]');
+                        const qtyInp = desktop ? desktop.querySelector('input[type="number"]') : row.querySelector('input[type="number"]');
+                        const typeSelect = desktop ? desktop.querySelector('select') : row.querySelector('select');
                         if (priceInp) {
                             const p = this.parsePrice(priceInp.value);
                             if (p >= 0) item.price = p;
@@ -2403,6 +2513,8 @@
                 this.posCart.items = [];
                 this.posCart.discount = 0;
                 this.posCart.amountPaid = null;
+                this.posCart.customerId = 'KH_LE';
+                this.posCart.customerName = 'Khách lẻ';
                 this.saveToLocalStorage();
                 this.refreshPOSUI();
                 const isDebt = this.posCart._saveAsDebt;
