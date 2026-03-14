@@ -6,8 +6,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Hà Mobile - Quản lý bán hàng offline</title>
-    <meta name="description" content="Hệ thống quản lý bán hàng Hà Mobile - hoạt động hoàn toàn offline">
+    <title>Quản lý Bán hàng Offline</title>
+    <meta name="description" content="Hệ thống quản lý bán hàng - hoạt động hoàn toàn offline">
     
     <link rel="stylesheet" href="styles.css">
     <script>window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || { url: '', key: '' };</script>
@@ -482,16 +482,16 @@
             generateDemoData() {
                 return {
                     customers: [
-                        { id: 'KH001', name: 'Nguyễn Văn A', type: 'ca-nhan', phone: '0901234567', email: 'nva@gmail.com', address: 'Hà Nội', debt: 0 },
-                        { id: 'KH002', name: 'Trần Thị B', type: 'ca-nhan', phone: '0912345678', email: 'ttb@gmail.com', address: 'TP.HCM', debt: 500000 },
-                        { id: 'KH003', name: 'Lê Minh C', type: 'doanh-nghiep', companyName: 'Công ty TNHH Minh Châu', department: 'Phòng mua hàng', phone: '0923456789', email: 'lmc@minhchau.com.vn', address: 'Đà Nẵng', taxCode: '0123456789', debt: 0 },
-                        { id: 'KH004', name: 'Phạm Thu D', type: 'doanh-nghiep', companyName: 'Công ty Cổ phần Thu Đức', department: 'Phòng kế toán', phone: '0934567890', email: 'ptd@thuduc.vn', address: 'Cần Thơ', taxCode: '0987654321', debt: 300000 },
-                        { id: 'KH005', name: 'Hoàng Văn E', type: 'ca-nhan', phone: '0945678901', email: 'hve@gmail.com', address: 'Hải Phòng', debt: 0 }
+                        { id: 'KH001', name: 'Đặng Thanh Hùng', type: 'ca-nhan', phone: '0987654321', email: 'hungdt@gmail.com', address: '45 Lê Lợi, Vinh, Nghệ An', debt: 0 },
+                        { id: 'KH002', name: 'Bùi Thị Mai', type: 'ca-nhan', phone: '0918765432', email: 'maibt@yahoo.com', address: 'Khu 5, Thị trấn Nông Cống, Thanh Hóa', debt: 500000 },
+                        { id: 'KH003', name: 'Vũ Đức Nam', type: 'doanh-nghiep', companyName: 'Công ty CP Điện tử Nam Hưng', department: 'Phòng mua hàng', phone: '0909123456', email: 'nam@namhung.vn', address: 'KCN Bình Xuyên, Vĩnh Phúc', taxCode: '0123456789', debt: 0 },
+                        { id: 'KH004', name: 'Ngô Minh Tuấn', type: 'doanh-nghiep', companyName: 'Công ty TNHH Tuấn Phát', department: 'Phòng kế toán', phone: '0977123456', email: 'tuan@tuanphat.com', address: 'Phường Đình Bảng, Từ Sơn, Bắc Ninh', taxCode: '0987654321', debt: 300000 },
+                        { id: 'KH005', name: 'Đinh Thị Lan', type: 'ca-nhan', phone: '0945123456', email: 'landt@gmail.com', address: '12 Trần Hưng Đạo, Hải Dương', debt: 0 }
                     ],
                     suppliers: [
-                        { id: 'NCC001', name: 'Công ty TNHH ABC', phone: '024-3456-7890', email: 'abc@company.vn', address: 'Hà Nội', products: 'Điện tử' },
-                        { id: 'NCC002', name: 'Công ty XYZ', phone: '028-3456-7891', email: 'xyz@company.vn', address: 'TP.HCM', products: 'Gia dụng' },
-                        { id: 'NCC003', name: 'Công ty DEF', phone: '0236-3456-792', email: 'def@company.vn', address: 'Đà Nẵng', products: 'Thời trang' }
+                        { id: 'NCC001', name: 'Công ty TNHH Điện máy Sài Gòn', phone: '028-3825-1234', email: 'dientu@saigon.vn', address: '156 Nguyễn Huệ, Q.1, TP.HCM', products: 'Điện tử' },
+                        { id: 'NCC002', name: 'Công ty Linh kiện Việt', phone: '024-3789-5678', email: 'linhkien@viet.vn', address: '89 Tây Sơn, Đống Đa, Hà Nội', products: 'Gia dụng' },
+                        { id: 'NCC003', name: 'Công ty TM Phương Đông', phone: '0236-3521-9012', email: 'tm@phuongdong.vn', address: '45 Hùng Vương, Hải Châu, Đà Nẵng', products: 'Thời trang' }
                     ],
                     products: [
                         { id: 'SP001', name: 'iPhone 15 Pro', category: 'Điện thoại', price: 28900000, importPrice: 25000000, stock: 5, minStock: 10, supplier: 'NCC001' },
@@ -539,7 +539,7 @@
                     { 
                         id: 'DH007', 
                         customerId: 'KH003', 
-                        customerName: 'Lê Minh C',
+                        customerName: 'Vũ Đức Nam',
                         date: today.toISOString().split('T')[0], 
                         time: '17:30',
                         products: [
@@ -554,7 +554,7 @@
                     { 
                         id: 'DH006', 
                         customerId: 'KH001', 
-                        customerName: 'Nguyễn Văn A',
+                        customerName: 'Đặng Thanh Hùng',
                         date: today.toISOString().split('T')[0], 
                         time: '16:45',
                         products: [
@@ -568,7 +568,7 @@
                     { 
                         id: 'DH002', 
                         customerId: 'KH002', 
-                        customerName: 'Trần Thị B',
+                        customerName: 'Bùi Thị Mai',
                         date: today.toISOString().split('T')[0], 
                         time: '14:15',
                         products: [
@@ -582,7 +582,7 @@
                     { 
                         id: 'DH001', 
                         customerId: 'KH001', 
-                        customerName: 'Nguyễn Văn A',
+                        customerName: 'Đặng Thanh Hùng',
                         date: today.toISOString().split('T')[0], 
                         time: '10:30',
                         products: [
@@ -597,7 +597,7 @@
                     { 
                         id: 'DH003', 
                         customerId: 'KH003', 
-                        customerName: 'Lê Minh C',
+                        customerName: 'Vũ Đức Nam',
                         date: yesterday.toISOString().split('T')[0], 
                         time: '16:45',
                         products: [
@@ -612,7 +612,7 @@
                     { 
                         id: 'DH004', 
                         customerId: 'KH004', 
-                        customerName: 'Phạm Thu D',
+                        customerName: 'Ngô Minh Tuấn',
                         date: twoDaysAgo.toISOString().split('T')[0], 
                         time: '09:20',
                         products: [
@@ -626,7 +626,7 @@
                     { 
                         id: 'DH005', 
                         customerId: 'KH005', 
-                        customerName: 'Hoàng Văn E',
+                        customerName: 'Đinh Thị Lan',
                         date: threeDaysAgo.toISOString().split('T')[0], 
                         time: '11:30',
                         products: [
@@ -650,11 +650,11 @@
                 twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
                 return [
-                    { id: 'DH001', date: today.toISOString().split('T')[0], customer: 'Nguyễn Văn A', total: 2500000, status: 'Hoàn thành', items: 3 },
-                    { id: 'DH002', date: today.toISOString().split('T')[0], customer: 'Trần Thị B', total: 1800000, status: 'Chờ xử lý', items: 2 },
-                    { id: 'DH003', date: yesterday.toISOString().split('T')[0], customer: 'Lê Minh C', total: 3200000, status: 'Đang giao', items: 4 },
-                    { id: 'DH004', date: yesterday.toISOString().split('T')[0], customer: 'Phạm Thu D', total: 950000, status: 'Hoàn thành', items: 1 },
-                    { id: 'DH005', date: twoDaysAgo.toISOString().split('T')[0], customer: 'Hoàng Văn E', total: 4200000, status: 'Hoàn thành', items: 5 }
+                    { id: 'DH001', date: today.toISOString().split('T')[0], customer: 'Đặng Thanh Hùng', total: 2500000, status: 'Hoàn thành', items: 3 },
+                    { id: 'DH002', date: today.toISOString().split('T')[0], customer: 'Bùi Thị Mai', total: 1800000, status: 'Chờ xử lý', items: 2 },
+                    { id: 'DH003', date: yesterday.toISOString().split('T')[0], customer: 'Vũ Đức Nam', total: 3200000, status: 'Đang giao', items: 4 },
+                    { id: 'DH004', date: yesterday.toISOString().split('T')[0], customer: 'Ngô Minh Tuấn', total: 950000, status: 'Hoàn thành', items: 1 },
+                    { id: 'DH005', date: twoDaysAgo.toISOString().split('T')[0], customer: 'Đinh Thị Lan', total: 4200000, status: 'Hoàn thành', items: 5 }
                 ];
             }
 
@@ -729,7 +729,7 @@
                             <div class="activity-icon success">💰</div>
                             <div class="activity-content">
                                 <div class="activity-title">Đơn hàng DH001 đã hoàn thành</div>
-                                <div class="activity-desc">Khách hàng Nguyễn Văn A đã thanh toán đơn hàng 2.500.000 VNĐ</div>
+                                <div class="activity-desc">Khách hàng Đặng Thanh Hùng đã thanh toán đơn hàng 2.500.000 VNĐ</div>
                             </div>
                             <div class="activity-time">${this.getTimeAgo(activityTimes[0])}</div>
                         </div>
@@ -738,7 +738,7 @@
                             <div class="activity-icon info">📋</div>
                             <div class="activity-content">
                                 <div class="activity-title">Đơn hàng mới DH002</div>
-                                <div class="activity-desc">Khách hàng Trần Thị B đặt hàng trị giá 1.800.000 VNĐ</div>
+                                <div class="activity-desc">Khách hàng Bùi Thị Mai đặt hàng trị giá 1.800.000 VNĐ</div>
                             </div>
                             <div class="activity-time">${this.getTimeAgo(activityTimes[1])}</div>
                         </div>
@@ -756,7 +756,7 @@
                             <div class="activity-icon success">👥</div>
                             <div class="activity-content">
                                 <div class="activity-title">Khách hàng mới</div>
-                                <div class="activity-desc">Lê Minh C đã đăng ký làm khách hàng</div>
+                                <div class="activity-desc">Vũ Đức Nam đã đăng ký làm khách hàng</div>
                             </div>
                             <div class="activity-time">${this.getTimeAgo(activityTimes[3])}</div>
                         </div>
@@ -2847,7 +2847,7 @@
                             <div class="activity-item">
                                 <div class="activity-icon info">🛒</div>
                                 <div class="activity-content">
-                                    <div class="activity-title">Đơn mua hàng DM001 - Công ty TNHH ABC</div>
+                                    <div class="activity-title">Đơn mua hàng DM001 - Công ty TNHH Điện máy Sài Gòn</div>
                                     <div class="activity-desc">💰 15.500.000 đ | 📦 50 sản phẩm | 📅 2025-01-08</div>
                                 </div>
                                 <div class="activity-time">Đang chờ duyệt</div>
@@ -2856,7 +2856,7 @@
                             <div class="activity-item">
                                 <div class="activity-icon success">✅</div>
                                 <div class="activity-content">
-                                    <div class="activity-title">Đơn mua hàng DM002 - Công ty XYZ</div>
+                                    <div class="activity-title">Đơn mua hàng DM002 - Công ty Linh kiện Việt</div>
                                     <div class="activity-desc">💰 8.200.000 đ | 📦 25 sản phẩm | 📅 2025-01-07</div>
                                 </div>
                                 <div class="activity-time">Đã nhận hàng</div>
@@ -2998,28 +2998,29 @@
             }
             
             getOrdersContent() {
-                // Sử dụng ngày hiện tại theo múi giờ Việt Nam (UTC+7)
+                const orders = this.demoData.orders || [];
                 const vietnamTime = this.getVietnamTime();
                 const todayStr = vietnamTime.toISOString().split('T')[0];
-                const todayOrders = this.demoData.orders.filter(order => order.date === todayStr);
-                const weekOrders = this.demoData.orders.filter(order => {
+                const todayOrders = orders.filter(order => order && order.date === todayStr);
+                const weekOrders = orders.filter(order => {
+                    if (!order || !order.date) return false;
                     const orderDate = new Date(order.date);
                     const today = new Date(vietnamTime);
                     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
                     return orderDate >= weekAgo && orderDate <= today;
                 });
-                const monthOrders = this.demoData.orders.filter(order => {
+                const monthOrders = orders.filter(order => {
+                    if (!order || !order.date) return false;
                     const orderDate = new Date(order.date);
                     const today = new Date(vietnamTime);
                     return orderDate.getMonth() === today.getMonth() && orderDate.getFullYear() === today.getFullYear();
                 });
 
-                // Đơn hàng đã được sắp xếp sẵn (mới nhất ở đầu) nhờ unshift() trong createOrder()
-                const sortedOrders = this.demoData.orders; // Không cần reverse vì đã unshift()
-                console.log('📋 Danh sách đơn hàng (mới nhất ở đầu):', sortedOrders.map(o => `${o.id} (${o.date} ${o.time})`));
+                const sortedOrders = orders;
+                if (orders.length) console.log('📋 Danh sách đơn hàng (mới nhất ở đầu):', sortedOrders.map(o => `${o.id} (${o.date} ${o.time})`));
 
-                const ordersTable = sortedOrders.map((order, index) => {
-                    const originalIndex = this.demoData.orders.findIndex(o => o.id === order.id);
+                const ordersTable = sortedOrders.length === 0 ? '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Chưa có đơn hàng nào.</td></tr>' : sortedOrders.map((order, index) => {
+                    const originalIndex = orders.findIndex(o => o.id === order.id);
                     return `
                     <tr data-order-index="${originalIndex}">
                         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.id}</td>
@@ -3084,7 +3085,7 @@
                                     <span class="stat-title">Tổng đơn hàng</span>
                                     <span class="stat-icon">📈</span>
                                 </div>
-                                <div class="stat-value">${this.demoData.orders.length}</div>
+                                <div class="stat-value">${orders.length}</div>
                                 <div class="stat-change">Tất cả thời gian</div>
                             </div>
                         </div>
@@ -3112,7 +3113,7 @@
                             
                             <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                                 <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                                    <span>📋</span> Danh sách đơn hàng (${this.demoData.orders.length})
+                                    <span>📋</span> Danh sách đơn hàng (${orders.length})
                                 </h3>
                                 
                                 <div style="margin-bottom: 16px;">
@@ -4128,10 +4129,10 @@
                         <div class="invoice-container">
                             <div class="invoice-header">
                                 <div class="header-company">
-                                    <div class="company-name">${(companySettings.companyName || 'Hà Mobile').replace(/</g, '&lt;')}</div>
+                                    <div class="company-name">${(companySettings.companyName || 'Cửa hàng Điện thoại').replace(/</g, '&lt;')}</div>
                                     <div class="company-info">
-                                        ${(companySettings.address || 'Chợ Thoi, Dương Hưu, Bắc Ninh').replace(/</g, '&lt;')}<br>
-                                        Điện thoại: ${(companySettings.phone || '0989.439.993').replace(/</g, '&lt;')}${companySettings.email ? ' | Email: ' + (companySettings.email || '').replace(/</g, '&lt;') : ''}<br>
+                                        ${(companySettings.address || '123 Trần Hưng Đạo, Quận 1, TP.HCM').replace(/</g, '&lt;')}<br>
+                                        Điện thoại: ${(companySettings.phone || '0901.234.567').replace(/</g, '&lt;')}${companySettings.email ? ' | Email: ' + (companySettings.email || '').replace(/</g, '&lt;') : ''}<br>
                                         ${companySettings.taxCode ? 'MST: ' + (companySettings.taxCode || '').replace(/</g, '&lt;') : ''}
                                     </div>
                                     <div class="invoice-title">PHIẾU SỬA CHỮA</div>
@@ -4176,7 +4177,7 @@
                             </div>
                             <div class="footer-info">
                                 <p><strong>Cảm ơn quý khách đã sử dụng dịch vụ!</strong></p>
-                                <p>Phiếu được tạo bởi Hà Mobile - ${this.getVietnamTime().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                                <p>Phiếu được tạo bởi Hệ thống Quản lý Bán hàng - ${this.getVietnamTime().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
                             </div>
                         </div>
                     </body>
@@ -4590,7 +4591,7 @@
                                         <div>
                                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Tên công ty/cửa hàng: *</label>
                                             <input type="text" name="companyName" value="${companySettings.companyName || ''}" 
-                                                   placeholder="VD: Công ty TNHH ABC" required
+                                                   placeholder="VD: Công ty TNHH Điện máy Sài Gòn" required
                                                    style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
                                         </div>
                                         
@@ -4605,7 +4606,7 @@
                                     <div>
                                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Địa chỉ: *</label>
                                         <input type="text" name="address" value="${companySettings.address || ''}" 
-                                               placeholder="VD: 123 Đường ABC, Quận XYZ, TP.HCM" required
+                                               placeholder="VD: 123 Trần Hưng Đạo, Quận 1, TP.HCM" required
                                                style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
                                     </div>
                                     
@@ -4629,7 +4630,7 @@
                                         <div>
                                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Người đại diện:</label>
                                             <input type="text" name="representative" value="${companySettings.representative || ''}" 
-                                                   placeholder="VD: Nguyễn Văn A"
+                                                   placeholder="VD: Trần Văn Minh"
                                                    style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
                                         </div>
                                         
@@ -5838,7 +5839,7 @@
                                             <td style="padding: 4px; border: 1px solid #d1d5db;">100000</td>
                                             <td style="padding: 4px; border: 1px solid #d1d5db;">50</td>
                                             <td style="padding: 4px; border: 1px solid #d1d5db;">123456789012345</td>
-                                            <td style="padding: 4px; border: 1px solid #d1d5db;">NCC ABC</td>
+                                            <td style="padding: 4px; border: 1px solid #d1d5db;">NCC001</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -7454,7 +7455,7 @@
                             <form onsubmit="app.addQuickSupplierFromProductForm(event)">
                                 <div style="margin-bottom: 16px;">
                                     <label style="display: block; margin-bottom: 6px; font-weight: 600;">Tên nhà cung cấp: *</label>
-                                    <input type="text" name="name" required placeholder="VD: Công ty ABC" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                                    <input type="text" name="name" required placeholder="VD: Công ty TNHH Điện máy Sài Gòn" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
                                 </div>
                                 <div style="margin-bottom: 20px;">
                                     <label style="display: block; margin-bottom: 6px; font-weight: 600;">Số điện thoại:</label>
@@ -9694,9 +9695,9 @@
 
                 // Tạo dữ liệu mua hàng mẫu
                 const purchaseData = [
-                    { id: 'PH001', supplier: 'Công ty ABC', date: '2024-01-15', products: 'Điện thoại, Tai nghe', total: 15000000, status: 'Hoàn thành' },
-                    { id: 'PH002', supplier: 'Nhà cung cấp XYZ', date: '2024-01-10', products: 'Laptop, Chuột', total: 25000000, status: 'Đang xử lý' },
-                    { id: 'PH003', supplier: 'Công ty DEF', date: '2024-01-05', products: 'Máy tính bảng', total: 8000000, status: 'Hoàn thành' }
+                    { id: 'PH001', supplier: 'Công ty TNHH Điện máy Sài Gòn', date: '2024-01-15', products: 'Điện thoại, Tai nghe', total: 15000000, status: 'Hoàn thành' },
+                    { id: 'PH002', supplier: 'Công ty Linh kiện Việt', date: '2024-01-10', products: 'Laptop, Chuột', total: 25000000, status: 'Đang xử lý' },
+                    { id: 'PH003', supplier: 'Công ty TM Phương Đông', date: '2024-01-05', products: 'Máy tính bảng', total: 8000000, status: 'Hoàn thành' }
                 ];
 
                 if (mode === 'view') {
@@ -11888,10 +11889,10 @@
                                 <div class="invoice-header">
                                     <!-- Company Info Section -->
                                     <div class="header-company">
-                                        <div class="company-name">${companySettings.companyName || 'Hà Mobile'}</div>
+                                        <div class="company-name">${companySettings.companyName || 'Cửa hàng Điện thoại'}</div>
                                         <div class="company-info">
-                                            ${companySettings.address || 'Chợ Thoi, Dương Hưu, Bắc Ninh'}<br>
-                                            Điện thoại: ${companySettings.phone || '0989.439.993'}${companySettings.email ? ' | Email: ' + companySettings.email : ''}<br>
+                                            ${companySettings.address || '123 Trần Hưng Đạo, Quận 1, TP.HCM'}<br>
+                                            Điện thoại: ${companySettings.phone || '0901.234.567'}${companySettings.email ? ' | Email: ' + companySettings.email : ''}<br>
                                             ${companySettings.taxCode ? 'MST: ' + companySettings.taxCode : ''}
                                             ${companySettings.description ? '<br><em>' + companySettings.description + '</em>' : ''}
                                         </div>
@@ -12021,7 +12022,7 @@
                                 <!-- Footer -->
                                 <div class="footer-info">
                                     <p><strong>Cảm ơn quý khách đã sử dụng dịch vụ!</strong></p>
-                                    <p>Hóa đơn được tạo tự động bởi hệ thống Hà Mobile - ${this.getVietnamTime().toLocaleString('vi-VN', { 
+                                    <p>Hóa đơn được tạo tự động bởi hệ thống - ${this.getVietnamTime().toLocaleString('vi-VN', { 
                                         timeZone: 'Asia/Ho_Chi_Minh',
                                         year: 'numeric',
                                         month: '2-digit', 
@@ -12274,10 +12275,10 @@
                                 <div class="invoice-header">
                                     <!-- Company Info Section -->
                                     <div class="header-company">
-                                        <div class="company-name">${companySettings.companyName || 'Hà Mobile'}</div>
+                                        <div class="company-name">${companySettings.companyName || 'Cửa hàng Điện thoại'}</div>
                                         <div class="company-info">
-                                            ${companySettings.address || 'Chợ Thoi, Dương Hưu, Bắc Ninh'}<br>
-                                            Điện thoại: ${companySettings.phone || '0989.439.993'}${companySettings.email ? ' | Email: ' + companySettings.email : ''}<br>
+                                            ${companySettings.address || '123 Trần Hưng Đạo, Quận 1, TP.HCM'}<br>
+                                            Điện thoại: ${companySettings.phone || '0901.234.567'}${companySettings.email ? ' | Email: ' + companySettings.email : ''}<br>
                                             ${companySettings.taxCode ? 'MST: ' + companySettings.taxCode : ''}
                                             ${companySettings.description ? '<br><em>' + companySettings.description + '</em>' : ''}
                                         </div>
@@ -12395,7 +12396,7 @@
                                 <!-- Footer -->
                                 <div class="footer-info">
                                     <p><strong>Cảm ơn quý khách đã sử dụng dịch vụ!</strong></p>
-                                    <p>Hóa đơn GTGT được tạo tự động bởi hệ thống Hà Mobile - ${this.getVietnamTime().toLocaleString('vi-VN', { 
+                                    <p>Hóa đơn GTGT được tạo tự động bởi hệ thống - ${this.getVietnamTime().toLocaleString('vi-VN', { 
                                         timeZone: 'Asia/Ho_Chi_Minh',
                                         year: 'numeric',
                                         month: '2-digit', 
@@ -12651,10 +12652,10 @@
                                 <div class="report-header">
                                     <!-- Company Info Section -->
                                     <div class="header-company">
-                                        <div class="company-name">${companySettings.companyName || 'Hà Mobile'}</div>
+                                        <div class="company-name">${companySettings.companyName || 'Cửa hàng Điện thoại'}</div>
                                         <div class="company-info">
-                                            ${companySettings.address || 'Chợ Thoi, Dương Hưu, Bắc Ninh'}<br>
-                                            Điện thoại: ${companySettings.phone || '0989.439.993'}${companySettings.email ? ' | Email: ' + companySettings.email : ''}<br>
+                                            ${companySettings.address || '123 Trần Hưng Đạo, Quận 1, TP.HCM'}<br>
+                                            Điện thoại: ${companySettings.phone || '0901.234.567'}${companySettings.email ? ' | Email: ' + companySettings.email : ''}<br>
                                             ${companySettings.taxCode ? 'MST: ' + companySettings.taxCode : ''}
                                             ${companySettings.description ? '<br><em>' + companySettings.description + '</em>' : ''}
                                         </div>
@@ -12770,7 +12771,7 @@
 
                                 <!-- Footer -->
                                 <div class="footer-info">
-                                    <p><strong>Báo cáo được tạo tự động bởi hệ thống Hà Mobile</strong></p>
+                                    <p><strong>Báo cáo được tạo tự động bởi hệ thống</strong></p>
                                     <p>Thời gian tạo: ${this.getVietnamTime().toLocaleString('vi-VN', { 
                                         timeZone: 'Asia/Ho_Chi_Minh',
                                         year: 'numeric',
