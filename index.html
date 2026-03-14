@@ -77,8 +77,9 @@
     <div id="notification" class="notification"></div>
 
     <script>
-        // Firebase Storage - thay thế hoàn toàn localStorage
+        // Firebase Storage - lưu song song Firebase + localStorage
         const FB_CONFIG_KEY = 'ha_mobile_firebase_config';
+        const FB_APP_DATA_KEY = 'ha_mobile_app_data';
         window.FirebaseStorage = {
             _cache: { data: null, company: {}, meta: {} },
             _config: null,
@@ -158,22 +159,56 @@
                         return this._cache;
                     }
                 } catch (e) { console.warn('Firebase legacy load:', e); }
+                // Fallback: load từ localStorage nếu Firebase không có dữ liệu
+                const local = this._loadFromLocalStorage();
+                if (local) {
+                    this._cache.data = local.data;
+                    this._cache.company = local.company || {};
+                    this._cache.meta = local.meta || {};
+                    window._lastFirebaseError = null;
+                    return this._cache;
+                }
+                return null;
+            },
+            _saveToLocalStorage(body) {
+                try {
+                    localStorage.setItem(FB_APP_DATA_KEY, JSON.stringify(body));
+                } catch (e) { console.warn('LocalStorage save:', e); }
+            },
+            _loadFromLocalStorage() {
+                try {
+                    const raw = localStorage.getItem(FB_APP_DATA_KEY);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (parsed && parsed.data && parsed.data.customers && parsed.data.products) {
+                            return parsed;
+                        }
+                    }
+                } catch (e) { console.warn('LocalStorage load:', e); }
                 return null;
             },
             async save(payload) {
+                const body = {
+                    data: payload.data !== undefined ? payload.data : this._cache.data,
+                    company: payload.company !== undefined ? payload.company : this._cache.company,
+                    meta: Object.assign({}, this._cache.meta, payload.meta || {})
+                };
+                // Lưu song song: localStorage ngay lập tức + Firebase
+                this._saveToLocalStorage(body);
                 const api = this._api('app.json');
                 if (!api) return false;
                 try {
-                    const body = {
-                        data: payload.data !== undefined ? payload.data : this._cache.data,
-                        company: payload.company !== undefined ? payload.company : this._cache.company,
-                        meta: Object.assign({}, this._cache.meta, payload.meta || {})
-                    };
                     const res = await fetch(api, { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
                     if (res.ok) {
                         this._cache.data = body.data;
                         this._cache.company = body.company;
                         this._cache.meta = body.meta;
+                        // Đồng bộ cấu trúc như Firebase 1: vừa app vừa backups (bản sao dự phòng)
+                        const backupsApi = this._api('backups.json');
+                        if (backupsApi) {
+                            const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: body.meta };
+                            fetch(backupsApi, { method: 'PUT', body: JSON.stringify(backupPayload), headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+                        }
                         return true;
                     }
                 } catch (e) { console.warn('Firebase save:', e); }
@@ -230,9 +265,14 @@
             constructor() {
                 this.currentPage = 'dashboard';
                 this.selectedProductIds = new Set();
+                this.selectedSupplierIds = new Set();
+                this.selectedOrderIds = new Set();
                 this.posCart = { items: [], customerId: 'KH_LE', customerName: 'Khách lẻ', discount: 0 };
                 this.posMobileStep = 1; // 1: Danh sách SP | 2: Chọn KH + giỏ hàng
                 this.productsSearchQuery = '';
+                this.suppliersSearchQuery = '';
+                this.ordersSearchQuery = '';
+                this.ordersFilterPeriod = 'all';
                 this.productsCategoryFilter = '';
                 this.productsPage = 1;
                 this.productsPerPage = 50;
@@ -342,8 +382,17 @@
             migrateProductData() {
                 let needsSave = false;
                 
-                // Đảm bảo có debtPayments (lịch sử thu công nợ)
-                if (!this.demoData.debtPayments) this.demoData.debtPayments = [];
+                // Đảm bảo có debtPayments (lịch sử thu công nợ) - bắt buộc lưu lên Firebase
+                if (!this.demoData.debtPayments) {
+                    this.demoData.debtPayments = [];
+                    needsSave = true;
+                }
+                // Đảm bảo có debtors (danh sách người nợ - đồng bộ với website)
+                if (!this.demoData.debtors) {
+                    this.demoData.debtors = [];
+                    needsSave = true;
+                }
+                this.updateDebtorsList();
                 // Đảm bảo có repairs (sửa chữa)
                 if (!this.demoData.repairs) {
                     this.demoData.repairs = [];
@@ -450,7 +499,12 @@
                     });
                 }
                 
-                if (needsSave) this.saveToLocalStorage();
+                if (needsSave) {
+                    // Lưu ngay lên Firebase khi migration thêm debtPayments/repairs (không debounce)
+                    this.saveToFirebaseImmediate().then(ok => {
+                        if (!ok) this.saveToLocalStorage();
+                    });
+                }
             }
 
             clearOldDataIfNeeded() {
@@ -518,6 +572,7 @@
                     orders: this.generateOrdersWithCurrentDate(),
                     sales: this.generateSalesWithCurrentDate(),
                     debtPayments: [],
+                    debtors: [],
                     repairs: []
                 };
             }
@@ -853,6 +908,30 @@
             loadPage(pageName) {
                 this.currentPage = pageName;
                 this.initializeData();
+                // Khi mở trang Khách hàng hoặc Công nợ: đồng bộ công nợ từ đơn hàng + sửa chữa (để hiển thị đúng)
+                if (pageName === 'customers' || pageName === 'debts') {
+                    this.syncCustomerDebt(true);
+                }
+                // Khi mở trang Công nợ: đảm bảo debtPayments/debtors/repairs có trên Firebase
+                if (pageName === 'debts') {
+                    let needsDebtSync = false;
+                    if (!this.demoData.debtPayments) {
+                        this.demoData.debtPayments = [];
+                        needsDebtSync = true;
+                    }
+                    if (!this.demoData.debtors) {
+                        this.demoData.debtors = [];
+                        needsDebtSync = true;
+                    }
+                    if (!this.demoData.repairs) {
+                        this.demoData.repairs = [];
+                        needsDebtSync = true;
+                    }
+                    this.updateDebtorsList();
+                    this.saveToFirebaseImmediate().then(ok => {
+                        if (!ok) this.saveToLocalStorage();
+                    });
+                }
                 
                 let content;
                 try {
@@ -1065,7 +1144,7 @@
                     const typeDisplay = customer.type === 'doanh-nghiep' ? '🏢 Doanh nghiệp' : '👤 Cá nhân';
                     const iconClass = customer.type === 'doanh-nghiep' ? 'warning' : 'info';
                     const iconSymbol = customer.type === 'doanh-nghiep' ? '🏢' : '👤';
-                    
+                    const actualDebt = this.getActualDebtForCustomer(customer);
                     // Thông tin bổ sung cho doanh nghiệp
                     const companyInfo = customer.type === 'doanh-nghiep' && customer.companyName ? 
                         ` | Công ty: ${escapeHtml(customer.companyName)}` : '';
@@ -1082,7 +1161,7 @@
                                     <div class="activity-title">${escapeHtml(customer.name)} <span class="customer-id">(${escapeHtml(customer.id)})</span></div>
                                     <div class="activity-desc customer-type">${typeDisplay}${companyInfo}${departmentInfo}${taxCodeInfo}</div>
                                 </div>
-                                <div class="customer-debt-badge ${customer.debt > 0 ? 'has-debt' : ''}">${customer.debt > 0 ? (customer.debt.toLocaleString('vi-VN') + ' đ') : 'Không nợ'}</div>
+                                <div class="customer-debt-badge ${actualDebt > 0 ? 'has-debt' : ''}">${actualDebt > 0 ? (actualDebt.toLocaleString('vi-VN') + ' đ') : 'Không nợ'}</div>
                             </div>
                             <div class="customer-card-contact">
                                 <div class="activity-desc">📞 ${escapeHtml(customer.phone || '—')}</div>
@@ -1133,29 +1212,31 @@
             }
             
             getSuppliersContent() {
-                const suppliersTable = this.demoData.suppliers.map((supplier, index) => {
-                    const typeDisplay = supplier.type === 'doanh-nghiep' ? '🏢 Doanh nghiệp' : '👤 Cá nhân';
-                    const taxDisplay = supplier.taxCode ? ` | 🆔 MST: ${supplier.taxCode}` : '';
-                    const codeDisplay = supplier.supplierCode ? ` | 📋 Mã: ${supplier.supplierCode}` : '';
-                    const bankDisplay = supplier.bankAccount ? ` | 🏦 ${supplier.bankName}` : '';
-                    
-                    return `
-                        <div class="activity-item">
-                            <div class="activity-icon ${supplier.type === 'doanh-nghiep' ? 'warning' : 'success'}">🏢</div>
-                            <div class="activity-content">
-                                <div class="activity-title">${escapeHtml(supplier.name)} (${escapeHtml(supplier.id)})</div>
-                                <div class="activity-desc">${typeDisplay}${codeDisplay}${taxDisplay}</div>
-                                <div class="activity-desc">📞 ${escapeHtml(supplier.phone)} | 📧 ${escapeHtml(supplier.email || 'Chưa có')}${bankDisplay}</div>
-                                ${supplier.notes ? `<div class="activity-desc">📝 ${escapeHtml(supplier.notes)}</div>` : ''}
-                            </div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <button onclick="app.editSupplier(${index})" style="background: var(--primary-blue); color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Sửa</button>
-                                <button onclick="app.deleteSupplier(${index})" style="background: #ef4444; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Xóa</button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-                
+                if (!this.selectedSupplierIds) this.selectedSupplierIds = new Set();
+                if (this.suppliersSearchQuery === undefined) this.suppliersSearchQuery = '';
+                const q = (this.suppliersSearchQuery || '').trim().toLowerCase();
+                let filtered = this.demoData.suppliers || [];
+                if (q) {
+                    const nq = this.removeAccents(q);
+                    filtered = filtered.filter(s => {
+                        const n = this.removeAccents((s.name || '').toLowerCase());
+                        const p = this.removeAccents((s.phone || '').toLowerCase());
+                        const a = this.removeAccents((s.address || '').toLowerCase());
+                        const e = this.removeAccents((s.email || '').toLowerCase());
+                        return n.includes(nq) || p.includes(nq) || a.includes(nq) || e.includes(nq);
+                    });
+                }
+                const selectAllChecked = filtered.length > 0 && filtered.every(s => this.selectedSupplierIds.has(s.id));
+                const rows = this.getSupplierTableRowsHtml(filtered);
+                const selectedCount = this.selectedSupplierIds.size;
+                const selectionBar = `
+                    <div id="suppliers-selection-bar" style="display: ${selectedCount > 0 ? 'flex' : 'none'}; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; flex-wrap: wrap;">
+                        <span id="suppliers-selection-bar-count" style="font-weight: 600; color: #1e40af;">Đã chọn ${selectedCount}</span>
+                        <button type="button" onclick="app.clearSuppliersSelection()" style="background: transparent; border: none; color: #6b7280; cursor: pointer; padding: 2px 6px; font-size: 18px;" title="Bỏ chọn">×</button>
+                        <button type="button" onclick="app.bulkDeleteSuppliers()" style="background: #ef4444; color: white; padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">Xóa đã chọn</button>
+                        <button type="button" onclick="app.clearSuppliersSelection()" style="background: #e5e7eb; color: #374151; padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">Bỏ chọn</button>
+                    </div>
+                `;
                 return `
                     <div class="fade-in">
                         <div class="quick-actions">
@@ -1165,7 +1246,7 @@
                                     <div class="action-icon">🏢➕</div>
                                     <div class="action-title">Thêm nhà cung cấp</div>
                                 </div>
-                                <div class="action-button" onclick="app.showSupplierSearch()">
+                                <div class="action-button" onclick="app.toggleSupplierSearch()">
                                     <div class="action-icon">🔍</div>
                                     <div class="action-title">Tìm kiếm</div>
                                 </div>
@@ -1174,10 +1255,47 @@
                                     <div class="action-title">Tạo đơn mua</div>
                                 </div>
                             </div>
-                            ${suppliersTable}
+                            <div id="suppliers-search-box" style="display: ${(this.suppliersSearchQuery || '').trim() ? 'block' : 'none'}; margin-bottom: 16px;">
+                                <input type="text" id="suppliers-search-input" value="${(this.suppliersSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setSuppliersSearch(this.value)" placeholder="Tìm theo tên, SĐT, địa chỉ, email..." style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
+                            </div>
+                            ${selectionBar}
+                            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f8fafc; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">
+                                            <th style="padding: 12px; text-align: left; width: 48px;">
+                                                <input type="checkbox" id="suppliers-select-all" ${selectAllChecked ? 'checked' : ''} onchange="app.toggleSuppliersSelectAll(this.checked)" style="width: 18px; height: 18px; cursor: pointer;" title="Chọn tất cả">
+                                            </th>
+                                            <th style="padding: 12px; text-align: left;">Tên / Mã</th>
+                                            <th style="padding: 12px; text-align: left;">SĐT</th>
+                                            <th style="padding: 12px; text-align: left;">Địa chỉ</th>
+                                            <th style="padding: 12px; text-align: left;">Email</th>
+                                            <th style="padding: 12px; text-align: center; width: 140px;">Thao tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="suppliers-table-tbody">
+                                        ${rows || '<tr><td colspan="6" style="padding: 24px; text-align: center; color: #6b7280;">Không có nhà cung cấp nào.</td></tr>'}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 `;
+            }
+            getSupplierTableRowsHtml(filtered) {
+                if (!filtered || filtered.length === 0) return '<tr><td colspan="6" style="padding: 24px; text-align: center; color: #6b7280;">Không có nhà cung cấp nào.</td></tr>';
+                return filtered.map((supplier, idx) => {
+                    const index = this.demoData.suppliers.findIndex(s => s.id === supplier.id);
+                    const checked = this.selectedSupplierIds.has(supplier.id);
+                    return `<tr style="${idx % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;"><input type="checkbox" data-supplier-id="${escapeHtml(supplier.id || '')}" ${checked ? 'checked' : ''} onchange="app.toggleSupplierSelect(this.getAttribute('data-supplier-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><div style="font-weight: 600; color: #1f2937;">${escapeHtml(supplier.name || '-')}</div><div style="font-size: 12px; color: #6b7280;">${escapeHtml(supplier.id || '')}</div></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${escapeHtml(supplier.phone || '-')}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(supplier.address || '')}">${escapeHtml(supplier.address || '-')}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${escapeHtml(supplier.email || '-')}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><button type="button" onclick="app.editSupplier(${index})" style="background: #3b82f6; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;">Sửa</button><button type="button" onclick="app.deleteSupplierById('${(supplier.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" style="background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Xóa</button></td>
+                    </tr>`;
+                }).join('');
             }
             
             getProductsContent() {
@@ -1218,6 +1336,7 @@
 
                 return `
                     <div class="fade-in products-page-compact">
+                        <button type="button" class="products-fab-add" onclick="app.showAddProductForm()" title="Thêm sản phẩm" aria-label="Thêm sản phẩm">+</button>
                         <div class="stats-grid products-stats">
                             <div class="stat-card products">
                                 <div class="stat-header">
@@ -1242,7 +1361,7 @@
                         </div>
                         <div class="quick-actions">
                             <h2 class="section-title">Danh sách Sản phẩm</h2>
-                            <div class="action-grid products-actions" style="grid-template-columns: repeat(3, 1fr);">
+                            <div class="action-grid products-actions products-actions-desktop" style="grid-template-columns: repeat(3, 1fr);">
                                 <div class="action-button" onclick="app.showAddProductForm()">
                                     <div class="action-icon">📦➕</div>
                                     <div class="action-title">Thêm sản phẩm</div>
@@ -1260,7 +1379,7 @@
                                     <div class="action-title">Tra cứu IMEI đã bán</div>
                                 </div>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                            <div class="products-filters-row" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
                                 <div style="flex: 1; min-width: 200px;">
                                     <input type="text" id="products-search-input" value="${(this.productsSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setProductsSearch(this.value)" placeholder="Theo tên hàng..." style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                                 </div>
@@ -1270,20 +1389,19 @@
                                 <span id="products-selected-count" style="font-size: 14px; color: #6b7280;">${selectedCount > 0 ? 'Đã chọn ' + selectedCount : ''}</span>
                             </div>
                             ${selectionBar}
-                            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
-                                <table style="width: 100%; border-collapse: collapse;">
+                            <div class="products-table-container" style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
+                                <div id="products-mobile-list" class="products-mobile-list">${this.getProductsMobileListHtml(paginated)}</div>
+                                <table class="products-table products-table-desktop" style="width: 100%; border-collapse: collapse;">
                                     <thead>
                                         <tr style="background: #f8fafc; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">
-                                            <th style="padding: 12px; text-align: left; width: 48px;">
-                                                <input type="checkbox" id="products-select-all" ${selectAllChecked ? 'checked' : ''} onchange="app.toggleProductsSelectAll(this.checked)" style="width: 18px; height: 18px; cursor: pointer;" title="Chọn tất cả">
-                                            </th>
-                                            <th style="padding: 12px; text-align: left;">Tên hàng</th>
-                                            <th style="padding: 12px; text-align: left;">Danh mục</th>
-                                            <th style="padding: 12px; text-align: right;">Giá bán</th>
-                                            <th style="padding: 12px; text-align: right;">Giá vốn</th>
-                                            <th style="padding: 12px; text-align: right;">Lợi nhuận</th>
-                                            <th style="padding: 12px; text-align: right;">Tồn kho</th>
-                                            <th style="padding: 12px; text-align: center; width: 140px;">Thao tác</th>
+                                            <th class="product-th-check" style="padding: 12px; text-align: left; width: 48px;"><input type="checkbox" id="products-select-all" ${selectAllChecked ? 'checked' : ''} onchange="app.toggleProductsSelectAll(this.checked)" style="width: 18px; height: 18px; cursor: pointer;" title="Chọn tất cả"></th>
+                                            <th class="product-th-name" style="padding: 12px; text-align: left;">Tên hàng</th>
+                                            <th class="product-th-category" style="padding: 12px; text-align: left;">Danh mục</th>
+                                            <th class="product-th-price" style="padding: 12px; text-align: right;">Giá bán</th>
+                                            <th class="product-th-import" style="padding: 12px; text-align: right;">Giá vốn</th>
+                                            <th class="product-th-profit" style="padding: 12px; text-align: right;">Lợi nhuận</th>
+                                            <th class="product-th-stock" style="padding: 12px; text-align: right;">Tồn kho</th>
+                                            <th class="product-th-actions" style="padding: 12px; text-align: center; width: 140px;">Thao tác</th>
                                         </tr>
                                     </thead>
                                     <tbody id="products-table-tbody">
@@ -1316,6 +1434,26 @@
                 `;
             }
 
+            getProductsMobileListHtml(filtered) {
+                if (!filtered || filtered.length === 0) return '<div class="products-mobile-empty">Chưa có sản phẩm nào.</div>';
+                return filtered.map((product) => {
+                    const isImei = product.hasImei && product.imeis && product.imeis.length > 0;
+                    const stockVal = isImei ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
+                    const price = product.price || 0;
+                    const msp = product.id || product.sku || product.code || '-';
+                    const safeId = (product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    return `<div class="products-mobile-item" data-product-id="${safeId}" onclick="app.showEditProductForm(this.getAttribute('data-product-id'))">
+                        <div class="products-mobile-left">
+                            <div class="products-mobile-name">${escapeHtml(product.name)}</div>
+                            <div class="products-mobile-msp">${escapeHtml(msp)}</div>
+                        </div>
+                        <div class="products-mobile-right">
+                            <div class="products-mobile-price">${(price || 0).toLocaleString('vi-VN')}</div>
+                            <div class="products-mobile-stock">Tồn: ${stockVal}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
             getProductTableRowsHtml(filtered) {
                 if (!filtered || filtered.length === 0) return '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Không có sản phẩm nào.</td></tr>';
                 return filtered.map((product, index) => {
@@ -1329,15 +1467,16 @@
                     const profitCell = importPrice > 0 ? `<span style="color: ${profit >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 500;">${profit.toLocaleString('vi-VN')}</span><br><span style="font-size: 11px; color: #6b7280;">(${profitPercent}%)</span>` : '-';
                     const priceCell = price.toLocaleString('vi-VN');
                     const importPriceCell = importPrice > 0 ? importPrice.toLocaleString('vi-VN') : '-';
-                    return `<tr style="${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
-                            <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;"><input type="checkbox" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" ${checked ? 'checked' : ''} onchange="app.toggleProductSelect(this.getAttribute('data-product-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
-                            <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><div style="font-weight: 600; color: #1f2937;">${escapeHtml(product.name)}</div></td>
-                            <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #6b7280;">${escapeHtml(product.category || '-')}</td>
-                            <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500;">${priceCell}</td>
-                            <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${importPriceCell}</td>
-                            <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${profitCell}</td>
-                            <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 600;">${stockVal}</td>
-                            <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.showEditProductForm(this.getAttribute('data-product-id'))" style="background: #3b82f6; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;">Sửa</button><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.deleteProductById(this.getAttribute('data-product-id'))" style="background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Xóa</button></td>
+                    const msp = product.id || product.sku || product.code || '-';
+                    return `<tr class="product-row" style="${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+                            <td class="product-cell-check" style="padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;"><input type="checkbox" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" ${checked ? 'checked' : ''} onchange="app.toggleProductSelect(this.getAttribute('data-product-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
+                            <td class="product-cell-name" style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><div class="product-name" style="font-weight: 600; color: #1f2937;">${escapeHtml(product.name)}</div><div class="product-msp" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(msp)}</div></td>
+                            <td class="product-cell-category" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #6b7280;">${escapeHtml(product.category || '-')}</td>
+                            <td class="product-cell-price" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500;">${priceCell}</td>
+                            <td class="product-cell-import" style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${importPriceCell}</td>
+                            <td class="product-cell-profit" style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${profitCell}</td>
+                            <td class="product-cell-stock" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 600;">${stockVal}</td>
+                            <td class="product-cell-actions" style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.showEditProductForm(this.getAttribute('data-product-id'))" style="background: #3b82f6; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;">Sửa</button><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.deleteProductById(this.getAttribute('data-product-id'))" style="background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Xóa</button></td>
                         </tr>`;
                 }).join('');
             }
@@ -1371,8 +1510,10 @@
                     return;
                 }
                 const idx = el.getAttribute('data-pos-price-idx');
-                if (idx !== null) this.updatePOSItemPrice(parseInt(idx, 10), el.value);
-                el.value = this.formatPrice(this.parsePrice(el.value));
+                if (idx !== null) {
+                    this.updatePOSItemPrice(parseInt(idx, 10), el.value);
+                    this.refreshPOSUI();
+                }
             }
             priceInputInput(el) { let s = (el.value||'').replace(/\D/g,''); s = s.replace(/^0+(?=\d)/,''); el.value = s; }
             priceInputBlur(el) {
@@ -1443,6 +1584,8 @@
                 const tbody = document.getElementById('products-table-tbody');
                 const footer = document.getElementById('products-table-footer');
                 if (tbody) tbody.innerHTML = this.getProductTableRowsHtml(paginated);
+                const mobileList = document.getElementById('products-mobile-list');
+                if (mobileList) mobileList.innerHTML = this.getProductsMobileListHtml(paginated);
                 if (footer) {
                     footer.innerHTML = `<div class="products-pagination">
                         <span class="products-pagination-label">Hiển thị</span>
@@ -2101,13 +2244,19 @@
                     return '<div class="pos-cart-empty">Chọn sản phẩm để thêm vào đơn</div>';
                 }
                 const header = isMobileStep2 ? '' : '<div class="pos-cart-header"><span>TT</span><span></span><span>Tên hàng</span><span>SL</span><span>Đơn giá</span><span>Giảm</span><span>Thành tiền</span></div>';
+                const products = this.demoData.products || [];
                 return header + items.map((item, i) => {
-                    const rawTotal = (item.quantity||1)*(item.price||0);
+                    const p = products.find(x => x.id === item.productId);
+                    const origPrice = item.originalPrice != null ? item.originalPrice : (p ? (p.price || 0) : (item.price || 0));
+                    const currPrice = item.price || 0;
+                    const priceEdited = origPrice > 0 && currPrice !== origPrice;
+                    const rawTotal = (item.quantity||1)*currPrice;
                     const itemDisc = Math.max(0, parseInt(item.discount, 10) || 0);
                     const itemTotal = Math.max(0, rawTotal - Math.min(itemDisc, rawTotal));
                     const dt = item.discountType || 'vnd';
-                    const rawRow = (item.quantity||1)*(item.price||0);
+                    const rawRow = (item.quantity||1)*currPrice;
                     const discVal = dt === 'percent' && rawRow > 0 ? (Math.round((itemDisc/rawRow)*100) || 0) : (itemDisc || 0);
+                    const priceDisplayMobile = priceEdited ? `<div class="pos-cart-mobile-price-display"><span class="pos-cart-original-price">${(origPrice||0).toLocaleString('vi-VN')}</span> <span class="pos-cart-sale-price">${(currPrice||0).toLocaleString('vi-VN')}</span></div>` : '';
                     return `
                     <div class="pos-cart-row" data-idx="${i}">
                         <div class="pos-cart-row-desktop">
@@ -2128,6 +2277,7 @@
                         <div class="pos-cart-row-mobile">
                             <div class="pos-cart-mobile-top">
                                 <div class="pos-cart-mobile-name" ${isMobileStep2 ? `onclick="app.showPOSProductDetailModal(${i})" style="cursor: pointer;"` : ''}>${(item.name||'').replace(/</g,'&lt;')}</div>
+                                ${priceDisplayMobile}
                             </div>
                             <div class="pos-cart-mobile-bottom">
                                 <div class="pos-cart-mobile-stepper">
@@ -2135,7 +2285,7 @@
                                     <span>${item.quantity||1}</span>
                                     <button type="button" onclick="app.updatePOSQtyDelta(${i}, 1)">+</button>
                                 </div>
-                                <input type="text" class="price-input pos-cart-mobile-price" value="${this.formatPrice(item.price||0)}" onfocus="app.posCartPriceFocus(this)" oninput="app.priceInputInput(this); app.updatePOSItemPrice(${i}, this.value)" onblur="app.posCartPriceBlur(this)" data-pos-price-idx="${i}" inputmode="numeric" placeholder="Nhập giá" title="Nhấn để sửa giá">
+                                <input type="text" class="price-input pos-cart-mobile-price" value="${this.formatPrice(currPrice)}" onfocus="app.posCartPriceFocus(this)" oninput="app.priceInputInput(this); app.updatePOSItemPrice(${i}, this.value)" onblur="app.posCartPriceBlur(this)" data-pos-price-idx="${i}" inputmode="numeric" placeholder="Nhập giá" title="Nhấn để sửa giá">
                                 <button type="button" onclick="app.removeFromPOS(${i})" class="pos-cart-mobile-del">🗑️</button>
                             </div>
                         </div>
@@ -2286,9 +2436,11 @@
                 const existing = this.posCart.items.find(x => x.productId === productId);
                 if (existing) {
                     if ((existing.quantity || 1) >= stock) { this.showNotification('Không đủ tồn kho', 'error'); return; }
+                    if (existing.originalPrice == null) existing.originalPrice = p.price || existing.price || 0;
                     existing.quantity = (existing.quantity || 1) + 1;
                 } else {
-                    this.posCart.items.push({ productId: p.id, name: p.name, quantity: 1, price: p.price || 0, discount: 0 });
+                    const origPrice = p.price || 0;
+                    this.posCart.items.push({ productId: p.id, name: p.name, quantity: 1, price: origPrice, originalPrice: origPrice, discount: 0 });
                 }
                 const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
                 if (isMobile && this.posMobileStep === 1) {
@@ -2508,6 +2660,10 @@
             showPOSProductDetailModal(idx) {
                 const item = this.posCart.items[idx];
                 if (!item) return;
+                const p = (this.demoData.products || []).find(x => x.id === item.productId);
+                const origPrice = item.originalPrice != null ? item.originalPrice : (p ? (p.price || 0) : (item.price || 0));
+                const priceEdited = origPrice > 0 && (item.price || 0) !== origPrice;
+                const priceDisplayModal = priceEdited ? `<div style="margin-top: 4px; font-size: 13px;"><span style="text-decoration: line-through; color: #9ca3af;">${(origPrice||0).toLocaleString('vi-VN')}</span> <span style="color: #059669; font-weight: 700;">${(item.price||0).toLocaleString('vi-VN')}</span></div>` : `<div style="font-weight: 600; font-size: 16px; color: #059669; margin-top: 4px;">${(item.price||0).toLocaleString('vi-VN')}</div>`;
                 const rawTotal = (item.quantity || 1) * (item.price || 0);
                 const itemDisc = Math.max(0, parseInt(item.discount, 10) || 0);
                 const sellPrice = Math.max(0, rawTotal - itemDisc);
@@ -2524,7 +2680,7 @@
                     <div style="margin-bottom: 20px;">
                         <div style="font-weight: 700; font-size: 16px; line-height: 1.4;">${(item.name||'').replace(/</g,'&lt;')}</div>
                         <div style="font-size: 12px; color: #6b7280; line-height: 1.4; margin-top: 4px;">${item.productId || ''} • 1 KH đặt: 0</div>
-                        <div style="font-weight: 600; font-size: 16px; color: #059669; margin-top: 4px;">${(item.price||0).toLocaleString('vi-VN')}</div>
+                        ${priceDisplayModal}
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <span>Số lượng</span>
@@ -2727,6 +2883,7 @@
                         continue;
                     }
                     const price = (item.price === 0 || item.price === '0') ? 0 : (item.price || p.price || 0);
+                    const origPrice = item.originalPrice != null ? item.originalPrice : (p.price || 0);
                     const itemDisc = Math.max(0, parseInt(item.discount, 10) || 0);
                     const rawSub = qty * price;
                     const subtotal = Math.max(0, rawSub - Math.min(itemDisc, rawSub));
@@ -2737,6 +2894,7 @@
                         productName: p.name,
                         quantity: qty,
                         price: price,
+                        originalPrice: origPrice,
                         discountType: 'vnd',
                         discount: itemDisc,
                         subtotal: subtotal
@@ -2803,7 +2961,12 @@
                 this.posCart.amountPaid = null;
                 this.posCart.customerId = 'KH_LE';
                 this.posCart.customerName = 'Khách lẻ';
-                this.saveToLocalStorage();
+                // Đơn công nợ: lưu ngay lên Firebase để không mất dữ liệu
+                if (orderDebt > 0) {
+                    this.saveToFirebaseImmediate().then(ok => { if (!ok) this.saveToLocalStorage(); });
+                } else {
+                    this.saveToLocalStorage();
+                }
                 const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
                 if (isMobile) { this.posMobileStep = 1; this.loadPage('sales'); } else this.refreshPOSUI();
                 const isDebt = this.posCart._saveAsDebt;
@@ -2866,15 +3029,20 @@
                 `;
             }
             
+            _matchCustomer(o, c) {
+                if (o.customerId === c.id || o.customerName === c.name || o.customerId === c.name || o.customerName === c.id) return true;
+                const n = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+                if (n(o.customerId) === n(c.id) || n(o.customerName) === n(c.name) || n(o.customerId) === n(c.name) || n(o.customerName) === n(c.id)) return true;
+                const rPh = (o.phone || '').toString().replace(/\D/g, '');
+                const cPh = (c.phone || '').toString().replace(/\D/g, '');
+                return rPh.length >= 7 && cPh.length >= 7 && rPh === cPh;
+            }
             // Công nợ thực tế = đơn hàng + sửa chữa (đồng bộ 2 nguồn, dùng amountPaid vs cost thay vì paymentStatus)
             getActualDebtForCustomer(c) {
-                const orders = (this.demoData.orders || []).filter(o => 
-                    o.customerId === c.id || o.customerName === c.name || o.customerId === c.name || o.customerName === c.id
-                );
+                const orders = (this.demoData.orders || []).filter(o => this._matchCustomer(o, c));
                 const orderDebt = orders.reduce((sum, order) => sum + Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0))), 0);
                 const repairs = (this.demoData.repairs || []).filter(r => 
-                    (r.status || '') === 'Đã trả' &&
-                    (r.customerId === c.id || r.customerName === c.name || r.customerId === c.name || r.customerName === c.id)
+                    (r.status || '') === 'Đã trả' && this._matchCustomer(r, c)
                 );
                 const repairDebt = repairs.reduce((sum, r) => {
                     const cost = Number(r.repairCost) || 0;
@@ -2989,66 +3157,67 @@
                 `;
             }
             syncCustomerDebtFromOrders() { this.syncCustomerDebt(); }
-            syncCustomerDebt() {
+            syncCustomerDebt(silent) {
                 (this.demoData.customers || []).forEach(c => {
                     c.debt = this.getActualDebtForCustomer(c);
                 });
-                this.saveToLocalStorage();
-                this.showNotification('Đã đồng bộ công nợ từ đơn hàng và sửa chữa.', 'success');
+                this.updateDebtorsList();
+                if (silent) {
+                    this.saveToFirebaseImmediate().then(ok => { if (!ok) this.saveToLocalStorage(); });
+                } else {
+                    this.saveToFirebaseImmediate().then(ok => {
+                        if (!ok) this.saveToLocalStorage();
+                        this.showNotification('Đã đồng bộ công nợ từ đơn hàng và sửa chữa.', 'success');
+                    });
+                }
+            }
+            updateDebtorsList() {
+                const list = this.getCustomersWithDebt();
+                this.demoData.debtors = list.map(c => ({
+                    customerId: c.id || c.name,
+                    customerName: c.name || c.id,
+                    debt: this.getActualDebtForCustomer(c),
+                    phone: c.phone || '',
+                    address: c.address || ''
+                }));
             }
             
             getOrdersContent() {
+                if (!this.selectedOrderIds) this.selectedOrderIds = new Set();
+                if (this.ordersSearchQuery === undefined) this.ordersSearchQuery = '';
+                if (this.ordersFilterPeriod === undefined) this.ordersFilterPeriod = 'all';
                 const orders = this.demoData.orders || [];
                 const vietnamTime = this.getVietnamTime();
                 const todayStr = vietnamTime.toISOString().split('T')[0];
-                const todayOrders = orders.filter(order => order && order.date === todayStr);
-                const weekOrders = orders.filter(order => {
-                    if (!order || !order.date) return false;
-                    const orderDate = new Date(order.date);
-                    const today = new Date(vietnamTime);
-                    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    return orderDate >= weekAgo && orderDate <= today;
-                });
-                const monthOrders = orders.filter(order => {
-                    if (!order || !order.date) return false;
-                    const orderDate = new Date(order.date);
-                    const today = new Date(vietnamTime);
-                    return orderDate.getMonth() === today.getMonth() && orderDate.getFullYear() === today.getFullYear();
-                });
-
-                const sortedOrders = orders;
-                if (orders.length) console.log('📋 Danh sách đơn hàng (mới nhất ở đầu):', sortedOrders.map(o => `${o.id} (${o.date} ${o.time})`));
-
-                const ordersTable = sortedOrders.length === 0 ? '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Chưa có đơn hàng nào.</td></tr>' : sortedOrders.map((order, index) => {
-                    const originalIndex = orders.findIndex(o => o.id === order.id);
-                    return `
-                    <tr data-order-index="${originalIndex}">
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.id}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.customerName}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; max-width: 260px; font-size: 13px;" title="${escapeHtml((order.products || []).map(p => (p.name || p.productName || '') + ' x' + (p.quantity || 1)).join(', '))}">${escapeHtml((order.products || []).map(p => (p.name || p.productName || '-') + ' x' + (p.quantity || 1)).join(', ') || '-')}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.date} ${order.time}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.total.toLocaleString('vi-VN')} VNĐ</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.paymentMethod}</td>
-                        <td class="payment-cell" style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-                            <button ondblclick="app.togglePaymentStatus(${originalIndex})" style="
-                                background: ${order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b'}; 
-                                color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
-                                transition: all 0.3s ease;
-                            ">
-                                ${order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ'}
-                            </button>
-                        </td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">
-                            <div style="display: flex; gap: 6px; flex-wrap: nowrap; align-items: center;">
-                                <button onclick="app.showPrintOptionsPopup(${originalIndex})" style="flex-shrink: 0; background: var(--primary-green); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; white-space: nowrap;" title="In hóa đơn">In</button>
-                                <button onclick="app.viewOrderDetails(${originalIndex})" style="flex-shrink: 0; background: var(--primary-blue); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;">Chi tiết</button>
-                                <button onclick="app.deleteOrder(${originalIndex})" style="flex-shrink: 0; background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;" title="Xóa đơn">Xóa</button>
-                            </div>
-                        </td>
-                    </tr>
-                    `;
-                }).join('');
-
+                const weekStart = (() => { const d = new Date(vietnamTime); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); d.setDate(diff); return d.toISOString().split('T')[0]; })();
+                let filtered = orders.filter(o => o && o.id);
+                if (this.ordersFilterPeriod === 'today') filtered = filtered.filter(o => o.date === todayStr);
+                else if (this.ordersFilterPeriod === 'week') filtered = filtered.filter(o => o.date >= weekStart);
+                const q = (this.ordersSearchQuery || '').trim().toLowerCase();
+                if (q) {
+                    const nq = this.removeAccents(q);
+                    filtered = filtered.filter(o => {
+                        const n = this.removeAccents((o.customerName || '').toLowerCase());
+                        const id = this.removeAccents((o.id || '').toLowerCase());
+                        const ph = this.removeAccents((o.phone || '').toLowerCase());
+                        const addr = this.removeAccents((o.address || '').toLowerCase());
+                        return id.includes(nq) || n.includes(nq) || ph.includes(nq) || addr.includes(nq);
+                    });
+                }
+                const todayOrders = orders.filter(o => o && o.date === todayStr);
+                const weekOrders = orders.filter(o => o && o.date && o.date >= weekStart);
+                const monthOrders = orders.filter(o => { if (!o || !o.date) return false; const od = new Date(o.date); const t = new Date(vietnamTime); return od.getMonth() === t.getMonth() && od.getFullYear() === t.getFullYear(); });
+                const selectAllChecked = filtered.length > 0 && filtered.every(o => this.selectedOrderIds.has(o.id));
+                const ordersTable = this.getOrderTableRowsHtml(filtered, orders);
+                const selectedCount = this.selectedOrderIds.size;
+                const selectionBar = `
+                    <div id="orders-selection-bar" style="display: ${selectedCount > 0 ? 'flex' : 'none'}; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; flex-wrap: wrap;">
+                        <span id="orders-selection-bar-count" style="font-weight: 600; color: #1e40af;">Đã chọn ${selectedCount}</span>
+                        <button type="button" onclick="app.clearOrdersSelection()" style="background: transparent; border: none; color: #6b7280; cursor: pointer; padding: 2px 6px; font-size: 18px;" title="Bỏ chọn">×</button>
+                        <button type="button" onclick="app.bulkDeleteOrders()" style="background: #ef4444; color: white; padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">Xóa đã chọn</button>
+                        <button type="button" onclick="app.clearOrdersSelection()" style="background: #e5e7eb; color: #374151; padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">Bỏ chọn</button>
+                    </div>
+                `;
                 return `
                     <div class="fade-in">
                         <!-- Stats Grid -->
@@ -3097,13 +3266,17 @@
                                     <div class="action-icon">📝</div>
                                     <div class="action-title">Tạo đơn hàng mới</div>
                                 </div>
-                                <div class="action-button" onclick="event.stopPropagation(); app.filterOrdersByPeriod('today');">
+                                <div class="action-button" onclick="app.setOrdersFilterPeriod('today')">
                                     <div class="action-icon">📅</div>
-                                    <div class="action-title">Đơn hàng hôm nay</div>
+                                    <div class="action-title">Đơn hôm nay</div>
                                 </div>
-                                <div class="action-button" onclick="event.stopPropagation(); app.filterOrdersByPeriod('week');">
+                                <div class="action-button" onclick="app.setOrdersFilterPeriod('week')">
                                     <div class="action-icon">📊</div>
-                                    <div class="action-title">Đơn hàng tuần</div>
+                                    <div class="action-title">Đơn tuần</div>
+                                </div>
+                                <div class="action-button" onclick="app.setOrdersFilterPeriod('all')">
+                                    <div class="action-icon">📋</div>
+                                    <div class="action-title">Tất cả</div>
                                 </div>
                                 <div class="action-button" onclick="app.exportOrdersReport()">
                                     <div class="action-icon">📋</div>
@@ -3113,21 +3286,23 @@
                             
                             <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                                 <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                                    <span>📋</span> Danh sách đơn hàng (${orders.length})
+                                    <span>📋</span> Danh sách đơn hàng${this.ordersFilterPeriod === 'today' ? ' hôm nay' : this.ordersFilterPeriod === 'week' ? ' tuần này' : ''} (${filtered.length}${filtered.length !== orders.length ? '/' + orders.length : ''})
                                 </h3>
                                 
                                 <div style="margin-bottom: 16px;">
-                                    <input type="text" id="order-search" placeholder="Tìm kiếm theo mã đơn, khách hàng..." 
-                                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
-                                           oninput="app.searchOrders(this.value)">
+                                    <input type="text" id="orders-search-input" value="${(this.ordersSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setOrdersSearch(this.value)" placeholder="Tìm theo mã đơn, khách hàng, SĐT, địa chỉ..." 
+                                           style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                                 </div>
-                                
+                                ${selectionBar}
                                 <div style="overflow-x: auto;">
                                     <table id="orders-table" style="width: 100%; border-collapse: collapse; background: white;">
                                         <thead>
                                             <tr style="background: #f8fafc;">
+                                                <th style="padding: 12px; text-align: left; width: 48px; border-bottom: 2px solid #e5e7eb; font-weight: 600;"><input type="checkbox" id="orders-select-all" ${selectAllChecked ? 'checked' : ''} onchange="app.toggleOrdersSelectAll(this.checked)" style="width: 18px; height: 18px; cursor: pointer;" title="Chọn tất cả"></th>
                                                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Mã đơn</th>
                                                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Khách hàng</th>
+                                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">SĐT</th>
+                                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Địa chỉ</th>
                                                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Sản phẩm</th>
                                                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Thời gian</th>
                                                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Tổng tiền</th>
@@ -3145,6 +3320,117 @@
                         </div>
                     </div>
                 `;
+            }
+            getOrderTableRowsHtml(filtered, orders) {
+                if (!filtered || filtered.length === 0) return '<tr><td colspan="11" style="padding: 24px; text-align: center; color: #6b7280;">Chưa có đơn hàng nào.</td></tr>';
+                return filtered.map((order, idx) => {
+                    const originalIndex = orders.findIndex(o => o.id === order.id);
+                    const checked = this.selectedOrderIds.has(order.id);
+                    const productsStr = (order.products || []).map(p => (p.name || p.productName || '-') + ' x' + (p.quantity || 1)).join(', ') || '-';
+                    return `<tr data-order-index="${originalIndex}" style="${idx % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle;"><input type="checkbox" data-order-id="${escapeHtml(order.id || '')}" ${checked ? 'checked' : ''} onchange="app.toggleOrderSelect(this.getAttribute('data-order-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.id}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(order.customerName || '-')}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(order.phone || '-')}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(order.address || '')}">${escapeHtml(order.address || '-')}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; max-width: 200px; font-size: 13px;" title="${escapeHtml(productsStr)}">${escapeHtml(productsStr.length > 40 ? productsStr.substring(0, 40) + '…' : productsStr)}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.date || ''} ${order.time || ''}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${(order.total || 0).toLocaleString('vi-VN')} VNĐ</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(order.paymentMethod || '-')}</td>
+                        <td class="payment-cell" style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+                            <button ondblclick="app.togglePaymentStatus(${originalIndex})" style="background: ${order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b'}; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ'}</button>
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">
+                            <div style="display: flex; gap: 6px; flex-wrap: nowrap; align-items: center;">
+                                <button onclick="app.showPrintOptionsPopup(${originalIndex})" style="flex-shrink: 0; background: var(--primary-green); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px;" title="In">In</button>
+                                <button onclick="app.viewOrderDetails(${originalIndex})" style="flex-shrink: 0; background: var(--primary-blue); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">Chi tiết</button>
+                                <button onclick="app.deleteOrder(${originalIndex})" style="flex-shrink: 0; background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">Xóa</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+            }
+            setOrdersFilterPeriod(period) {
+                this.ordersFilterPeriod = period || 'all';
+                this.loadPage('orders');
+            }
+            setOrdersSearch(val) {
+                this.ordersSearchQuery = val || '';
+                this.loadPage('orders');
+            }
+            toggleOrdersSelectAll(checked) {
+                const q = (this.ordersSearchQuery || '').trim().toLowerCase();
+                const per = this.ordersFilterPeriod || 'all';
+                let list = this.demoData.orders || [];
+                const vn = this.getVietnamTime();
+                const todayStr = vn.toISOString().split('T')[0];
+                const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
+                if (per === 'today') list = list.filter(o => o.date === todayStr);
+                else if (per === 'week') list = list.filter(o => o.date >= weekStart);
+                if (q) {
+                    const nq = this.removeAccents(q);
+                    list = list.filter(o => this.removeAccents((o.customerName || '') + (o.id || '') + (o.phone || '') + (o.address || '')).toLowerCase().includes(nq));
+                }
+                list.forEach(o => { if (checked) this.selectedOrderIds.add(o.id); else this.selectedOrderIds.delete(o.id); });
+                this.updateOrdersSelectionUI();
+            }
+            toggleOrderSelect(id, checked) {
+                if (checked) this.selectedOrderIds.add(id); else this.selectedOrderIds.delete(id);
+                this.updateOrdersSelectionUI();
+            }
+            updateOrdersSelectionUI() {
+                const n = this.selectedOrderIds.size;
+                const elBar = document.getElementById('orders-selection-bar');
+                const elCount = document.getElementById('orders-selection-bar-count');
+                if (elBar) elBar.style.display = n > 0 ? 'flex' : 'none';
+                if (elCount) elCount.textContent = n > 0 ? 'Đã chọn ' + n : '';
+                const selectAll = document.getElementById('orders-select-all');
+                const q = (this.ordersSearchQuery || '').trim().toLowerCase();
+                const per = this.ordersFilterPeriod || 'all';
+                let filtered = this.demoData.orders || [];
+                const vn = this.getVietnamTime();
+                const todayStr = vn.toISOString().split('T')[0];
+                const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
+                if (per === 'today') filtered = filtered.filter(o => o.date === todayStr);
+                else if (per === 'week') filtered = filtered.filter(o => o.date >= weekStart);
+                if (q) {
+                    const nq = this.removeAccents(q);
+                    filtered = filtered.filter(o => this.removeAccents((o.customerName || '') + (o.id || '') + (o.phone || '') + (o.address || '')).toLowerCase().includes(nq));
+                }
+                if (selectAll) selectAll.checked = filtered.length > 0 && filtered.every(o => this.selectedOrderIds.has(o.id));
+                document.querySelectorAll('#orders-table input[data-order-id]').forEach(cb => {
+                    const id = cb.getAttribute('data-order-id');
+                    cb.checked = this.selectedOrderIds.has(id);
+                });
+            }
+            clearOrdersSelection() {
+                this.selectedOrderIds.clear();
+                this.updateOrdersSelectionUI();
+            }
+            bulkDeleteOrders() {
+                if (this.selectedOrderIds.size === 0) return;
+                if (!confirm('Bạn có chắc muốn xóa ' + this.selectedOrderIds.size + ' đơn hàng đã chọn? Sẽ hoàn trả tồn kho.')) return;
+                const toDelete = [...this.selectedOrderIds];
+                toDelete.forEach(orderId => {
+                    const index = this.demoData.orders.findIndex(o => o.id === orderId);
+                    if (index >= 0) {
+                        const order = this.demoData.orders[index];
+                        const products = this.demoData.products || [];
+                        (order.products || []).forEach(op => {
+                            const pid = op.id || op.productId;
+                            const prod = products.find(p => p.id === pid);
+                            if (prod && (op.quantity || 0) > 0) {
+                                const qty = op.quantity || 1;
+                                prod.stock = Math.max(0, (prod.stock ?? 0) + qty);
+                            }
+                        });
+                        this.demoData.orders.splice(index, 1);
+                    }
+                });
+                this.selectedOrderIds.clear();
+                this.saveToLocalStorage();
+                this.loadPage('orders');
+                this.showNotification('Đã xóa đơn hàng đã chọn và hoàn trả tồn kho', 'success');
             }
 
             getRepairsContent() {
@@ -5182,7 +5468,7 @@
                 };
                 
                 this.demoData.customers.push(newCustomer);
-                this.saveToLocalStorage();
+                this.saveToFirebaseImmediate().then(ok => { if (!ok) this.saveToLocalStorage(); });
                 this.showNotification(`Đã thêm khách hàng ${newCustomer.name}`, 'success');
                 this.loadPage('customers');
                 const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
@@ -5319,7 +5605,7 @@
                     debt: parseInt(formData.get('debt')) || 0
                 };
                 
-                this.saveToLocalStorage();
+                this.saveToFirebaseImmediate().then(ok => { if (!ok) this.saveToLocalStorage(); });
                 this.refreshAllCustomerDisplays();
                 this.showNotification(`Đã cập nhật thông tin khách hàng`, 'success');
                 this.loadPage('customers');
@@ -5330,7 +5616,7 @@
                 const customer = this.demoData.customers[index];
                 if (confirm(`Bạn có chắc muốn xóa khách hàng ${customer.name}?`)) {
                     this.demoData.customers.splice(index, 1);
-                    this.saveToLocalStorage();
+                    this.saveToFirebaseImmediate().then(ok => { if (!ok) this.saveToLocalStorage(); });
                     this.showNotification(`Đã xóa khách hàng ${customer.name}`, 'success');
                     this.loadPage('customers');
                 }
@@ -6447,7 +6733,11 @@
             }
             
             saveToFirebaseImmediate() {
+                if (!this.demoData.debtPayments) this.demoData.debtPayments = [];
+                if (!this.demoData.debtors) this.demoData.debtors = [];
+                if (!this.demoData.repairs) this.demoData.repairs = [];
                 window.FirebaseStorage.setData(this.demoData);
+                // Lưu ngay: Firebase + localStorage song song
                 return window.FirebaseStorage.save({ data: this.demoData });
             }
             saveToFirebase() {
@@ -6455,6 +6745,9 @@
                 if (app._saveDebounceTimer) clearTimeout(app._saveDebounceTimer);
                 app._saveDebounceTimer = setTimeout(async () => {
                     app._saveDebounceTimer = null;
+                    if (!app.demoData.debtPayments) app.demoData.debtPayments = [];
+                    if (!app.demoData.debtors) app.demoData.debtors = [];
+                    if (!app.demoData.repairs) app.demoData.repairs = [];
                     window.FirebaseStorage.setData(app.demoData);
                     const ok = await window.FirebaseStorage.save({ data: app.demoData });
                     if (!ok && window.app) {
@@ -6462,7 +6755,10 @@
                     }
                 }, app._saveDebounceMs);
             }
-            saveToLocalStorage() { this.saveToFirebase(); }
+            saveToLocalStorage() {
+                // Đồng bộ thời gian thực lên Firebase ngay khi có thay đổi
+                this.saveToFirebaseImmediate().then(ok => { if (!ok) this.saveToFirebase(); });
+            }
             
             async loadFromFirebaseStorage() {
                 const loaded = await window.FirebaseStorage.load();
@@ -8107,8 +8403,83 @@
                 const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
             }
 
-            showSupplierSearch() {
-                this.showNotification('Tìm kiếm nhà cung cấp theo tên hoặc sản phẩm', 'info');
+            toggleSupplierSearch() {
+                const box = document.getElementById('suppliers-search-box');
+                if (box) {
+                    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+                    if (box.style.display === 'block') {
+                        const inp = document.getElementById('suppliers-search-input');
+                        if (inp) { inp.focus(); }
+                    }
+                }
+            }
+            setSuppliersSearch(val) {
+                this.suppliersSearchQuery = val || '';
+                this.loadPage('suppliers');
+            }
+            toggleSuppliersSelectAll(checked) {
+                const q = (this.suppliersSearchQuery || '').trim().toLowerCase();
+                let list = this.demoData.suppliers || [];
+                if (q) {
+                    const nq = this.removeAccents(q);
+                    list = list.filter(s => {
+                        const n = this.removeAccents((s.name || '').toLowerCase());
+                        const p = this.removeAccents((s.phone || '').toLowerCase());
+                        const a = this.removeAccents((s.address || '').toLowerCase());
+                        const e = this.removeAccents((s.email || '').toLowerCase());
+                        return n.includes(nq) || p.includes(nq) || a.includes(nq) || e.includes(nq);
+                    });
+                }
+                list.forEach(s => { if (checked) this.selectedSupplierIds.add(s.id); else this.selectedSupplierIds.delete(s.id); });
+                this.updateSuppliersSelectionUI();
+            }
+            toggleSupplierSelect(id, checked) {
+                if (checked) this.selectedSupplierIds.add(id); else this.selectedSupplierIds.delete(id);
+                this.updateSuppliersSelectionUI();
+            }
+            updateSuppliersSelectionUI() {
+                const n = this.selectedSupplierIds.size;
+                const elBar = document.getElementById('suppliers-selection-bar');
+                const elCount = document.getElementById('suppliers-selection-bar-count');
+                if (elBar) elBar.style.display = n > 0 ? 'flex' : 'none';
+                if (elCount) elCount.textContent = n > 0 ? 'Đã chọn ' + n : '';
+                const selectAll = document.getElementById('suppliers-select-all');
+                const q = (this.suppliersSearchQuery || '').trim().toLowerCase();
+                let filtered = this.demoData.suppliers || [];
+                if (q) {
+                    const nq = this.removeAccents(q);
+                    filtered = filtered.filter(s => {
+                        const nn = this.removeAccents((s.name || '').toLowerCase());
+                        const p = this.removeAccents((s.phone || '').toLowerCase());
+                        const a = this.removeAccents((s.address || '').toLowerCase());
+                        const e = this.removeAccents((s.email || '').toLowerCase());
+                        return nn.includes(nq) || p.includes(nq) || a.includes(nq) || e.includes(nq);
+                    });
+                }
+                if (selectAll) selectAll.checked = filtered.length > 0 && filtered.every(s => this.selectedSupplierIds.has(s.id));
+                document.querySelectorAll('input[data-supplier-id]').forEach(cb => {
+                    const id = cb.getAttribute('data-supplier-id');
+                    cb.checked = this.selectedSupplierIds.has(id);
+                });
+            }
+            clearSuppliersSelection() {
+                this.selectedSupplierIds.clear();
+                this.updateSuppliersSelectionUI();
+            }
+            bulkDeleteSuppliers() {
+                if (this.selectedSupplierIds.size === 0) return;
+                if (!confirm('Bạn có chắc muốn xóa ' + this.selectedSupplierIds.size + ' nhà cung cấp đã chọn?')) return;
+                this.demoData.suppliers = this.demoData.suppliers.filter(s => !this.selectedSupplierIds.has(s.id));
+                this.selectedSupplierIds.clear();
+                this.saveToLocalStorage();
+                this.loadPage('suppliers');
+                this.showNotification('Đã xóa nhà cung cấp đã chọn', 'success');
+            }
+            deleteSupplierById(supplierId) {
+                if (!supplierId) return;
+                const index = this.demoData.suppliers.findIndex(s => s.id === supplierId);
+                if (index === -1) { this.showNotification('Không tìm thấy nhà cung cấp để xóa', 'error'); return; }
+                this.deleteSupplier(index);
             }
             
             showCreatePurchaseForm() {
@@ -8811,22 +9182,17 @@
                 }
             }
             
-            recordPayment(event) {
+            async recordPayment(event) {
                 event.preventDefault();
                 const form = event.target;
                 const formData = new FormData(form);
                 
                 const customerId = formData.get('customer');
-                const amount = parseInt(formData.get('amount'));
-                
-                console.log('🔴 === RECORD PAYMENT DEBUG ===');
-                console.log('Customer ID:', customerId);
-                console.log('Amount:', amount);
+                const amount = parseInt(formData.get('amount'), 10);
                 
                 let customer = this.demoData.customers.find(c => c.id === customerId);
                 if (!customer) customer = this.getCustomersWithDebt().find(c => c.id === customerId);
                 if (customer && amount > 0) {
-                    this.syncCustomerDebt();
                     const oldDebt = this.getActualDebtForCustomer(customer);
                     const todayStr = this.getVietnamTime().toISOString().split('T')[0];
                     (this.demoData.debtPayments || []).push({ customerId, customerName: customer.name, amount, date: todayStr });
@@ -8862,7 +9228,10 @@
                     
                     this.syncCustomerDebt();
                     customer.debt = this.getActualDebtForCustomer(customer);
-                    this.saveToLocalStorage();
+                    this.updateDebtorsList();
+                    // Lưu ngay lên Firebase (không debounce) để công nợ luôn được đồng bộ
+                    const saved = await this.saveToFirebaseImmediate();
+                    if (!saved) this.saveToLocalStorage();
                     
                     let syncMessage = '';
                     if (customer.debt === 0 && amount >= oldDebt) {
@@ -9432,9 +9801,12 @@
                 const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
             }
             
-            // Refresh tất cả phần hiển thị khách hàng để đồng bộ dữ liệu
+            // Refresh tất cả phần hiển thị khách hàng để đồng bộ dữ liệu (không ghi đè demoData bằng cache)
             refreshAllCustomerDisplays() {
-                this.demoData = window.FirebaseStorage.getData() || this.demoData;
+                // Nếu đang xem tab Khách hàng hoặc Công nợ thì tải lại nội dung để hiển thị công nợ mới nhất
+                if (this.currentPage === 'customers' || this.currentPage === 'debts') {
+                    this.loadPage(this.currentPage);
+                }
                 if (typeof window !== 'undefined') {
                     window.dispatchEvent(new CustomEvent('customerDataUpdated', {
                         detail: { customers: this.demoData.customers || [] }
@@ -10923,8 +11295,12 @@
 
             togglePaymentStatus(index) {
                 const order = this.demoData.orders[index];
-                const customer = this.demoData.customers.find(c => c.id === order.customerId);
-                
+                let customer = this.demoData.customers.find(c => c.id === order.customerId || c.name === order.customerName);
+                if (!customer && (order.customerId || order.customerName)) {
+                    const cid = order.customerId || order.customerName;
+                    const cname = order.customerName || order.customerId;
+                    customer = this.getCustomersWithDebt().find(c => (c.id || c.name) === cid || (c.name || c.id) === cname);
+                }
                 if (!customer) {
                     this.showNotification('Không tìm thấy khách hàng', 'error');
                     return;
@@ -10995,7 +11371,8 @@
 
             confirmTogglePaymentStatus(index, newPaymentStatus, newStatus) {
                 const order = this.demoData.orders[index];
-                const customer = this.demoData.customers.find(c => c.id === order.customerId);
+                let customer = this.demoData.customers.find(c => c.id === order.customerId || c.name === order.customerName);
+                if (!customer) customer = this.getCustomersWithDebt().find(c => (c.id || c.name) === (order.customerId || order.customerName) || (c.name || c.id) === (order.customerName || order.customerId));
                 const oldPaymentStatus = order.paymentStatus;
                 const currentPaid = order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0);
                 const orderDebt = Math.max(0, (order.total || 0) - currentPaid);
@@ -11003,13 +11380,12 @@
                 order.status = newStatus;
                 if (oldPaymentStatus === 'Đã thanh toán' && newPaymentStatus === 'Công nợ') {
                     order.amountPaid = 0;
-                    customer.debt += order.total;
                 } else if (oldPaymentStatus === 'Công nợ' && newPaymentStatus === 'Đã thanh toán') {
                     order.amountPaid = order.total;
-                    customer.debt -= orderDebt;
-                    if (customer.debt < 0) customer.debt = 0;
                 }
-                this.saveToLocalStorage();
+                // Đồng bộ công nợ và lưu ngay (đơn hàng + khách hàng + debtors)
+                window.FirebaseStorage.setData(this.demoData);
+                this.syncCustomerDebt(true);
                 this.refreshAllCustomerDisplays();
                 
                 // Ghi log hoạt động
@@ -11017,7 +11393,8 @@
                 this.addActivityLog('success', '💳', `Cập nhật thanh toán ${order.id}`, 
                     `Khách hàng: ${customer.name} - Thay đổi: ${statusChange} - Giá trị: ${order.total.toLocaleString('vi-VN')} VNĐ`, 'payment');
                 
-                this.showNotification(`✅ Đã cập nhật: ${order.id} - ${newPaymentStatus}. Nợ ${customer.name}: ${customer.debt.toLocaleString('vi-VN')} VNĐ`, 'success');
+                const debtAmt = this.getActualDebtForCustomer(customer);
+                this.showNotification(`✅ Đã cập nhật: ${order.id} - ${newPaymentStatus}. Nợ ${customer.name || customer.id}: ${debtAmt.toLocaleString('vi-VN')} VNĐ`, 'success');
                 
                 // Cập nhật giao diện ngay lập tức thay vì tải lại trang
                 this.updateOrderRowDisplay(index);
@@ -11028,7 +11405,7 @@
                 if (!order) return;
                 
                 // Tìm dòng đơn hàng trong bảng hiện tại
-                const orderRows = document.querySelectorAll('tbody tr[data-order-index]');
+                const orderRows = document.querySelectorAll('#orders-table tbody tr[data-order-index]');
                 let targetRow = null;
                 
                 orderRows.forEach(row => {
@@ -11581,7 +11958,7 @@
 
                 // Add to demo data
                 this.demoData.customers.push(newCustomer);
-                this.saveToLocalStorage();
+                this.saveToFirebaseImmediate().then(ok => { if (!ok) this.saveToLocalStorage(); });
 
                 // Update customer select in the current form (Create Order)
                 const customerSelect = document.getElementById('customer-select');
@@ -11834,6 +12211,9 @@
                                 .products-table .col-sl { width: 10%; text-align: center; }
                                 .products-table .col-total { width: 20%; text-align: right; font-weight: 600; font-size: 8px; }
                                 .product-name { text-align: left !important; font-weight: 500; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 8px; max-width: 100%; }
+                                .invoice-price-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+                                .invoice-original-price { text-decoration: line-through; font-size: 7px; color: #888; }
+                                .invoice-sale-price { font-weight: 600; font-size: 8px; color: #000; }
                                 
                                 .totals-section {
                                     width: 100%; 
@@ -11965,11 +12345,14 @@
                                             const discountAmount = isVnd ? Math.min(discountVal, beforeDiscount) : (beforeDiscount * discountVal / 100);
                                             const subtotal = Math.max(0, beforeDiscount - discountAmount);
                                             const effectivePrice = (item.quantity || 1) > 0 ? Math.round(subtotal / (item.quantity || 1)) : 0;
+                                            const origPrice = item.originalPrice != null ? item.originalPrice : (item.price || 0);
+                                            const priceEdited = origPrice > 0 && effectivePrice !== origPrice;
+                                            const priceCell = priceEdited ? '<div class="invoice-price-cell"><div class="invoice-original-price">' + (origPrice||0).toLocaleString('vi-VN') + ' đ</div><div class="invoice-sale-price">' + effectivePrice.toLocaleString('vi-VN') + ' đ</div></div>' : (effectivePrice.toLocaleString('vi-VN') + ' đ');
                                             return `
                                             <tr>
                                                 <td class="col-tt">${index + 1}</td>
                                                 <td class="product-name col-product">${item.name || 'N/A'}</td>
-                                                <td class="col-price">${effectivePrice.toLocaleString('vi-VN')} đ</td>
+                                                <td class="col-price">${priceCell}</td>
                                                 <td class="col-sl">${item.quantity || 0}</td>
                                                 <td class="col-total">${subtotal.toLocaleString('vi-VN')} đ</td>
                                             </tr>
@@ -12231,6 +12614,9 @@
                                 .products-table .col-sl { width: 10%; text-align: center; }
                                 .products-table .col-total { width: 23%; text-align: right; font-weight: 600; font-size: 7px; }
                                 .product-name { text-align: left !important; font-weight: 500; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 7px; max-width: 100%; }
+                                .invoice-price-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+                                .invoice-original-price { text-decoration: line-through; font-size: 6px; color: #888; }
+                                .invoice-sale-price { font-weight: 600; font-size: 7px; color: #000; }
                                 
                                 .summary-section { background: #fff; padding: 2px 0; margin-bottom: 2px; border-top: 1px dashed #8B5CF6; border-bottom: 1px dashed #8B5CF6; }
                                 .summary-row { display: flex; justify-content: space-between; margin-bottom: 1px; font-size: 9px; }
@@ -12358,11 +12744,14 @@
                                             const discountAmount = isVnd ? Math.min(discountVal, beforeDiscount) : (beforeDiscount * discountVal / 100);
                                             const subtotal = Math.max(0, beforeDiscount - discountAmount);
                                             const effectivePrice = (item.quantity || 1) > 0 ? Math.round(subtotal / (item.quantity || 1)) : 0;
+                                            const origPrice = item.originalPrice != null ? item.originalPrice : (item.price || 0);
+                                            const priceEdited = origPrice > 0 && effectivePrice !== origPrice;
+                                            const priceCell = priceEdited ? '<div class="invoice-price-cell"><div class="invoice-original-price">' + (origPrice||0).toLocaleString('vi-VN') + ' đ</div><div class="invoice-sale-price">' + effectivePrice.toLocaleString('vi-VN') + ' đ</div></div>' : (effectivePrice.toLocaleString('vi-VN') + ' đ');
                                             return `
                                             <tr>
                                                 <td class="col-tt">${index + 1}</td>
                                                 <td class="product-name col-product">${item.name || 'N/A'}</td>
-                                                <td class="col-price">${effectivePrice.toLocaleString('vi-VN')} đ</td>
+                                                <td class="col-price">${priceCell}</td>
                                                 <td class="col-sl">${item.quantity || 0}</td>
                                                 <td class="col-total">${subtotal.toLocaleString('vi-VN')} đ</td>
                                             </tr>
