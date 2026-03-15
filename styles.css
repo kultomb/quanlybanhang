@@ -1945,10 +1945,18 @@
             .pos-mobile-step-2 #pos-cart-items {
                 padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
             }
-            /* Footer step 2: xếp dọc Tổng tiền + nút Thanh toán full width */
-            .pos-mobile-step-2 .pos-mobile-footer {
+            /* Footer step 2: xếp dọc, luôn cố định dưới màn hình, z-index 999 */
+            .pos-mobile-step-2 .pos-mobile-footer,
+            .pos-mobile-step-2 .pos-mobile-footer-fixed {
+                display: flex !important;
                 flex-direction: column !important;
                 align-items: stretch !important;
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                z-index: 999 !important;
+                background: #fff !important;
             }
             .pos-mobile-step-2 .pos-mobile-footer .pos-mobile-btn-pay { width: 100% !important; }
             .pos-product-placeholder { display: none !important; }
@@ -2153,25 +2161,33 @@
             .content.page-sales .pos-kiotviet.pos-mobile-step-1 { flex: 1 !important; min-height: 0 !important; }
         }
 
-        /* POS Mobile Footer - thanh cố định phía dưới */
+        /* POS Mobile Footer - thanh cố định phía dưới, luôn hiện không cần vuốt */
         .pos-mobile-footer {
             display: none;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            background: #fff;
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 999 !important;
+            background: #fff !important;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
             border-top: 1px solid #e5e7eb;
             padding: 12px 16px;
-            padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
+            padding-bottom: max(12px, env(safe-area-inset-bottom, 12px)) !important;
             padding-left: max(16px, env(safe-area-inset-left, 16px));
             padding-right: max(16px, env(safe-area-inset-right, 16px));
             align-items: center;
             justify-content: space-between;
             gap: 12px;
             flex-wrap: wrap;
+        }
+        /* Step 2: footer cố định viewport - không phụ thuộc transform cha */
+        .pos-mobile-footer-fixed {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 999 !important;
         }
         .pos-mobile-footer-total {
             display: flex;
