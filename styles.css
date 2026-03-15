@@ -92,7 +92,9 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            height: 100dvh;
             min-height: 100vh;
+            min-height: 100dvh;
             overflow: hidden;
         }
         
@@ -1937,9 +1939,10 @@
             .pos-product-card .pos-product-stepper { grid-column: 1 / -1 !important; }
             .pos-mobile-step-1 { height: 100% !important; min-height: 0 !important; flex: 1 !important; display: flex !important; flex-direction: column !important; background: white !important; }
             .pos-mobile-step-1 #pos-product-list { -webkit-overflow-scrolling: touch; overflow-y: auto !important; flex: 1 !important; min-height: 0 !important; background: #f8fafc !important; }
-            .pos-mobile-step-2 { flex: 1 !important; min-height: 0 !important; }
+            .pos-mobile-step-2 { flex: 1 !important; min-height: 0 !important; height: 100% !important; }
+            .content.page-sales .pos-kiotviet.pos-mobile-step-2 { flex: 1 !important; min-height: 0 !important; }
             .pos-mobile-step-2 .pos-mobile-step2-body { -webkit-overflow-scrolling: touch; }
-            /* Footer Thanh toán - gắn trực tiếp body, luôn hiển thị trên điện thoại */
+            /* Footer Thanh toán - gắn body, cân đối vừa màn hình */
             .pos-mobile-footer-portal {
                 position: fixed !important;
                 bottom: 0 !important;
@@ -1948,8 +1951,18 @@
                 z-index: 99999 !important;
                 background: #f8fafc !important;
                 box-shadow: 0 -4px 20px rgba(0,0,0,0.12) !important;
-                padding: 12px 16px calc(12px + env(safe-area-inset-bottom)) 16px !important;
+                padding: 14px 16px calc(14px + env(safe-area-inset-bottom)) 16px !important;
                 border-top: 1px solid #e5e7eb !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+            }
+            .pos-mobile-footer-portal .pos-mobile-btn-pay {
+                min-height: 52px !important;
+                font-size: 17px !important;
+                font-weight: 700 !important;
+                border-radius: 12px !important;
+                padding: 14px 20px !important;
             }
             /* Chừa chỗ cho footer cố định - tránh nội dung bị che */
             .pos-mobile-step-2 #pos-cart-items {
