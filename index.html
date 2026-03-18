@@ -1310,7 +1310,8 @@
                 let filtered = this.demoData.products;
                 if (q) filtered = filtered.filter(p => this.productMatchesSearchQuery(p, q));
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
-                filtered = [...filtered].reverse();
+                if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
+                else filtered = [...filtered].reverse();
                 const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
                 const totalFiltered = filtered.length;
                 const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
@@ -1492,6 +1493,15 @@
                 const q = this.removeAccents(String(query).trim().toLowerCase());
                 return t.includes(q);
             }
+            // Dùng cho tìm sản phẩm: khớp theo ranh giới từ, tránh "ốp" khớp với "OPPO"
+            searchMatchWordBoundary(text, query) {
+                if (!query || !String(query).trim()) return true;
+                const t = this.removeAccents((text||'').toLowerCase());
+                const q = this.removeAccents(String(query).trim().toLowerCase());
+                const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp('(?:^|[^a-z0-9])' + esc + '(?=[^a-z0-9]|$)', 'i');
+                return re.test(' ' + t + ' ');
+            }
             formatPrice(num) { return (num || 0).toLocaleString('vi-VN'); }
             parsePrice(str) { const n = parseInt(String(str||'').replace(/\D/g,''), 10); return isNaN(n) ? 0 : Math.max(0, n); }
             priceInputFocus(el) { el.value = String(this.parsePrice(el.value)); }
@@ -1572,7 +1582,8 @@
                 let filtered = this.demoData.products;
                 if (q) filtered = filtered.filter(p => this.productMatchesSearchQuery(p, q));
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
-                filtered = [...filtered].reverse();
+                if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
+                else filtered = [...filtered].reverse();
                 const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
                 const totalFiltered = filtered.length;
                 const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
@@ -1614,7 +1625,8 @@
                 let filtered = this.demoData.products;
                 if (q) filtered = filtered.filter(p => this.productMatchesSearchQuery(p, q));
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
-                filtered = [...filtered].reverse();
+                if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
+                else filtered = [...filtered].reverse();
                 const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
                 const page = Math.max(1, this.productsPage || 1);
                 const startIdx = (page - 1) * perPage;
@@ -1641,7 +1653,8 @@
                 let filtered = this.demoData.products;
                 if (q) filtered = filtered.filter(p => this.productMatchesSearchQuery(p, q));
                 if (catFilter) filtered = filtered.filter(p => this.productMatchesCategoryFilter(p, catFilter));
-                filtered = [...filtered].reverse();
+                if (q) filtered.sort((a, b) => this.productSearchRelevance(b, q) - this.productSearchRelevance(a, q));
+                else filtered = [...filtered].reverse();
                 const perPage = Math.max(10, parseInt(this.productsPerPage, 10) || 50);
                 const page = Math.max(1, this.productsPage || 1);
                 const startIdx = (page - 1) * perPage;
@@ -2530,6 +2543,19 @@
                 if (m) m.value = val || '';
                 this.searchPOSProducts(val);
             }
+            productSearchRelevance(p, term) {
+                const words = term.split(/\s+/).filter(w => w.length > 0);
+                const nameNorm = this.removeAccents((p.name || '').toLowerCase().trim());
+                let score = 0;
+                for (const word of words) {
+                    const q = this.removeAccents(word);
+                    const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const atStart = new RegExp('^' + esc + '(?=[^a-z0-9]|$)', 'i');
+                    if (atStart.test(nameNorm)) score += 2;
+                    else if (this.searchMatchWordBoundary(p.name || '', word)) score += 1;
+                }
+                return score;
+            }
             searchPOSProducts(query) {
                 const term = (query || '').trim().toLowerCase();
                 const listEl = document.getElementById('pos-product-list');
@@ -2539,6 +2565,7 @@
                     return;
                 }
                 let products = (this.demoData.products || []).filter(p => this.productMatchesSearchQuery(p, term));
+                products.sort((a, b) => this.productSearchRelevance(b, term) - this.productSearchRelevance(a, term));
                 if (!products.length) {
                     listEl.innerHTML = '<div style="padding: 24px; text-align: center; color: #6b7280; font-size: 14px;">Không tìm thấy sản phẩm phù hợp</div>';
                     return;
@@ -2600,6 +2627,7 @@
                 let products = (this.demoData.products || []).slice();
                 if (term) {
                     products = products.filter(p => this.productMatchesSearchQuery(p, term));
+                    products.sort((a, b) => this.productSearchRelevance(b, term) - this.productSearchRelevance(a, term));
                 } else {
                     products = [...products].reverse();
                 }
@@ -2637,6 +2665,7 @@
                     return;
                 }
                 let products = (this.demoData.products || []).filter(p => this.productMatchesSearchQuery(p, term));
+                products.sort((a, b) => this.productSearchRelevance(b, term) - this.productSearchRelevance(a, term));
                 products = products.slice(0, 15);
                 if (!products.length) {
                     resultsEl.style.display = 'block';
@@ -8861,7 +8890,7 @@
                 const name = (p.name || '');
                 const cat = (p.category || '');
                 const id = (p.id || '');
-                return words.every(word => this.searchMatch(name, word) || this.searchMatch(cat, word) || this.searchMatch(id, word));
+                return words.every(word => this.searchMatchWordBoundary(name, word) || this.searchMatchWordBoundary(cat, word) || this.searchMatch(id, word));
             }
             productMatchesCategoryFilter(p, catFilter) {
                 const pc = (p.category || '').trim();
