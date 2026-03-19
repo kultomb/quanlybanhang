@@ -1494,13 +1494,21 @@
                 return t.includes(q);
             }
             // Dùng cho tìm sản phẩm: khớp theo ranh giới từ, tránh "ốp" khớp với "OPPO"
+            // - Từ khóa có số (Y7, A54...): cho phép khớp tiền tố để "Y7" tìm được "Y7S"
+            // - Từ khóa >= 4 ký tự: cho phép khớp chuỗi con để "THUO" tìm được "THƯỜNG"
             searchMatchWordBoundary(text, query) {
                 if (!query || !String(query).trim()) return true;
                 const t = this.removeAccents((text||'').toLowerCase());
                 const q = this.removeAccents(String(query).trim().toLowerCase());
                 const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const re = new RegExp('(?:^|[^a-z0-9])' + esc + '(?=[^a-z0-9]|$)', 'i');
-                return re.test(' ' + t + ' ');
+                const reFull = new RegExp('(?:^|[^a-z0-9])' + esc + '(?=[^a-z0-9]|$)', 'i');
+                if (reFull.test(' ' + t + ' ')) return true;
+                if (/\d/.test(q)) {
+                    const rePrefix = new RegExp('(?:^|[^a-z0-9])' + esc + '(?=[a-z0-9])', 'i');
+                    return rePrefix.test(' ' + t + ' ');
+                }
+                if (q.length >= 4 && t.includes(q)) return true;
+                return false;
             }
             formatPrice(num) { return (num || 0).toLocaleString('vi-VN'); }
             parsePrice(str) { const n = parseInt(String(str||'').replace(/\D/g,''), 10); return isNaN(n) ? 0 : Math.max(0, n); }
