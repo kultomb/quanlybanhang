@@ -1167,6 +1167,7 @@ class HamobileBanhang {
         if (pageName === 'customers') mainEl.classList.add('page-customers');
         if (pageName === 'debts') mainEl.classList.add('page-debts');
         mainEl.innerHTML = content;
+        if (pageName === 'customers') this.searchCustomers(this.customersSearchQuery || '');
         if (pageName === 'orders') this.searchOrders(this.ordersSearchQuery || '');
         if (pageName === 'repairs') this.searchRepairs(this.repairsSearchQuery || '');
         
@@ -1358,72 +1359,57 @@ class HamobileBanhang {
     }
     
     getCustomersContent() {
-        const customersTable = this.demoData.customers.map((customer, index) => {
-            // Xác định loại khách hàng và icon tương ứng
-            const typeDisplay = customer.type === 'doanh-nghiep' ? '🏢 Doanh nghiệp' : '👤 Cá nhân';
-            const iconClass = customer.type === 'doanh-nghiep' ? 'warning' : 'info';
-            const iconSymbol = customer.type === 'doanh-nghiep' ? '🏢' : '👤';
-            const actualDebt = this.getActualDebtForCustomer(customer);
-            // Thông tin bổ sung cho doanh nghiệp
-            const companyInfo = customer.type === 'doanh-nghiep' && customer.companyName ? 
-                ` | Công ty: ${escapeHtml(customer.companyName)}` : '';
-            const departmentInfo = customer.type === 'doanh-nghiep' && customer.department ? 
-                ` | Phòng ban: ${escapeHtml(customer.department)}` : '';
-            const taxCodeInfo = customer.type === 'doanh-nghiep' && customer.taxCode ? 
-                ` | MST: ${escapeHtml(customer.taxCode)}` : '';
-            
-            return `
-                <div class="activity-item customer-card">
-                    <div class="customer-card-header">
-                        <div class="activity-icon ${iconClass}">${iconSymbol}</div>
-                        <div class="customer-card-main">
-                            <div class="activity-title">${escapeHtml(customer.name)} <span class="customer-id">(${escapeHtml(customer.id)})</span></div>
-                            <div class="activity-desc customer-type">${typeDisplay}${companyInfo}${departmentInfo}${taxCodeInfo}</div>
-                        </div>
-                        <div class="customer-debt-badge ${actualDebt > 0 ? 'has-debt' : ''}">${actualDebt > 0 ? (actualDebt.toLocaleString('vi-VN') + ' đ') : 'Không nợ'}</div>
-                    </div>
-                    <div class="customer-card-contact">
-                        <div class="activity-desc">📞 ${escapeHtml(customer.phone || '—')}</div>
-                        <div class="activity-desc">📧 ${escapeHtml(customer.email || '—')}</div>
-                        <div class="activity-desc">📍 ${escapeHtml(customer.address || '—')}</div>
-                    </div>
-                    <div class="customer-card-actions">
-                        <button type="button" class="btn-customer-detail" onclick="app.showCustomerDetails(${index})">Chi tiết</button>
-                        <button type="button" class="btn-customer-edit" onclick="app.editCustomer(${index})">Sửa</button>
-                        <button type="button" class="btn-customer-delete" onclick="app.deleteCustomer(${index})">Xóa</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-        
+        if (this.customersSearchQuery === undefined) this.customersSearchQuery = '';
+        if (this.customersSearchVisible === undefined) this.customersSearchVisible = true;
+        const customers = this.demoData.customers || [];
+        const q = (this.customersSearchQuery || '').trim();
+        const filtered = q ? customers.filter(customer => this.customerMatchesSearch(customer, q)) : customers;
+        const customersTable = this.getCustomerTableRowsHtml(customers);
         return `
             <div class="fade-in">
                 <div class="quick-actions">
-                    <h2 class="section-title">Danh sách Khách hàng (${this.demoData.customers.length})</h2>
-                    <div class="action-grid" style="margin-bottom: 24px;">
-                        <div class="action-button" onclick="app.showAddCustomerForm()">
-                            <div class="action-icon">👤➕</div>
-                            <div class="action-title">Thêm khách hàng</div>
+                    <h2 class="section-title">Quản lý Khách hàng</h2>
+                    <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <h3 id="customers-list-title" style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                            <span>👥</span> Danh sách khách hàng (${filtered.length}${filtered.length !== customers.length ? '/' + customers.length : ''})
+                        </h3>
+
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+                            <button type="button" onclick="app.showAddCustomerForm()" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Thêm khách hàng</button>
+                            <button type="button" onclick="app.exportCustomers()" style="background: white; color: #374151; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Xuất báo cáo</button>
                         </div>
-                        <div class="action-button" onclick="app.showSearchCustomer()">
-                            <div class="action-icon">🔍</div>
-                            <div class="action-title">Tìm kiếm</div>
+
+                        <div id="search-box" style="display: block; margin-bottom: 16px;">
+                            <input type="text" id="customer-search" value="${(this.customersSearchQuery || '').replace(/"/g, '&quot;')}" placeholder="Tìm mã KH, tên, SĐT, email, công ty..." 
+                                   style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+                                   oninput="app.searchCustomers(this.value)" autocomplete="off">
                         </div>
-                        <div class="action-button" onclick="app.exportCustomers()">
-                            <div class="action-icon">📊</div>
-                            <div class="action-title">Xuất báo cáo</div>
+
+                        <div id="customers-list" style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
+                            <div style="overflow-x: auto;">
+                                <table id="customers-table" style="width: 100%; min-width: 900px; border-collapse: collapse; background: white; table-layout: fixed;">
+                                    <colgroup>
+                                        <col style="width: 28%;">
+                                        <col style="width: 18%;">
+                                        <col style="width: 24%;">
+                                        <col style="width: 12%;">
+                                        <col style="width: 18%;">
+                                    </colgroup>
+                                    <thead>
+                                        <tr style="background: #f8fafc;">
+                                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Khách hàng</th>
+                                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Liên hệ</th>
+                                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Địa chỉ</th>
+                                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Công nợ</th>
+                                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Thao tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${customersTable}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <!-- Search Box -->
-                    <div id="search-box" style="display: none; margin-bottom: 20px;">
-                        <input type="text" id="customer-search" placeholder="Tìm theo tên, điện thoại hoặc email..." 
-                               style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px;"
-                               onkeyup="app.searchCustomers(this.value)">
-                    </div>
-                    
-                    <div id="customers-list">
-                        ${customersTable}
                     </div>
                 </div>
             </div>
@@ -1763,6 +1749,59 @@ class HamobileBanhang {
         if (period === 'today') return repair.date === todayStr;
         if (period === 'week') return !!repair.date && repair.date >= weekStart;
         return true;
+    }
+    getCustomerSearchText(customer) {
+        if (!customer) return '';
+        return [
+            customer.id,
+            customer.name,
+            customer.phone,
+            customer.email,
+            customer.address,
+            customer.companyName,
+            customer.department,
+            customer.taxCode
+        ].filter(Boolean).join(' ');
+    }
+    customerMatchesSearch(customer, query) {
+        return this.searchMatch(this.getCustomerSearchText(customer), query);
+    }
+    getCustomerTableRowsHtml(customers) {
+        if (!customers || customers.length === 0) {
+            return '<tr id="customers-empty-search-row"><td colspan="5" style="padding: 24px; text-align: center; color: #6b7280;">Không tìm thấy khách hàng nào.</td></tr>';
+        }
+        return customers.map((customer, idx) => {
+            const originalIndex = this.demoData.customers.findIndex(c => c.id === customer.id);
+            const actualDebt = this.getActualDebtForCustomer(customer);
+            const typeLabel = customer.type === 'doanh-nghiep' ? 'Doanh nghiệp' : 'Cá nhân';
+            const companyLine = customer.type === 'doanh-nghiep'
+                ? [customer.companyName, customer.department].filter(Boolean).join(' | ')
+                : '';
+            return `<tr data-customer-index="${originalIndex}" style="${idx % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+                <td class="customer-cell customer-cell-main" data-label="Khách hàng" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top;">
+                    <div style="font-weight: 600; color: #111827; font-size: 13px;">${escapeHtml(customer.name || '-')}</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(customer.id || '-')} | ${typeLabel}</div>
+                    ${companyLine ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(companyLine)}</div>` : ''}
+                    ${customer.taxCode ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">MST: ${escapeHtml(customer.taxCode)}</div>` : ''}
+                </td>
+                <td class="customer-cell" data-label="Liên hệ" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 13px;">
+                    <div>${escapeHtml(customer.phone || '-')}</div>
+                </td>
+                <td class="customer-cell" data-label="Địa chỉ" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 13px; max-width: 240px; word-break: break-word;">${escapeHtml(customer.address || '-')}</td>
+                <td class="customer-cell customer-cell-debt" data-label="Công nợ" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top;">
+                    <span style="display: inline-block; background: ${actualDebt > 0 ? '#fef3c7' : '#ecfdf5'}; color: ${actualDebt > 0 ? '#92400e' : '#166534'}; border: 1px solid ${actualDebt > 0 ? '#fcd34d' : '#86efac'}; padding: 5px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;">
+                        ${actualDebt > 0 ? actualDebt.toLocaleString('vi-VN') + ' đ' : 'Không nợ'}
+                    </span>
+                </td>
+                <td class="customer-cell customer-cell-actions" data-label="Thao tác" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; white-space: nowrap;">
+                    <div class="customer-action-group" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" onclick="app.showCustomerDetails(${originalIndex})" style="background: #3b82f6; color: white; padding: 6px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Chi tiết</button>
+                        <button type="button" onclick="app.editCustomer(${originalIndex})" style="background: #059669; color: white; padding: 6px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Sửa</button>
+                        <button type="button" onclick="app.deleteCustomer(${originalIndex})" style="background: #ef4444; color: white; padding: 6px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Xóa</button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
     }
     // Dùng cho tìm sản phẩm: khớp theo ranh giới từ, tránh "ốp" khớp với "OPPO"
     // - Từ khóa có số (Y7, A54...): cho phép khớp tiền tố để "Y7" tìm được "Y7S"
@@ -6866,68 +6905,44 @@ class HamobileBanhang {
     }
     
     showSearchCustomer() {
-        const searchBox = document.getElementById('search-box');
-        const searchInput = document.getElementById('customer-search');
-        
-        if (searchBox.style.display === 'none') {
-            searchBox.style.display = 'block';
-            searchInput.focus();
-        } else {
-            searchBox.style.display = 'none';
-            searchInput.value = '';
-            this.loadPage('customers');
+        this.customersSearchVisible = true;
+        const input = document.getElementById('customer-search');
+        if (input) {
+            input.focus();
+            return;
         }
+        this.loadPage('customers');
+        setTimeout(() => document.getElementById('customer-search')?.focus(), 50);
     }
     
     searchCustomers(query) {
-        if (!query.trim()) {
-            this.loadPage('customers');
-            return;
+        this.customersSearchQuery = query || '';
+        const rows = document.querySelectorAll('#customers-table tbody tr[data-customer-index]');
+        const q = (query || '').trim();
+        let visibleCount = 0;
+        rows.forEach(row => {
+            const idx = parseInt(row.getAttribute('data-customer-index'), 10);
+            const customer = this.demoData.customers[idx];
+            const isVisible = !!customer && this.customerMatchesSearch(customer, q);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) visibleCount++;
+        });
+        const title = document.getElementById('customers-list-title');
+        if (title) {
+            title.innerHTML = `<span>👥</span> Danh sách khách hàng (${visibleCount}${visibleCount !== this.demoData.customers.length ? '/' + this.demoData.customers.length : ''})`;
         }
-        
-        const q = query.trim();
-        const filteredCustomers = this.demoData.customers.filter(customer => 
-            this.searchMatch(customer.name, q) ||
-            (customer.phone && customer.phone.includes(query)) ||
-            this.searchMatch(customer.email, q) ||
-            this.searchMatch(customer.companyName, q) ||
-            this.searchMatch(customer.department, q) ||
-            (customer.taxCode && customer.taxCode.includes(query))
-        );
-        
-        const customersTable = filteredCustomers.map((customer) => {
-            const idx = this.demoData.customers.indexOf(customer);
-            const typeDisplay = customer.type === 'doanh-nghiep' ? '🏢 Doanh nghiệp' : '👤 Cá nhân';
-            const iconClass = customer.type === 'doanh-nghiep' ? 'warning' : 'info';
-            const iconSymbol = customer.type === 'doanh-nghiep' ? '🏢' : '👤';
-            const companyInfo = customer.type === 'doanh-nghiep' && customer.companyName ? ` | Công ty: ${customer.companyName}` : '';
-            const departmentInfo = customer.type === 'doanh-nghiep' && customer.department ? ` | Phòng ban: ${customer.department}` : '';
-            const taxCodeInfo = customer.type === 'doanh-nghiep' && customer.taxCode ? ` | MST: ${customer.taxCode}` : '';
-            return `
-                <div class="activity-item customer-card">
-                    <div class="customer-card-header">
-                        <div class="activity-icon ${iconClass}">${iconSymbol}</div>
-                        <div class="customer-card-main">
-                            <div class="activity-title">${escapeHtml(customer.name)} <span class="customer-id">(${escapeHtml(customer.id)})</span></div>
-                            <div class="activity-desc customer-type">${typeDisplay}${companyInfo}${departmentInfo}${taxCodeInfo}</div>
-                        </div>
-                        <div class="customer-debt-badge ${customer.debt > 0 ? 'has-debt' : ''}">${customer.debt > 0 ? (customer.debt.toLocaleString('vi-VN') + ' đ') : 'Không nợ'}</div>
-                    </div>
-                    <div class="customer-card-contact">
-                        <div class="activity-desc">📞 ${escapeHtml(customer.phone || '—')}</div>
-                        <div class="activity-desc">📧 ${escapeHtml(customer.email || '—')}</div>
-                        <div class="activity-desc">📍 ${escapeHtml(customer.address || '—')}</div>
-                    </div>
-                    <div class="customer-card-actions">
-                        <button type="button" class="btn-customer-detail" onclick="app.showCustomerDetails(${idx})">Chi tiết</button>
-                        <button type="button" class="btn-customer-edit" onclick="app.editCustomer(${idx})">Sửa</button>
-                        <button type="button" class="btn-customer-delete" onclick="app.deleteCustomer(${idx})">Xóa</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-        
-        document.getElementById('customers-list').innerHTML = customersTable || '<div style="text-align: center; padding: 40px; color: #6b7280;">Không tìm thấy khách hàng nào</div>';
+        const tbody = document.querySelector('#customers-table tbody');
+        let emptyRow = document.getElementById('customers-empty-search-row');
+        if (tbody && rows.length > 0) {
+            if (!emptyRow) {
+                emptyRow = document.createElement('tr');
+                emptyRow.id = 'customers-empty-search-row';
+                emptyRow.innerHTML = '<td colspan="5" style="padding: 24px; text-align: center; color: #6b7280;">Không tìm thấy khách hàng nào.</td>';
+                emptyRow.style.display = 'none';
+                tbody.appendChild(emptyRow);
+            }
+            emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+        }
     }
 
     searchSalesProducts(query) {

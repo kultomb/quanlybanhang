@@ -408,15 +408,15 @@
         
         .action-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
         }
         
         .action-button {
             background: var(--card-gradient);
             border: 2px solid transparent;
             border-radius: 10px;
-            padding: 16px;
+            padding: 12px 10px;
             cursor: pointer;
             transition: all 0.3s ease;
             text-decoration: none;
@@ -425,6 +425,8 @@
             flex-direction: column;
             align-items: center;
             text-align: center;
+            min-height: 72px;
+            justify-content: center;
         }
         
         .action-button:hover {
@@ -434,14 +436,15 @@
         }
         
         .action-icon {
-            font-size: 24px;
-            margin-bottom: 8px;
+            font-size: 20px;
+            margin-bottom: 6px;
         }
         
         .action-title {
             font-weight: 600;
-            margin-bottom: 4px;
-            font-size: 14px;
+            margin-bottom: 2px;
+            font-size: 13px;
+            line-height: 1.3;
         }
         
         /* Trang Sản phẩm - thu nhỏ thẻ thống kê và nút hành động */
@@ -545,13 +548,13 @@
             }
             /* Mobile: hiện danh sách div, ẩn bảng - style giống phần bán hàng */
             .products-page-compact .products-table-container {
-                margin: 8px 12px 12px !important;
+                margin: 8px 0 12px !important;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
             }
             .products-page-compact .products-mobile-list {
                 display: block !important;
                 background: #f8fafc !important;
-                padding: 8px 12px 12px !important;
+                padding: 8px 8px 10px !important;
                 -webkit-overflow-scrolling: touch;
             }
             .products-page-compact .products-table-desktop {
@@ -1195,18 +1198,18 @@
             
             .action-grid {
                 grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
+                gap: 8px;
             }
             
             .action-button {
-                padding: 14px 10px;
+                padding: 12px 10px;
                 font-size: 13px;
-                min-height: 44px;
+                min-height: 42px;
             }
             
             .action-icon {
-                font-size: 22px;
-                margin-bottom: 6px;
+                font-size: 18px;
+                margin-bottom: 4px;
             }
             
             .content {
@@ -1270,16 +1273,17 @@
             }
             
             .action-button {
-                padding: 16px;
+                padding: 12px 14px;
                 flex-direction: row;
                 text-align: left;
-                gap: 12px;
-                min-height: 48px;
+                gap: 10px;
+                min-height: 42px;
+                justify-content: flex-start;
             }
             
             .action-icon {
                 margin-bottom: 0;
-                font-size: 24px;
+                font-size: 18px;
             }
             
             .content {
@@ -2284,16 +2288,98 @@
 
         /* Page Khách hàng - tối ưu mobile */
         @media (max-width: 768px) {
-            .page-customers .section-title { font-size: 18px !important; margin-bottom: 16px !important; }
-            .page-customers .action-grid { grid-template-columns: 1fr !important; }
-            .page-customers .action-button { min-height: 48px !important; padding: 14px 16px !important; }
-            .page-customers #search-box { margin-bottom: 16px !important; }
+            .page-customers .quick-actions { padding: 14px 16px !important; }
+            .page-customers .section-title { font-size: 16px !important; margin-bottom: 12px !important; }
+            .page-customers .action-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+            .page-customers .action-button { min-height: 44px !important; padding: 12px 14px !important; }
+            .page-customers .action-icon { margin-bottom: 0 !important; font-size: 18px !important; }
+            .page-customers .action-title { font-size: 13px !important; }
+            .page-customers #search-box { margin-bottom: 12px !important; }
             .page-customers #search-box input {
-                min-height: 48px !important;
-                padding: 14px 16px !important;
+                min-height: 42px !important;
+                padding: 10px 14px !important;
                 border-radius: 10px !important;
+                font-size: 14px !important;
             }
-            .page-customers #customers-list { margin-top: 8px !important; }
+            .page-customers #customers-list { margin-top: 6px !important; }
+            .page-customers #customers-list > div {
+                overflow: visible !important;
+            }
+            .page-customers #customers-table {
+                min-width: 0 !important;
+                table-layout: auto !important;
+            }
+            .page-customers #customers-table colgroup,
+            .page-customers #customers-table thead {
+                display: none !important;
+            }
+            .page-customers #customers-table,
+            .page-customers #customers-table tbody,
+            .page-customers #customers-table tr,
+            .page-customers #customers-table td {
+                display: block !important;
+                width: 100% !important;
+            }
+            .page-customers #customers-table tbody {
+                padding: 4px;
+            }
+            .page-customers #customers-table tr[data-customer-index] {
+                margin-bottom: 8px;
+                border: 1px solid #e5e7eb;
+                border-radius: 10px;
+                background: white !important;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+                overflow: hidden;
+            }
+            .page-customers #customers-table tr[data-customer-index]:last-child {
+                margin-bottom: 0;
+            }
+            .page-customers #customers-table td.customer-cell {
+                border-bottom: 1px solid #f1f5f9 !important;
+                padding: 8px 10px !important;
+                white-space: normal !important;
+                max-width: none !important;
+            }
+            .page-customers #customers-table td.customer-cell:last-child {
+                border-bottom: none !important;
+            }
+            .page-customers #customers-table td.customer-cell::before {
+                content: attr(data-label);
+                display: block;
+                font-size: 10px;
+                font-weight: 700;
+                color: #6b7280;
+                margin-bottom: 4px;
+                text-transform: uppercase;
+                letter-spacing: 0.02em;
+            }
+            .page-customers #customers-table td.customer-cell-main {
+                padding-top: 10px !important;
+            }
+            .page-customers #customers-table td.customer-cell-debt span {
+                font-size: 11px !important;
+                padding: 4px 8px !important;
+            }
+            .page-customers #customers-table td.customer-cell-actions {
+                padding-bottom: 10px !important;
+            }
+            .page-customers .customer-action-group {
+                display: grid !important;
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                gap: 6px !important;
+            }
+            .page-customers .customer-action-group button {
+                width: 100% !important;
+                min-height: 36px !important;
+                padding: 8px 6px !important;
+                font-size: 13px !important;
+                border-radius: 8px !important;
+            }
+            .page-customers #customers-empty-search-row {
+                border: none !important;
+                box-shadow: none !important;
+                margin-bottom: 0 !important;
+            }
             .page-customers .customer-card {
                 padding: 16px !important;
                 margin-bottom: 12px !important;
@@ -2318,20 +2404,16 @@
             .page-debts .quick-actions { padding: 14px 16px !important; margin-bottom: 16px !important; }
             .page-debts .section-title { font-size: 16px !important; margin-bottom: 12px !important; }
             .page-debts .action-grid {
-                grid-template-columns: 1fr !important;
+                grid-template-columns: repeat(2, 1fr) !important;
                 gap: 10px !important;
-                margin-bottom: 20px !important;
+                margin-bottom: 16px !important;
             }
             .page-debts .action-button {
-                min-height: 52px !important;
-                padding: 14px 16px !important;
-                flex-direction: row !important;
-                justify-content: flex-start !important;
-                gap: 12px !important;
-                text-align: left !important;
+                min-height: 44px !important;
+                padding: 12px 12px !important;
             }
-            .page-debts .action-icon { margin-bottom: 0 !important; font-size: 22px !important; }
-            .page-debts .action-title { margin-bottom: 0 !important; font-size: 15px !important; }
+            .page-debts .action-icon { margin-bottom: 0 !important; font-size: 18px !important; }
+            .page-debts .action-title { margin-bottom: 0 !important; font-size: 13px !important; }
             .page-debts .debt-customer-row {
                 display: grid !important;
                 grid-template-columns: auto 1fr !important;
