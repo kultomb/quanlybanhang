@@ -329,6 +329,8 @@ class HamobileBanhang {
         this.suppliersSearchQuery = '';
         this.ordersSearchQuery = '';
         this.ordersFilterPeriod = 'all';
+        this.repairsSearchQuery = '';
+        this.repairsFilterPeriod = 'all';
         this.productsCategoryFilter = '';
         this.productsPage = 1;
         this.productsPerPage = 50;
@@ -1165,6 +1167,8 @@ class HamobileBanhang {
         if (pageName === 'customers') mainEl.classList.add('page-customers');
         if (pageName === 'debts') mainEl.classList.add('page-debts');
         mainEl.innerHTML = content;
+        if (pageName === 'orders') this.searchOrders(this.ordersSearchQuery || '');
+        if (pageName === 'repairs') this.searchRepairs(this.repairsSearchQuery || '');
         
         // Add fade in animation
         document.getElementById('main-content').classList.add('fade-in');
@@ -1707,6 +1711,58 @@ class HamobileBanhang {
         const t = this.removeAccents((text||'').toLowerCase());
         const q = this.removeAccents(String(query).trim().toLowerCase());
         return t.includes(q);
+    }
+    getOrderSearchText(order) {
+        if (!order) return '';
+        const productsText = (order.products || []).map(p => [
+            p && p.id,
+            p && p.productId,
+            p && p.code,
+            p && p.sku,
+            p && p.name,
+            p && p.productName
+        ].filter(Boolean).join(' ')).join(' ');
+        return [
+            order.id,
+            order.customerId,
+            order.customerName,
+            order.phone,
+            order.address,
+            productsText
+        ].filter(Boolean).join(' ');
+    }
+    orderMatchesSearch(order, query) {
+        return this.searchMatch(this.getOrderSearchText(order), query);
+    }
+    orderMatchesPeriod(order, period) {
+        if (!order) return false;
+        const vn = this.getVietnamTime();
+        const todayStr = vn.toISOString().split('T')[0];
+        const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
+        if (period === 'today') return order.date === todayStr;
+        if (period === 'week') return !!order.date && order.date >= weekStart;
+        return true;
+    }
+    repairMatchesSearch(repair, query) {
+        if (!repair) return false;
+        const text = [
+            repair.id,
+            repair.customerName,
+            repair.phone,
+            repair.repairDescription,
+            repair.deviceName,
+            repair.imei
+        ].filter(Boolean).join(' ');
+        return this.searchMatch(text, query);
+    }
+    repairMatchesPeriod(repair, period) {
+        if (!repair) return false;
+        const vn = this.getVietnamTime();
+        const todayStr = vn.toISOString().split('T')[0];
+        const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
+        if (period === 'today') return repair.date === todayStr;
+        if (period === 'week') return !!repair.date && repair.date >= weekStart;
+        return true;
     }
     // Dùng cho tìm sản phẩm: khớp theo ranh giới từ, tránh "ốp" khớp với "OPPO"
     // - Từ khóa có số (Y7, A54...): cho phép khớp tiền tố để "Y7" tìm được "Y7S"
@@ -3445,122 +3501,69 @@ class HamobileBanhang {
         let filtered = orders.filter(o => o && o.id);
         if (this.ordersFilterPeriod === 'today') filtered = filtered.filter(o => o.date === todayStr);
         else if (this.ordersFilterPeriod === 'week') filtered = filtered.filter(o => o.date >= weekStart);
-        const q = (this.ordersSearchQuery || '').trim().toLowerCase();
-        if (q) {
-            const nq = this.removeAccents(q);
-            filtered = filtered.filter(o => {
-                const n = this.removeAccents((o.customerName || '').toLowerCase());
-                const id = this.removeAccents((o.id || '').toLowerCase());
-                const ph = this.removeAccents((o.phone || '').toLowerCase());
-                const addr = this.removeAccents((o.address || '').toLowerCase());
-                return id.includes(nq) || n.includes(nq) || ph.includes(nq) || addr.includes(nq);
-            });
-        }
-        const todayOrders = orders.filter(o => o && o.date === todayStr);
-        const weekOrders = orders.filter(o => o && o.date && o.date >= weekStart);
-        const monthOrders = orders.filter(o => { if (!o || !o.date) return false; const od = new Date(o.date); const t = new Date(vietnamTime); return od.getMonth() === t.getMonth() && od.getFullYear() === t.getFullYear(); });
+        const q = (this.ordersSearchQuery || '').trim();
+        if (q) filtered = filtered.filter(o => this.orderMatchesSearch(o, q));
         const selectAllChecked = filtered.length > 0 && filtered.every(o => this.selectedOrderIds.has(o.id));
-        const ordersTable = this.getOrderTableRowsHtml(filtered, orders);
+        const ordersTable = this.getOrderTableRowsHtml(orders.filter(o => o && o.id), orders);
         const selectedCount = this.selectedOrderIds.size;
         const selectionBar = `
-            <div id="orders-selection-bar" style="display: ${selectedCount > 0 ? 'flex' : 'none'}; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; flex-wrap: wrap;">
+            <div id="orders-selection-bar" style="display: ${selectedCount > 0 ? 'flex' : 'none'}; align-items: center; gap: 8px; margin-bottom: 16px; padding: 10px 12px; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; flex-wrap: wrap; font-size: 13px;">
                 <span id="orders-selection-bar-count" style="font-weight: 600; color: #1e40af;">Đã chọn ${selectedCount}</span>
-                <button type="button" onclick="app.clearOrdersSelection()" style="background: transparent; border: none; color: #6b7280; cursor: pointer; padding: 2px 6px; font-size: 18px;" title="Bỏ chọn">×</button>
-                <button type="button" onclick="app.bulkDeleteOrders()" style="background: #ef4444; color: white; padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">Xóa đã chọn</button>
-                <button type="button" onclick="app.clearOrdersSelection()" style="background: #e5e7eb; color: #374151; padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">Bỏ chọn</button>
+                <button type="button" onclick="app.clearOrdersSelection()" style="background: transparent; border: none; color: #6b7280; cursor: pointer; padding: 2px 4px; font-size: 16px; line-height: 1;" title="Bỏ chọn">×</button>
+                <button type="button" onclick="app.bulkDeleteOrders()" style="background: #ef4444; color: white; padding: 5px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Xóa đã chọn</button>
+                <button type="button" onclick="app.clearOrdersSelection()" style="background: #e5e7eb; color: #374151; padding: 5px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Bỏ chọn</button>
             </div>
         `;
         return `
             <div class="fade-in">
-                <!-- Stats Grid -->
-                <div class="stats-grid" style="margin-bottom: 24px;">
-                    <div class="stat-card info">
-                        <div class="stat-header">
-                            <span class="stat-title">Đơn hàng hôm nay</span>
-                            <span class="stat-icon">📋</span>
-                        </div>
-                        <div class="stat-value">${todayOrders.length}</div>
-                        <div class="stat-change">Tổng: ${todayOrders.reduce((sum, order) => sum + order.total, 0).toLocaleString('vi-VN')} VNĐ</div>
-                    </div>
-                    
-                    <div class="stat-card success">
-                        <div class="stat-header">
-                            <span class="stat-title">Đơn hàng tuần này</span>
-                            <span class="stat-icon">📊</span>
-                        </div>
-                        <div class="stat-value">${weekOrders.length}</div>
-                        <div class="stat-change">Tổng: ${weekOrders.reduce((sum, order) => sum + order.total, 0).toLocaleString('vi-VN')} VNĐ</div>
-                    </div>
-                    
-                    <div class="stat-card revenue">
-                        <div class="stat-header">
-                            <span class="stat-title">Đơn hàng tháng này</span>
-                            <span class="stat-icon">💰</span>
-                        </div>
-                        <div class="stat-value">${monthOrders.length}</div>
-                        <div class="stat-change">Tổng: ${monthOrders.reduce((sum, order) => sum + order.total, 0).toLocaleString('vi-VN')} VNĐ</div>
-                    </div>
-                    
-                    <div class="stat-card orders">
-                        <div class="stat-header">
-                            <span class="stat-title">Tổng đơn hàng</span>
-                            <span class="stat-icon">📈</span>
-                        </div>
-                        <div class="stat-value">${orders.length}</div>
-                        <div class="stat-change">Tất cả thời gian</div>
-                    </div>
-                </div>
-                
                 <div class="quick-actions">
                     <h2 class="section-title">Quản lý đơn hàng</h2>
-                    <div class="action-grid" style="margin-bottom: 24px;">
-                        <div class="action-button" onclick="app.showCreateOrderForm()">
-                            <div class="action-icon">📝</div>
-                            <div class="action-title">Tạo đơn hàng mới</div>
-                        </div>
-                        <div class="action-button" onclick="app.setOrdersFilterPeriod('today')">
-                            <div class="action-icon">📅</div>
-                            <div class="action-title">Đơn hôm nay</div>
-                        </div>
-                        <div class="action-button" onclick="app.setOrdersFilterPeriod('week')">
-                            <div class="action-icon">📊</div>
-                            <div class="action-title">Đơn tuần</div>
-                        </div>
-                        <div class="action-button" onclick="app.setOrdersFilterPeriod('all')">
-                            <div class="action-icon">📋</div>
-                            <div class="action-title">Tất cả</div>
-                        </div>
-                        <div class="action-button" onclick="app.exportOrdersReport()">
-                            <div class="action-icon">📋</div>
-                            <div class="action-title">Xuất báo cáo</div>
-                        </div>
-                    </div>
-                    
                     <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                        <h3 id="orders-list-title" style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
                             <span>📋</span> Danh sách đơn hàng${this.ordersFilterPeriod === 'today' ? ' hôm nay' : this.ordersFilterPeriod === 'week' ? ' tuần này' : ''} (${filtered.length}${filtered.length !== orders.length ? '/' + orders.length : ''})
                         </h3>
-                        
+
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+                            <button type="button" onclick="app.showCreateOrderForm()" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Thêm đơn hàng</button>
+                            <button type="button" id="orders-filter-today" onclick="app.setOrdersFilterPeriod('today')" style="background: ${this.ordersFilterPeriod === 'today' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'today' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'today' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Hôm nay</button>
+                            <button type="button" id="orders-filter-week" onclick="app.setOrdersFilterPeriod('week')" style="background: ${this.ordersFilterPeriod === 'week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tuần này</button>
+                            <button type="button" id="orders-filter-all" onclick="app.setOrdersFilterPeriod('all')" style="background: ${this.ordersFilterPeriod === 'all' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'all' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'all' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tất cả</button>
+                            <button type="button" onclick="app.exportOrdersReport()" style="background: white; color: #374151; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Xuất báo cáo</button>
+                        </div>
+
                         <div style="margin-bottom: 16px;">
-                            <input type="text" id="orders-search-input" value="${(this.ordersSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setOrdersSearch(this.value)" placeholder="Tìm theo mã đơn, khách hàng, SĐT, địa chỉ..." 
-                                   style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
+                            <input type="text" id="orders-search-input" value="${(this.ordersSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.searchOrders(this.value)" placeholder="Tìm mã đơn, mã/tên SP, khách hàng, SĐT..." 
+                                   style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                         </div>
                         ${selectionBar}
                         <div style="overflow-x: auto;">
-                            <table id="orders-table" style="width: 100%; border-collapse: collapse; background: white;">
+                            <table id="orders-table" style="width: 100%; min-width: 1100px; border-collapse: collapse; background: white; table-layout: fixed;">
+                                <colgroup>
+                                    <col style="width: 48px;">
+                                    <col style="width: 85px;">
+                                    <col style="width: 150px;">
+                                    <col style="width: 105px;">
+                                    <col style="width: 12%;">
+                                    <col style="width: 30%;">
+                                    <col style="width: 110px;">
+                                    <col style="width: 110px;">
+                                    <col style="width: 100px;">
+                                    <col style="width: 90px;">
+                                    <col style="width: 150px;">
+                                </colgroup>
                                 <thead>
                                     <tr style="background: #f8fafc;">
-                                        <th style="padding: 12px; text-align: left; width: 48px; border-bottom: 2px solid #e5e7eb; font-weight: 600;"><input type="checkbox" id="orders-select-all" ${selectAllChecked ? 'checked' : ''} onchange="app.toggleOrdersSelectAll(this.checked)" style="width: 18px; height: 18px; cursor: pointer;" title="Chọn tất cả"></th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Mã đơn</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Khách hàng</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">SĐT</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Địa chỉ</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Sản phẩm</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Thời gian</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Tổng tiền</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">Thanh toán</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600;">TT Nhanh</th>
-                                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; min-width: 200px;">Thao tác</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;"><input type="checkbox" id="orders-select-all" ${selectAllChecked ? 'checked' : ''} onchange="app.toggleOrdersSelectAll(this.checked)" style="width: 18px; height: 18px; cursor: pointer;" title="Chọn tất cả"></th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Mã đơn</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Khách hàng</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">SĐT</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Địa chỉ</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Sản phẩm</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Thời gian</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Tổng tiền</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Thanh toán</th>
+                                        <th style="padding: 10px 8px; text-align: center; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">TT nhanh</th>
+                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -3580,23 +3583,23 @@ class HamobileBanhang {
             const checked = this.selectedOrderIds.has(order.id);
             const productsStr = (order.products || []).map(p => (p.name || p.productName || '-') + ' x' + (p.quantity || 1)).join(', ') || '-';
             return `<tr data-order-index="${originalIndex}" style="${idx % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle;"><input type="checkbox" data-order-id="${escapeHtml(order.id || '')}" ${checked ? 'checked' : ''} onchange="app.toggleOrderSelect(this.getAttribute('data-order-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.id}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(order.customerName || '-')}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(order.phone || '-')}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(order.address || '')}">${escapeHtml(order.address || '-')}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; max-width: 200px; font-size: 13px;" title="${escapeHtml(productsStr)}">${escapeHtml(productsStr.length > 40 ? productsStr.substring(0, 40) + '…' : productsStr)}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${order.date || ''} ${order.time || ''}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${(order.total || 0).toLocaleString('vi-VN')} VNĐ</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(order.paymentMethod || '-')}</td>
-                <td class="payment-cell" style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-                    <button ondblclick="app.togglePaymentStatus(${originalIndex})" style="background: ${order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b'}; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ'}</button>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: middle;"><input type="checkbox" data-order-id="${escapeHtml(order.id || '')}" ${checked ? 'checked' : ''} onchange="app.toggleOrderSelect(this.getAttribute('data-order-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${order.id}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.customerName || '-')}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.phone || '-')}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px;" title="${escapeHtml(order.address || '')}">${escapeHtml(order.address || '-')}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; line-height: 1.35; white-space: normal; word-break: normal; overflow-wrap: break-word;" title="${escapeHtml(productsStr)}"><div style="display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;">${escapeHtml(productsStr.length > 80 ? productsStr.substring(0, 80) + '…' : productsStr)}</div></td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${order.date || ''} ${order.time || ''}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${(order.total || 0).toLocaleString('vi-VN')} VNĐ</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.paymentMethod || '-')}</td>
+                <td class="payment-cell" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">
+                    <button ondblclick="app.togglePaymentStatus(${originalIndex})" style="background: ${order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b'}; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;">${order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ'}</button>
                 </td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">
                     <div style="display: flex; gap: 6px; flex-wrap: nowrap; align-items: center;">
-                        <button onclick="app.showPrintOptionsPopup(${originalIndex})" style="flex-shrink: 0; background: var(--primary-green); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px;" title="In">In</button>
-                        <button onclick="app.viewOrderDetails(${originalIndex})" style="flex-shrink: 0; background: var(--primary-blue); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">Chi tiết</button>
-                        <button onclick="app.deleteOrder(${originalIndex})" style="flex-shrink: 0; background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;">Xóa</button>
+                        <button onclick="app.showPrintOptionsPopup(${originalIndex})" style="flex-shrink: 0; background: var(--primary-green); color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 11px; white-space: nowrap;" title="In">In</button>
+                        <button onclick="app.viewOrderDetails(${originalIndex})" style="flex-shrink: 0; background: var(--primary-blue); color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">Chi tiết</button>
+                        <button onclick="app.deleteOrder(${originalIndex})" style="flex-shrink: 0; background: #ef4444; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">Xóa</button>
                     </div>
                 </td>
             </tr>`;
@@ -3604,14 +3607,30 @@ class HamobileBanhang {
     }
     setOrdersFilterPeriod(period) {
         this.ordersFilterPeriod = period || 'all';
-        this.loadPage('orders');
+        this.searchOrders(this.ordersSearchQuery || '');
+    }
+    updateOrdersFilterButtonsUI() {
+        const active = this.ordersFilterPeriod || 'all';
+        const configs = [
+            { id: 'orders-filter-today', period: 'today' },
+            { id: 'orders-filter-week', period: 'week' },
+            { id: 'orders-filter-all', period: 'all' }
+        ];
+        configs.forEach(cfg => {
+            const btn = document.getElementById(cfg.id);
+            if (!btn) return;
+            const isActive = cfg.period === active;
+            btn.style.background = isActive ? '#dbeafe' : '#f8fafc';
+            btn.style.color = isActive ? '#1d4ed8' : '#374151';
+            btn.style.border = `1px solid ${isActive ? '#93c5fd' : '#e5e7eb'}`;
+        });
     }
     setOrdersSearch(val) {
         this.ordersSearchQuery = val || '';
         this.loadPage('orders');
     }
     toggleOrdersSelectAll(checked) {
-        const q = (this.ordersSearchQuery || '').trim().toLowerCase();
+        const q = (this.ordersSearchQuery || '').trim();
         const per = this.ordersFilterPeriod || 'all';
         let list = this.demoData.orders || [];
         const vn = this.getVietnamTime();
@@ -3619,10 +3638,7 @@ class HamobileBanhang {
         const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
         if (per === 'today') list = list.filter(o => o.date === todayStr);
         else if (per === 'week') list = list.filter(o => o.date >= weekStart);
-        if (q) {
-            const nq = this.removeAccents(q);
-            list = list.filter(o => this.removeAccents((o.customerName || '') + (o.id || '') + (o.phone || '') + (o.address || '')).toLowerCase().includes(nq));
-        }
+        if (q) list = list.filter(o => this.orderMatchesSearch(o, q));
         list.forEach(o => { if (checked) this.selectedOrderIds.add(o.id); else this.selectedOrderIds.delete(o.id); });
         this.updateOrdersSelectionUI();
     }
@@ -3637,7 +3653,7 @@ class HamobileBanhang {
         if (elBar) elBar.style.display = n > 0 ? 'flex' : 'none';
         if (elCount) elCount.textContent = n > 0 ? 'Đã chọn ' + n : '';
         const selectAll = document.getElementById('orders-select-all');
-        const q = (this.ordersSearchQuery || '').trim().toLowerCase();
+        const q = (this.ordersSearchQuery || '').trim();
         const per = this.ordersFilterPeriod || 'all';
         let filtered = this.demoData.orders || [];
         const vn = this.getVietnamTime();
@@ -3645,10 +3661,7 @@ class HamobileBanhang {
         const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
         if (per === 'today') filtered = filtered.filter(o => o.date === todayStr);
         else if (per === 'week') filtered = filtered.filter(o => o.date >= weekStart);
-        if (q) {
-            const nq = this.removeAccents(q);
-            filtered = filtered.filter(o => this.removeAccents((o.customerName || '') + (o.id || '') + (o.phone || '') + (o.address || '')).toLowerCase().includes(nq));
-        }
+        if (q) filtered = filtered.filter(o => this.orderMatchesSearch(o, q));
         if (selectAll) selectAll.checked = filtered.length > 0 && filtered.every(o => this.selectedOrderIds.has(o.id));
         document.querySelectorAll('#orders-table input[data-order-id]').forEach(cb => {
             const id = cb.getAttribute('data-order-id');
@@ -3686,10 +3699,21 @@ class HamobileBanhang {
     }
 
     getRepairsContent() {
+        if (this.repairsSearchQuery === undefined) this.repairsSearchQuery = '';
+        if (this.repairsFilterPeriod === undefined) this.repairsFilterPeriod = 'all';
         const repairs = this.demoData.repairs || [];
+        const vietnamTime = this.getVietnamTime();
+        const todayStr = vietnamTime.toISOString().split('T')[0];
+        const weekStart = (() => { const d = new Date(vietnamTime); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); d.setDate(diff); return d.toISOString().split('T')[0]; })();
+        let filteredRepairs = repairs;
+        if (this.repairsFilterPeriod === 'today') filteredRepairs = filteredRepairs.filter(r => r && r.date === todayStr);
+        else if (this.repairsFilterPeriod === 'week') filteredRepairs = filteredRepairs.filter(r => r && r.date && r.date >= weekStart);
+        const rq = (this.repairsSearchQuery || '').trim();
+        if (rq) filteredRepairs = filteredRepairs.filter(r => this.repairMatchesSearch(r, rq));
         const repairsTable = repairs.length === 0 ? `
             <tr><td colspan="9" style="padding: 24px; text-align: center; color: #6b7280;">Chưa có phiếu sửa chữa nào. Nhấn "Thêm phiếu sửa chữa" để tạo mới.</td></tr>
-        ` : repairs.map((r, index) => {
+        ` : repairs.map((r) => {
+            const index = repairs.findIndex(x => x === r);
             const cost = Number(r.repairCost) || 0;
             const paid = (Number(r.amountPaid) || 0); // Dùng || để xử lý undefined/NaN → 0
             const hasDebt = cost > 0 && paid < cost;
@@ -3730,20 +3754,19 @@ class HamobileBanhang {
             <div class="fade-in">
                 <div class="quick-actions">
                     <h2 class="section-title">Quản lý Sửa chữa</h2>
-                    <div class="action-grid" style="margin-bottom: 24px;">
-                        <div class="action-button" onclick="app.showAddRepairForm()">
-                            <div class="action-icon">🔧</div>
-                            <div class="action-title">Thêm phiếu sửa chữa</div>
-                            <div class="action-desc">Tạo phiếu sửa chữa mới với linh kiện, bảo hành</div>
-                        </div>
-                    </div>
-
                     <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                            <span>🔧</span> Danh sách phiếu sửa chữa (${repairs.length})
+                        <h3 id="repairs-list-title" style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                            <span>🔧</span> Danh sách phiếu sửa chữa${this.repairsFilterPeriod === 'today' ? ' hôm nay' : this.repairsFilterPeriod === 'week' ? ' tuần này' : ''} (${filteredRepairs.length}${filteredRepairs.length !== repairs.length ? '/' + repairs.length : ''})
                         </h3>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+                            <button type="button" onclick="app.showAddRepairForm()" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Thêm phiếu sửa chữa</button>
+                            <button type="button" id="repairs-filter-today" onclick="app.setRepairsFilterPeriod('today')" style="background: ${this.repairsFilterPeriod === 'today' ? '#dbeafe' : '#f8fafc'}; color: ${this.repairsFilterPeriod === 'today' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.repairsFilterPeriod === 'today' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Hôm nay</button>
+                            <button type="button" id="repairs-filter-week" onclick="app.setRepairsFilterPeriod('week')" style="background: ${this.repairsFilterPeriod === 'week' ? '#dbeafe' : '#f8fafc'}; color: ${this.repairsFilterPeriod === 'week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.repairsFilterPeriod === 'week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tuần này</button>
+                            <button type="button" id="repairs-filter-all" onclick="app.setRepairsFilterPeriod('all')" style="background: ${this.repairsFilterPeriod === 'all' ? '#dbeafe' : '#f8fafc'}; color: ${this.repairsFilterPeriod === 'all' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.repairsFilterPeriod === 'all' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tất cả</button>
+                            <button type="button" onclick="app.exportRepairsReport()" style="background: white; color: #374151; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Xuất báo cáo</button>
+                        </div>
                         <div style="margin-bottom: 16px;">
-                            <input type="text" id="repair-search" placeholder="Tìm kiếm theo mã, khách hàng, SĐT..."
+                            <input type="text" id="repair-search" value="${(this.repairsSearchQuery || '').replace(/"/g, '&quot;')}" placeholder="Tìm kiếm theo mã, khách hàng, SĐT..."
                                    style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
                                    oninput="app.searchRepairs(this.value)">
                         </div>
@@ -3786,13 +3809,61 @@ class HamobileBanhang {
 
     searchRepairs(query) {
         const q = (query || '').trim();
+        this.repairsSearchQuery = query || '';
         const rows = document.querySelectorAll('#repairs-table tbody tr[data-repair-index]');
+        let visibleCount = 0;
         rows.forEach(row => {
             const idx = parseInt(row.getAttribute('data-repair-index'), 10);
             const r = this.demoData.repairs[idx];
             if (!r) return;
-            const text = (r.id || '') + ' ' + (r.customerName || '') + ' ' + (r.phone || '') + (r.repairDescription || '');
-            row.style.display = q === '' || this.searchMatch(text, q) ? '' : 'none';
+            const isVisible = this.repairMatchesPeriod(r, this.repairsFilterPeriod || 'all') && this.repairMatchesSearch(r, q);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) visibleCount++;
+        });
+        const tbody = document.querySelector('#repairs-table tbody');
+        let emptyRow = document.getElementById('repairs-empty-search-row');
+        if (tbody && rows.length > 0) {
+            if (!emptyRow) {
+                emptyRow = document.createElement('tr');
+                emptyRow.id = 'repairs-empty-search-row';
+                emptyRow.innerHTML = '<td colspan="9" style="padding: 24px; text-align: center; color: #6b7280;">Không tìm thấy phiếu sửa chữa phù hợp.</td>';
+                emptyRow.style.display = 'none';
+                tbody.appendChild(emptyRow);
+            }
+            emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+        }
+        const title = document.getElementById('repairs-list-title');
+        if (title) {
+            const periodText = this.repairsFilterPeriod === 'today' ? ' hôm nay' : this.repairsFilterPeriod === 'week' ? ' tuần này' : '';
+            const allRepairs = this.demoData.repairs || [];
+            let periodRepairs = allRepairs;
+            const vn = this.getVietnamTime();
+            const todayStr = vn.toISOString().split('T')[0];
+            const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
+            if (this.repairsFilterPeriod === 'today') periodRepairs = allRepairs.filter(r => r && r.date === todayStr);
+            else if (this.repairsFilterPeriod === 'week') periodRepairs = allRepairs.filter(r => r && r.date && r.date >= weekStart);
+            title.innerHTML = `<span>🔧</span> Danh sách phiếu sửa chữa${periodText} (${visibleCount}${visibleCount !== periodRepairs.length ? '/' + periodRepairs.length : ''})`;
+        }
+        this.updateRepairsFilterButtonsUI();
+    }
+    setRepairsFilterPeriod(period) {
+        this.repairsFilterPeriod = period || 'all';
+        this.searchRepairs(this.repairsSearchQuery || '');
+    }
+    updateRepairsFilterButtonsUI() {
+        const active = this.repairsFilterPeriod || 'all';
+        const configs = [
+            { id: 'repairs-filter-today', period: 'today' },
+            { id: 'repairs-filter-week', period: 'week' },
+            { id: 'repairs-filter-all', period: 'all' }
+        ];
+        configs.forEach(cfg => {
+            const btn = document.getElementById(cfg.id);
+            if (!btn) return;
+            const isActive = cfg.period === active;
+            btn.style.background = isActive ? '#dbeafe' : '#f8fafc';
+            btn.style.color = isActive ? '#1d4ed8' : '#374151';
+            btn.style.border = `1px solid ${isActive ? '#93c5fd' : '#e5e7eb'}`;
         });
     }
 
@@ -11806,12 +11877,42 @@ class HamobileBanhang {
 
     searchOrders(searchTerm) {
         const q = (searchTerm || '').trim();
-        const rows = document.querySelectorAll('#orders-table tbody tr');
+        this.ordersSearchQuery = searchTerm || '';
+        const rows = document.querySelectorAll('#orders-table tbody tr[data-order-index]');
+        let visibleCount = 0;
         rows.forEach(row => {
-            const text = row.textContent || '';
-            const isVisible = !q || this.searchMatch(text, q);
+            const idx = parseInt(row.getAttribute('data-order-index'), 10);
+            const order = this.demoData.orders[idx];
+            const isVisible = !!order && this.orderMatchesPeriod(order, this.ordersFilterPeriod || 'all') && this.orderMatchesSearch(order, q);
             row.style.display = isVisible ? '' : 'none';
+            if (isVisible) visibleCount++;
         });
+        const tbody = document.querySelector('#orders-table tbody');
+        let emptyRow = document.getElementById('orders-empty-search-row');
+        if (tbody && rows.length > 0) {
+            if (!emptyRow) {
+                emptyRow = document.createElement('tr');
+                emptyRow.id = 'orders-empty-search-row';
+                emptyRow.innerHTML = '<td colspan="11" style="padding: 24px; text-align: center; color: #6b7280;">Không tìm thấy đơn hàng phù hợp.</td>';
+                emptyRow.style.display = 'none';
+                tbody.appendChild(emptyRow);
+            }
+            emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+        }
+        const title = document.getElementById('orders-list-title');
+        if (title) {
+            const periodText = this.ordersFilterPeriod === 'today' ? ' hôm nay' : this.ordersFilterPeriod === 'week' ? ' tuần này' : '';
+            const allOrders = this.demoData.orders || [];
+            let periodOrders = allOrders;
+            const vn = this.getVietnamTime();
+            const todayStr = vn.toISOString().split('T')[0];
+            const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
+            if (this.ordersFilterPeriod === 'today') periodOrders = allOrders.filter(o => o.date === todayStr);
+            else if (this.ordersFilterPeriod === 'week') periodOrders = allOrders.filter(o => o.date >= weekStart);
+            title.innerHTML = `<span>📋</span> Danh sách đơn hàng${periodText} (${visibleCount}${visibleCount !== periodOrders.length ? '/' + periodOrders.length : ''})`;
+        }
+        this.updateOrdersFilterButtonsUI();
+        this.updateOrdersSelectionUI();
     }
 
     exportOrdersReport(mode = null) {
@@ -13565,9 +13666,19 @@ class HamobileBanhang {
     applyQuickFilter(value) {
         const fromDateInput = document.getElementById('filter-from-date');
         const toDateInput = document.getElementById('filter-to-date');
+        const range = this.getQuickDateRange(value);
+        if (!range) return;
+        const { fromDate, toDate } = range;
+
+        if (fromDate && toDate) {
+            fromDateInput.value = fromDate.toISOString ? fromDate.toISOString().split('T')[0] : fromDate;
+            toDateInput.value = toDate.toISOString ? toDate.toISOString().split('T')[0] : toDate;
+            this.applyDateFilter();
+        }
+    }
+    getQuickDateRange(value) {
         const today = this.getVietnamTime();
         let fromDate, toDate;
-
         switch(value) {
             case 'today':
                 fromDate = toDate = new Date(today.getTime());
@@ -13576,18 +13687,15 @@ class HamobileBanhang {
                 fromDate = toDate = new Date(today.getTime() - 24 * 60 * 60 * 1000);
                 break;
             case 'this-week':
-                const startOfWeek = new Date(today);
-                startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Thứ 2
-                fromDate = startOfWeek;
+                fromDate = new Date(today);
+                fromDate.setDate(today.getDate() - today.getDay() + 1);
                 toDate = today;
                 break;
             case 'last-week':
-                const startOfLastWeek = new Date(today);
-                startOfLastWeek.setDate(today.getDate() - today.getDay() - 6);
-                const endOfLastWeek = new Date(today);
-                endOfLastWeek.setDate(today.getDate() - today.getDay());
-                fromDate = startOfLastWeek;
-                toDate = endOfLastWeek;
+                fromDate = new Date(today);
+                fromDate.setDate(today.getDate() - today.getDay() - 6);
+                toDate = new Date(today);
+                toDate.setDate(today.getDate() - today.getDay());
                 break;
             case 'this-month':
                 fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -13614,14 +13722,18 @@ class HamobileBanhang {
                 toDate = new Date(today.getFullYear() - 1, 11, 31);
                 break;
             default:
-                return;
+                return null;
         }
-
-        if (fromDate && toDate) {
-            fromDateInput.value = fromDate.toISOString ? fromDate.toISOString().split('T')[0] : fromDate;
-            toDateInput.value = toDate.toISOString ? toDate.toISOString().split('T')[0] : toDate;
-            this.applyDateFilter();
-        }
+        return { fromDate, toDate };
+    }
+    applyExportQuickFilter(prefix, value) {
+        const range = this.getQuickDateRange(value);
+        if (!range) return;
+        const fromInput = document.getElementById(prefix + 'FromDate');
+        const toInput = document.getElementById(prefix + 'ToDate');
+        if (!fromInput || !toInput) return;
+        fromInput.value = range.fromDate.toISOString().split('T')[0];
+        toInput.value = range.toDate.toISOString().split('T')[0];
     }
 
     // Áp dụng bộ lọc ngày tháng
@@ -13831,6 +13943,21 @@ class HamobileBanhang {
                     <!-- Bộ lọc thời gian -->
                     <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                         <h4 style="margin: 0 0 15px 0; color: #374151; font-size: 14px;">📅 Chọn khoảng thời gian:</h4>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6b7280;">Chọn nhanh:</label>
+                            <select id="exportSalesQuickSelect" onchange="app.applyExportQuickFilter('exportSales', this.value)" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="today">Hôm nay</option>
+                                <option value="yesterday">Hôm qua</option>
+                                <option value="this-week">Tuần này</option>
+                                <option value="last-week">Tuần trước</option>
+                                <option value="this-month" selected>Tháng này</option>
+                                <option value="last-month">Tháng trước</option>
+                                <option value="last-30-days">30 ngày qua</option>
+                                <option value="last-90-days">90 ngày qua</option>
+                                <option value="this-year">Năm này</option>
+                                <option value="last-year">Năm trước</option>
+                            </select>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
                             <div>
                                 <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6b7280;">Từ ngày:</label>
@@ -13864,11 +13991,7 @@ class HamobileBanhang {
         
         document.body.insertAdjacentHTML('beforeend', exportHTML);
 
-        // Set ngày mặc định (tháng này)
-        const today = this.getVietnamTime();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        document.getElementById('exportSalesFromDate').value = firstDay.toISOString().split('T')[0];
-        document.getElementById('exportSalesToDate').value = today.toISOString().split('T')[0];
+        this.applyExportQuickFilter('exportSales', 'this-month');
     }
 
     // Hiển thị popup export báo cáo sửa chữa với bộ lọc
@@ -13884,6 +14007,21 @@ class HamobileBanhang {
                     <!-- Bộ lọc thời gian -->
                     <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                         <h4 style="margin: 0 0 15px 0; color: #374151; font-size: 14px;">📅 Chọn khoảng thời gian:</h4>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6b7280;">Chọn nhanh:</label>
+                            <select id="exportRepairsQuickSelect" onchange="app.applyExportQuickFilter('exportRepairs', this.value)" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="today" selected>Hôm nay</option>
+                                <option value="yesterday">Hôm qua</option>
+                                <option value="this-week">Tuần này</option>
+                                <option value="last-week">Tuần trước</option>
+                                <option value="this-month">Tháng này</option>
+                                <option value="last-month">Tháng trước</option>
+                                <option value="last-30-days">30 ngày qua</option>
+                                <option value="last-90-days">90 ngày qua</option>
+                                <option value="this-year">Năm này</option>
+                                <option value="last-year">Năm trước</option>
+                            </select>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
                             <div>
                                 <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6b7280;">Từ ngày:</label>
@@ -13917,9 +14055,7 @@ class HamobileBanhang {
 
         document.body.insertAdjacentHTML('beforeend', exportHTML);
 
-        const today = this.getVietnamTime();
-        document.getElementById('exportRepairsFromDate').value = today.toISOString().split('T')[0];
-        document.getElementById('exportRepairsToDate').value = today.toISOString().split('T')[0];
+        this.applyExportQuickFilter('exportRepairs', 'today');
     }
 
     // Xử lý export báo cáo sửa chữa
@@ -14123,6 +14259,21 @@ class HamobileBanhang {
                     <!-- Bộ lọc thời gian -->
                     <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                         <h4 style="margin: 0 0 15px 0; color: #374151; font-size: 14px;">📅 Chọn khoảng thời gian:</h4>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6b7280;">Chọn nhanh:</label>
+                            <select id="exportProductsQuickSelect" onchange="app.applyExportQuickFilter('exportProducts', this.value)" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="today">Hôm nay</option>
+                                <option value="yesterday">Hôm qua</option>
+                                <option value="this-week">Tuần này</option>
+                                <option value="last-week">Tuần trước</option>
+                                <option value="this-month" selected>Tháng này</option>
+                                <option value="last-month">Tháng trước</option>
+                                <option value="last-30-days">30 ngày qua</option>
+                                <option value="last-90-days">90 ngày qua</option>
+                                <option value="this-year">Năm này</option>
+                                <option value="last-year">Năm trước</option>
+                            </select>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
                             <div>
                                 <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6b7280;">Từ ngày:</label>
@@ -14158,11 +14309,7 @@ class HamobileBanhang {
         
         document.body.insertAdjacentHTML('beforeend', exportHTML);
 
-        // Set ngày mặc định (tháng này)
-        const today = this.getVietnamTime();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        document.getElementById('exportProductsFromDate').value = firstDay.toISOString().split('T')[0];
-        document.getElementById('exportProductsToDate').value = today.toISOString().split('T')[0];
+        this.applyExportQuickFilter('exportProducts', 'this-month');
     }
 
     // Xử lý export báo cáo Top sản phẩm
@@ -14293,6 +14440,21 @@ class HamobileBanhang {
                     <!-- Bộ lọc thời gian -->
                     <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                         <h4 style="margin: 0 0 15px 0; color: #374151; font-size: 14px;">📅 Chọn khoảng thời gian:</h4>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6b7280;">Chọn nhanh:</label>
+                            <select id="exportFinancialQuickSelect" onchange="app.applyExportQuickFilter('exportFinancial', this.value)" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="today">Hôm nay</option>
+                                <option value="yesterday">Hôm qua</option>
+                                <option value="this-week">Tuần này</option>
+                                <option value="last-week">Tuần trước</option>
+                                <option value="this-month" selected>Tháng này</option>
+                                <option value="last-month">Tháng trước</option>
+                                <option value="last-30-days">30 ngày qua</option>
+                                <option value="last-90-days">90 ngày qua</option>
+                                <option value="this-year">Năm này</option>
+                                <option value="last-year">Năm trước</option>
+                            </select>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
                             <div>
                                 <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6b7280;">Từ ngày:</label>
@@ -14328,11 +14490,7 @@ class HamobileBanhang {
         
         document.body.insertAdjacentHTML('beforeend', exportHTML);
 
-        // Set ngày mặc định (tháng này)
-        const today = this.getVietnamTime();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        document.getElementById('exportFinancialFromDate').value = firstDay.toISOString().split('T')[0];
-        document.getElementById('exportFinancialToDate').value = today.toISOString().split('T')[0];
+        this.applyExportQuickFilter('exportFinancial', 'this-month');
     }
 
     // Xử lý export báo cáo tài chính
@@ -14586,7 +14744,11 @@ class HamobileBanhang {
 
     // Hiển thị popup export báo cáo công nợ với bộ lọc
     showDebtExportWithFilter() {
-        const customersWithDebt = this.demoData.customers.filter(c => c.debt > 0);
+        this.syncCustomerDebt(true);
+        const customersWithDebt = this.getCustomersWithDebt().map(c => ({
+            ...c,
+            actualDebt: this.getActualDebtForCustomer(c)
+        }));
         if (customersWithDebt.length === 0) {
             this.showNotification('Không có khách hàng nào đang nợ', 'info');
             return;
@@ -14633,7 +14795,7 @@ class HamobileBanhang {
                         </div>
                         <div style="font-size: 13px; color: #991b1b; display: flex; justify-content: space-between;">
                             <span>Tổng số nợ:</span>
-                            <strong>${customersWithDebt.reduce((sum, c) => sum + c.debt, 0).toLocaleString('vi-VN')} VNĐ</strong>
+                            <strong>${customersWithDebt.reduce((sum, c) => sum + (c.actualDebt || 0), 0).toLocaleString('vi-VN')} VNĐ</strong>
                         </div>
                     </div>
 
@@ -14663,16 +14825,20 @@ class HamobileBanhang {
         const debtFilter = document.getElementById('debtFilter').value;
         const customerTypeFilter = document.getElementById('customerTypeFilter').value;
 
-        // Lọc khách hàng có nợ
-        let customersWithDebt = this.demoData.customers.filter(c => c.debt > 0);
+        // Đồng bộ và lấy đúng danh sách công nợ thực tế từ đơn hàng + sửa chữa
+        this.syncCustomerDebt(true);
+        let customersWithDebt = this.getCustomersWithDebt().map(c => ({
+            ...c,
+            actualDebt: this.getActualDebtForCustomer(c)
+        }));
 
         // Lọc theo mức nợ
         if (debtFilter === 'low') {
-            customersWithDebt = customersWithDebt.filter(c => c.debt < 1000000);
+            customersWithDebt = customersWithDebt.filter(c => c.actualDebt < 1000000);
         } else if (debtFilter === 'medium') {
-            customersWithDebt = customersWithDebt.filter(c => c.debt >= 1000000 && c.debt <= 10000000);
+            customersWithDebt = customersWithDebt.filter(c => c.actualDebt >= 1000000 && c.actualDebt <= 10000000);
         } else if (debtFilter === 'high') {
-            customersWithDebt = customersWithDebt.filter(c => c.debt > 10000000);
+            customersWithDebt = customersWithDebt.filter(c => c.actualDebt > 10000000);
         }
 
         // Lọc theo loại khách hàng
@@ -14694,12 +14860,12 @@ class HamobileBanhang {
         if (mode === 'view') {
             // Hiển thị dữ liệu
             const columns = [
-                { header: 'Mã KH', getValue: customer => customer.id },
-                { header: 'Tên khách hàng', getValue: customer => customer.name },
-                { header: 'Loại KH', getValue: customer => customer.type === 'doanh-nghiep' ? 'Doanh nghiệp' : 'Cá nhân' },
+                { header: 'Mã KH', getValue: customer => customer.id || 'N/A' },
+                { header: 'Tên khách hàng', getValue: customer => customer.name || 'N/A' },
+                { header: 'Loại KH', getValue: customer => customer.type === 'doanh-nghiep' ? 'Doanh nghiệp' : (customer.type === 'ca-nhan' ? 'Cá nhân' : 'Chưa phân loại') },
                 { header: 'Điện thoại', getValue: customer => customer.phone || 'N/A' },
                 { header: 'Email', getValue: customer => customer.email || 'N/A' },
-                { header: 'Số nợ (VNĐ)', getValue: customer => customer.debt.toLocaleString('vi-VN') },
+                { header: 'Số nợ (VNĐ)', getValue: customer => (customer.actualDebt || 0).toLocaleString('vi-VN') },
                 { header: 'Hành động', getValue: customer => `
                     <button onclick="app.showCustomerDebtDetail('${customer.id}')" style="
                         background: #059669; 
@@ -14723,7 +14889,7 @@ class HamobileBanhang {
         } else if (mode === 'download') {
             // Tải xuống CSV
             const filterDesc = this.getDebtFilterDescription(debtFilter, customerTypeFilter);
-            const totalDebt = customersWithDebt.reduce((sum, c) => sum + c.debt, 0);
+            const totalDebt = customersWithDebt.reduce((sum, c) => sum + (c.actualDebt || 0), 0);
             
             const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + 
                 `Báo cáo Công nợ - ${filterDesc}\n` +
@@ -14732,7 +14898,7 @@ class HamobileBanhang {
                 `Ngày báo cáo: ${this.getVietnamTime().toLocaleDateString('vi-VN')}\n\n` +
                 "Mã KH,Tên khách hàng,Loại KH,Điện thoại,Email,Số nợ\n" +
                 customersWithDebt.map(c => 
-                    `${c.id},"${c.name}","${c.type === 'doanh-nghiep' ? 'Doanh nghiệp' : 'Cá nhân'}","${c.phone || ''}","${c.email || ''}",${c.debt}`
+                    `${c.id || ''},"${c.name || ''}","${c.type === 'doanh-nghiep' ? 'Doanh nghiệp' : (c.type === 'ca-nhan' ? 'Cá nhân' : 'Chưa phân loại')}","${c.phone || ''}","${c.email || ''}",${c.actualDebt || 0}`
                 ).join('\n');
             
             const encodedUri = encodeURI(csvContent);
