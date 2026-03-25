@@ -4698,35 +4698,36 @@ class HamobileBanhang {
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     html, body { overflow-x: hidden; max-width: 80mm; }
-                    body { font-family: Arial, system-ui, sans-serif; font-size: 10px; line-height: 1.3; color: #333; padding: 2mm; background: white; width: 74mm; max-width: 74mm; margin: 0 auto; overflow-x: hidden; }
+                    body { font-family: Arial, system-ui, sans-serif; font-size: 11.2px; line-height: 1.45; color: #222; padding: 2mm; background: white; width: 74mm; max-width: 74mm; margin: 0 auto; overflow-x: hidden; }
                     .invoice-container { width: 100%; max-width: 74mm; margin: 0 auto; background: white; overflow: hidden; padding: 0 1mm; }
                     .invoice-header { display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px dashed #2563eb; padding-bottom: 2px; margin-bottom: 2px; gap: 1px; }
                     .header-company { text-align: center; }
-                    .company-name { font-size: 11px; font-weight: bold; color: #2563eb; margin-bottom: 1px; word-break: break-word; }
-                    .company-info { font-size: 8px; color: #666; margin-bottom: 1px; line-height: 1.25; word-break: break-word; }
-                    .invoice-title { font-size: 10px; font-weight: bold; margin-top: 1px; color: #1a1a1a; }
+                    .company-name { font-size: 13px; font-weight: 700; color: #2563eb; margin-bottom: 1px; word-break: break-word; }
+                    .company-info { font-size: 9.2px; color: #555; margin-bottom: 1px; line-height: 1.35; word-break: break-word; }
+                    .invoice-title { font-size: 11.8px; font-weight: 700; margin-top: 1px; color: #1a1a1a; }
                     .invoice-details { display: flex; flex-direction: column; margin-bottom: 4px; gap: 2px; }
                     .invoice-info, .customer-info { width: 100%; }
-                    .section-title { font-weight: bold; font-size: 9px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 1px; margin-bottom: 2px; color: #2563eb; }
-                    .info-row { margin-bottom: 1px; display: flex; font-size: 9px; flex-wrap: wrap; }
-                    .info-label { font-weight: 600; min-width: 45px; flex-shrink: 0; color: #555; }
+                    .section-title { font-weight: 700; font-size: 10.2px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 1px; margin-bottom: 2px; color: #2563eb; }
+                    .info-row { margin-bottom: 1px; display: flex; font-size: 10px; flex-wrap: wrap; }
+                    .info-label { font-weight: 700; min-width: 50px; flex-shrink: 0; color: #555; }
                     .info-value { color: #333; word-break: break-word; overflow-wrap: break-word; min-width: 0; }
-                    .products-table { width: 100%; border-collapse: collapse; margin-bottom: 2px; font-size: 9px; border: 1px solid #000; table-layout: fixed; }
-                    .products-table th, .products-table td { border: 1px solid #000; padding: 2px 3px; vertical-align: middle; overflow: hidden; }
-                    .products-table th { background: #f8fafc; color: #000; text-align: center; font-weight: bold; font-size: 9px; }
-                    .products-table td { text-align: center; font-size: 9px; }
+                    .products-table { width: 100%; border-collapse: collapse; margin-bottom: 2px; font-size: 10px; border: 1px solid #000; table-layout: fixed; }
+                    .products-table th, .products-table td { border: 1px solid #000; padding: 3px 4px; vertical-align: middle; overflow: hidden; }
+                    .products-table th { background: #f8fafc; color: #000; text-align: center; font-weight: 700; font-size: 10px; }
+                    .products-table td { text-align: center; font-size: 10px; }
                     .products-table .col-tt { width: 10%; text-align: center; }
-                    .products-table .col-product { width: 70%; text-align: left; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 8px; }
+                    .products-table .col-product { width: 70%; text-align: left; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 9.2px; }
                     .products-table .col-sl { width: 20%; text-align: center; }
-                    .product-name { text-align: left !important; font-weight: 500; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 8px; max-width: 100%; }
+                    .product-name { text-align: left !important; font-weight: 600; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 9.2px; max-width: 100%; }
                     .totals-section { width: 100%; margin: 2px 0; }
-                    .total-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #e5e7eb; font-size: 9px; }
-                    .total-row.final { font-weight: bold; font-size: 10px; color: #2563eb; border-bottom: 1px solid #2563eb; border-top: 1px solid #2563eb; margin-top: 1px; padding: 2px 0; }
-                    .repair-desc { font-size: 8px; margin-bottom: 4px; padding: 2px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 2px; word-break: break-word; }
-                    .footer-info { clear: both; margin-top: 2px; padding-top: 1px; border-top: 1px dashed #e5e7eb; text-align: center; font-size: 8px; color: #666; }
-                    .signature-section { display: flex; justify-content: space-between; margin-top: 1px; text-align: center; font-size: 8px; }
+                    .total-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #e5e7eb; font-size: 10px; }
+                    .total-row.final { font-weight: 700; font-size: 11.8px; color: #2563eb; border-bottom: 1px solid #2563eb; border-top: 1px solid #2563eb; margin-top: 1px; padding: 3px 0; }
+                    .repair-desc { font-size: 9.3px; margin-bottom: 4px; padding: 3px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 2px; word-break: break-word; }
+                    .footer-info { clear: both; margin-top: 2px; padding-top: 1px; border-top: 1px dashed #e5e7eb; text-align: center; font-size: 9px; color: #666; }
+                    .signature-section { display: flex; justify-content: space-between; margin-top: 4px; text-align: center; font-size: 9px; }
                     .signature-box { width: 48%; }
-                    .signature-title { font-weight: bold; margin-bottom: 2px; color: #2563eb; font-size: 9px; }
+                    .signature-title { font-weight: 700; margin-bottom: 2px; color: #2563eb; font-size: 10px; }
+                    .signature-space { height: 26px; }
                     @media print { @page { size: 80mm auto; margin: 3mm; } html, body { margin: 0; padding: 2mm !important; width: 80mm !important; max-width: 80mm !important; overflow: hidden !important; } .no-print { display: none !important; } .invoice-container { box-shadow: none; width: 74mm !important; max-width: 74mm !important; } .invoice-details { margin-bottom: 4px; gap: 2px; } .totals-section { margin: 2px 0; } }
                     .print-buttons { text-align: center; margin: 6px 0; padding: 4px; }
                     .btn { padding: 6px 10px; margin: 0 4px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; }
@@ -4777,8 +4778,8 @@ class HamobileBanhang {
                     </div>
                     ${r.notes ? '<div class="section-title">Ghi chú</div><div class="repair-desc">' + (r.notes || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>' : ''}
                     <div class="signature-section">
-                        <div class="signature-box"><div class="signature-title">Khách hàng</div><div>(Ký và ghi rõ họ tên)</div></div>
-                        <div class="signature-box"><div class="signature-title">Thợ sửa chữa</div><div>(Ký và ghi rõ họ tên)</div></div>
+                        <div class="signature-box"><div class="signature-title">Khách hàng</div><div>(Ký và ghi rõ họ tên)</div><div class="signature-space"></div></div>
+                        <div class="signature-box"><div class="signature-title">Thợ sửa chữa</div><div>(Ký và ghi rõ họ tên)</div><div class="signature-space"></div></div>
                     </div>
                     <div class="print-buttons no-print">
                         <button class="btn btn-print" onclick="window.print()">🖨️ In phiếu</button>
@@ -4786,7 +4787,6 @@ class HamobileBanhang {
                     </div>
                     <div class="footer-info">
                         <p><strong>Cảm ơn quý khách đã sử dụng dịch vụ!</strong></p>
-                        <p>Phiếu được tạo bởi Hệ thống Quản lý Bán hàng - ${this.getVietnamTime().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
                     </div>
                 </div>
             </body>
@@ -6340,6 +6340,18 @@ class HamobileBanhang {
                 <title>Báo cáo khách hàng - ${customerName}</title>
                 <meta charset="UTF-8">
                 <style>
+                    body {
+                        font-family: Arial, system-ui, sans-serif;
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #1f2937;
+                    }
+                    h1, h2, h3, h4 {
+                        line-height: 1.3;
+                    }
+                    table th, table td {
+                        font-size: 13.5px;
+                    }
                     @media print {
                         body { margin: 0; }
                         .no-print { display: none; }
@@ -12582,7 +12594,7 @@ class HamobileBanhang {
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
                         html, body { overflow-x: hidden; max-width: 80mm; }
-                        body { font-family: Arial, system-ui, sans-serif; font-size: 10px; line-height: 1.3; color: #333; padding: 2mm; background: white; width: 74mm; max-width: 74mm; margin: 0 auto; overflow-x: hidden; }
+                        body { font-family: Arial, system-ui, sans-serif; font-size: 11.2px; line-height: 1.45; color: #222; padding: 2mm; background: white; width: 74mm; max-width: 74mm; margin: 0 auto; overflow-x: hidden; }
                         .invoice-container { width: 100%; max-width: 74mm; margin: 0 auto; background: white; overflow: hidden; padding: 0 1mm; }
                         
                         .invoice-header { 
@@ -12598,9 +12610,9 @@ class HamobileBanhang {
                         .header-company {
                             text-align: center;
                         }
-                        .company-name { font-size: 11px; font-weight: bold; color: #2563eb; margin-bottom: 1px; word-break: break-word; }
-                        .company-info { font-size: 8px; color: #666; margin-bottom: 1px; line-height: 1.25; word-break: break-word; }
-                        .invoice-title { font-size: 10px; font-weight: bold; margin-top: 1px; color: #1a1a1a; }
+                        .company-name { font-size: 13px; font-weight: 700; color: #2563eb; margin-bottom: 1px; word-break: break-word; }
+                        .company-info { font-size: 9.2px; color: #555; margin-bottom: 1px; line-height: 1.35; word-break: break-word; }
+                        .invoice-title { font-size: 11.8px; font-weight: 700; margin-top: 1px; color: #1a1a1a; }
                         
                         .invoice-details { 
                             display: flex; 
@@ -12611,33 +12623,33 @@ class HamobileBanhang {
                         .invoice-info, .customer-info { 
                             width: 100%;
                         }
-                        .section-title { font-weight: bold; font-size: 9px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 1px; margin-bottom: 2px; color: #2563eb; }
-                        .info-row { margin-bottom: 1px; display: flex; font-size: 9px; flex-wrap: wrap; }
-                        .info-label { font-weight: 600; min-width: 45px; flex-shrink: 0; color: #555; }
+                        .section-title { font-weight: 700; font-size: 10.2px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 1px; margin-bottom: 2px; color: #2563eb; }
+                        .info-row { margin-bottom: 1px; display: flex; font-size: 10px; flex-wrap: wrap; }
+                        .info-label { font-weight: 700; min-width: 50px; flex-shrink: 0; color: #555; }
                         .info-value { color: #333; word-break: break-word; overflow-wrap: break-word; min-width: 0; }
                         
-                        .products-table { width: 100%; border-collapse: collapse; margin-bottom: 2px; font-size: 9px; border: 1px solid #000; table-layout: fixed; }
-                        .products-table th, .products-table td { border: 1px solid #000; padding: 2px 3px; vertical-align: middle; overflow: hidden; }
-                        .products-table th { background: #f8fafc; color: #000; text-align: center; font-weight: bold; font-size: 9px; }
-                        .products-table td { text-align: center; font-size: 9px; }
+                        .products-table { width: 100%; border-collapse: collapse; margin-bottom: 2px; font-size: 10px; border: 1px solid #000; table-layout: fixed; }
+                        .products-table th, .products-table td { border: 1px solid #000; padding: 3px 4px; vertical-align: middle; overflow: hidden; }
+                        .products-table th { background: #f8fafc; color: #000; text-align: center; font-weight: 700; font-size: 10px; }
+                        .products-table td { text-align: center; font-size: 10px; }
                         .products-table .col-tt { width: 8%; text-align: center; }
-                        .products-table .col-product { width: 40%; text-align: left; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 8px; }
-                        .products-table .col-price { width: 22%; text-align: right; font-size: 8px; }
+                        .products-table .col-product { width: 40%; text-align: left; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 9px; }
+                        .products-table .col-price { width: 22%; text-align: right; font-size: 9px; }
                         .products-table .col-sl { width: 10%; text-align: center; }
-                        .products-table .col-total { width: 20%; text-align: right; font-weight: 600; font-size: 8px; }
-                        .product-name { text-align: left !important; font-weight: 500; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 8px; max-width: 100%; }
+                        .products-table .col-total { width: 20%; text-align: right; font-weight: 700; font-size: 9px; }
+                        .product-name { text-align: left !important; font-weight: 600; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 9px; max-width: 100%; }
                         .invoice-price-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
-                        .invoice-original-price { text-decoration: line-through; font-size: 7px; color: #888; }
-                        .invoice-sale-price { font-weight: 600; font-size: 8px; color: #000; }
+                        .invoice-original-price { text-decoration: line-through; font-size: 8px; color: #888; }
+                        .invoice-sale-price { font-weight: 700; font-size: 9px; color: #000; }
                         
                         .totals-section {
                             width: 100%; 
                             margin: 2px 0;
                         }
-                        .total-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #e5e7eb; font-size: 9px; }
+                        .total-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #e5e7eb; font-size: 10px; }
                         .total-row.final { 
-                            font-weight: bold; 
-                            font-size: 10px; 
+                            font-weight: 700; 
+                            font-size: 11.8px; 
                             color: #2563eb;
                             border-bottom: 1px solid #2563eb;
                             border-top: 1px solid #2563eb;
@@ -12645,10 +12657,11 @@ class HamobileBanhang {
                             padding: 3px 0;
                         }
                         
-                        .footer-info { clear: both; margin-top: 2px; padding-top: 1px; border-top: 1px dashed #e5e7eb; text-align: center; font-size: 8px; color: #666; }
-                        .signature-section { display: flex; justify-content: space-between; margin-top: 1px; text-align: center; font-size: 8px; }
+                        .footer-info { clear: both; margin-top: 2px; padding-top: 1px; border-top: 1px dashed #e5e7eb; text-align: center; font-size: 9px; color: #666; }
+                        .signature-section { display: flex; justify-content: space-between; margin-top: 4px; text-align: center; font-size: 9px; }
                         .signature-box { width: 48%; }
-                        .signature-title { font-weight: bold; margin-bottom: 2px; color: #2563eb; font-size: 9px; }
+                        .signature-title { font-weight: 700; margin-bottom: 2px; color: #2563eb; font-size: 10px; }
+                        .signature-space { height: 26px; }
                         
                         @media print {
                             @page { size: 80mm auto; margin: 3mm; }
@@ -12779,7 +12792,7 @@ class HamobileBanhang {
                         <!-- Totals -->
                         <div class="totals-section">
                             <div style="background: #f0f9ff; padding: 4px 6px; border-radius: 4px; margin-bottom: 4px; border: 1px solid #0ea5e9;">
-                                <div style="text-align: center; color: #0c4a6e; font-size: 8px; font-weight: 600;">
+                                <div style="text-align: center; color: #0c4a6e; font-size: 9px; font-weight: 700;">
                                     💡 Giá đúng - Không tính thêm VAT
                                 </div>
                             </div>
@@ -12804,10 +12817,12 @@ class HamobileBanhang {
                             <div class="signature-box">
                                 <div class="signature-title">Người mua hàng</div>
                                 <div>(Ký và ghi rõ họ tên)</div>
+                                <div class="signature-space"></div>
                             </div>
                             <div class="signature-box">
                                 <div class="signature-title">Người bán hàng</div>
                                 <div>(Ký và ghi rõ họ tên)</div>
+                                <div class="signature-space"></div>
                             </div>
                         </div>
 
@@ -12820,15 +12835,6 @@ class HamobileBanhang {
                         <!-- Footer -->
                         <div class="footer-info">
                             <p><strong>Cảm ơn quý khách đã sử dụng dịch vụ!</strong></p>
-                            <p>Hóa đơn được tạo tự động bởi hệ thống - ${this.getVietnamTime().toLocaleString('vi-VN', { 
-                                timeZone: 'Asia/Ho_Chi_Minh',
-                                year: 'numeric',
-                                month: '2-digit', 
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit'
-                            })}</p>
                         </div>
                     </div>
                 </body>
@@ -13002,44 +13008,44 @@ class HamobileBanhang {
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
                         html, body { overflow-x: hidden !important; max-width: 80mm !important; }
-                        body { font-family: Arial, system-ui, sans-serif; font-size: 9px; line-height: 1.25; color: #333; padding: 2mm; background: white; width: 74mm; max-width: 74mm; margin: 0 auto; overflow-x: hidden !important; }
+                        body { font-family: Arial, system-ui, sans-serif; font-size: 10.8px; line-height: 1.4; color: #222; padding: 2mm; background: white; width: 74mm; max-width: 74mm; margin: 0 auto; overflow-x: hidden !important; }
                         .invoice-container { width: 100%; max-width: 74mm; margin: 0 auto; background: white; overflow: hidden; padding: 0 1mm; }
                         
                         .invoice-header { display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px dashed #8B5CF6; padding-bottom: 2px; margin-bottom: 2px; gap: 1px; }
                         .header-company { text-align: center; }
-                        .company-name { font-size: 10px; font-weight: bold; color: #8B5CF6; margin-bottom: 1px; word-break: break-word; }
-                        .company-info { font-size: 7px; color: #666; margin-bottom: 0; line-height: 1.2; word-break: break-word; }
-                        .invoice-title { font-size: 9px; font-weight: bold; margin-top: 0; color: #1a1a1a; }
-                        .vat-badge { background: #8B5CF6; color: white; padding: 1px 3px; border-radius: 3px; font-size: 8px; font-weight: bold; margin-left: 1px; }
+                        .company-name { font-size: 12.5px; font-weight: 700; color: #8B5CF6; margin-bottom: 1px; word-break: break-word; }
+                        .company-info { font-size: 9px; color: #555; margin-bottom: 0; line-height: 1.3; word-break: break-word; }
+                        .invoice-title { font-size: 11.2px; font-weight: 700; margin-top: 0; color: #1a1a1a; }
+                        .vat-badge { background: #8B5CF6; color: white; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: 700; margin-left: 1px; }
                         
                         .invoice-details { display: flex; flex-direction: column; margin-bottom: 3px; gap: 2px; }
                         .invoice-info, .customer-info { width: 100%; }
-                        .section-title { font-weight: bold; font-size: 8px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 0; margin-bottom: 1px; color: #8B5CF6; }
-                        .info-row { margin-bottom: 0; display: flex; font-size: 8px; flex-wrap: wrap; }
-                        .info-label { font-weight: 600; min-width: 42px; flex-shrink: 0; color: #555; }
+                        .section-title { font-weight: 700; font-size: 9.8px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 0; margin-bottom: 1px; color: #8B5CF6; }
+                        .info-row { margin-bottom: 0; display: flex; font-size: 9.4px; flex-wrap: wrap; }
+                        .info-label { font-weight: 700; min-width: 48px; flex-shrink: 0; color: #555; }
                         .info-value { color: #333; word-break: break-word; overflow-wrap: break-word; min-width: 0; }
                         
-                        .products-table { width: 100%; border-collapse: collapse; margin-bottom: 1px; font-size: 8px; border: 1px solid #000; table-layout: fixed; }
-                        .products-table th, .products-table td { border: 1px solid #000; padding: 1px 2px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
-                        .products-table th { background: #f8fafc; color: #000; text-align: center; font-weight: bold; font-size: 8px; }
-                        .products-table td { text-align: center; font-size: 8px; }
+                        .products-table { width: 100%; border-collapse: collapse; margin-bottom: 1px; font-size: 9.2px; border: 1px solid #000; table-layout: fixed; }
+                        .products-table th, .products-table td { border: 1px solid #000; padding: 2px 3px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
+                        .products-table th { background: #f8fafc; color: #000; text-align: center; font-weight: 700; font-size: 9.2px; }
+                        .products-table td { text-align: center; font-size: 9.2px; }
                         .products-table .col-tt { width: 7%; text-align: center; }
-                        .products-table .col-product { width: 38%; text-align: left; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 7px; }
-                        .products-table .col-price { width: 22%; text-align: right; font-size: 7px; }
+                        .products-table .col-product { width: 38%; text-align: left; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 8.4px; }
+                        .products-table .col-price { width: 22%; text-align: right; font-size: 8.4px; }
                         .products-table .col-sl { width: 10%; text-align: center; }
-                        .products-table .col-total { width: 23%; text-align: right; font-weight: 600; font-size: 7px; }
-                        .product-name { text-align: left !important; font-weight: 500; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 7px; max-width: 100%; }
+                        .products-table .col-total { width: 23%; text-align: right; font-weight: 700; font-size: 8.4px; }
+                        .product-name { text-align: left !important; font-weight: 600; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; font-size: 8.4px; max-width: 100%; }
                         .invoice-price-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
-                        .invoice-original-price { text-decoration: line-through; font-size: 6px; color: #888; }
-                        .invoice-sale-price { font-weight: 600; font-size: 7px; color: #000; }
+                        .invoice-original-price { text-decoration: line-through; font-size: 7.2px; color: #888; }
+                        .invoice-sale-price { font-weight: 700; font-size: 8.4px; color: #000; }
                         
                         .summary-section { background: #fff; padding: 2px 0; margin-bottom: 2px; border-top: 1px dashed #8B5CF6; border-bottom: 1px dashed #8B5CF6; }
-                        .summary-row { display: flex; justify-content: space-between; margin-bottom: 1px; font-size: 9px; }
+                        .summary-row { display: flex; justify-content: space-between; margin-bottom: 1px; font-size: 10px; }
                         .summary-subtotal { font-weight: 500; }
-                        .summary-vat { font-weight: 600; color: #8B5CF6; background: white; padding: 1px 3px; border-radius: 3px; border: 1px solid #8B5CF6; font-size: 8px; }
-                        .summary-total { font-weight: bold; font-size: 10px; color: #22c55e; border-top: 1px solid #8B5CF6; padding-top: 2px; }
+                        .summary-vat { font-weight: 700; color: #8B5CF6; background: white; padding: 1px 3px; border-radius: 3px; border: 1px solid #8B5CF6; font-size: 9px; }
+                        .summary-total { font-weight: 700; font-size: 11.6px; color: #22c55e; border-top: 1px solid #8B5CF6; padding-top: 2px; }
                         
-                        .footer-info { text-align: center; color: #666; font-size: 8px; border-top: 1px dashed #e5e7eb; padding-top: 1px; }
+                        .footer-info { text-align: center; color: #666; font-size: 9px; border-top: 1px dashed #e5e7eb; padding-top: 1px; }
                         
                         .print-buttons { 
                             text-align: center; 
@@ -13200,15 +13206,6 @@ class HamobileBanhang {
                         <!-- Footer -->
                         <div class="footer-info">
                             <p><strong>Cảm ơn quý khách đã sử dụng dịch vụ!</strong></p>
-                            <p>Hóa đơn GTGT được tạo tự động bởi hệ thống - ${this.getVietnamTime().toLocaleString('vi-VN', { 
-                                timeZone: 'Asia/Ho_Chi_Minh',
-                                year: 'numeric',
-                                month: '2-digit', 
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit'
-                            })}</p>
                         </div>
                     </div>
                 </body>
@@ -13273,181 +13270,216 @@ class HamobileBanhang {
                     <title>Báo cáo công nợ - ${customer.name}</title>
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
+                        html, body { overflow-x: hidden; max-width: 80mm; }
                         body { 
                             font-family: Arial, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
-                            font-size: 13px; 
-                            line-height: 1.5; 
-                            letter-spacing: 0.02em;
-                            word-spacing: 0.03em;
-                            padding: 20px; 
-                            color: #333;
+                            font-size: 10.6px; 
+                            line-height: 1.45; 
+                            letter-spacing: 0.01em;
+                            word-spacing: 0.02em;
+                            padding: 2mm;
+                            color: #222;
+                            background: white;
+                            width: 74mm;
+                            max-width: 74mm;
+                            margin: 0 auto;
                         }
                         .report-container { 
-                            max-width: 800px; 
+                            width: 100%;
+                            max-width: 74mm; 
                             margin: 0 auto; 
                             background: white;
+                            overflow: hidden;
+                            padding: 0 1mm;
                         }
                         .report-header { 
                             display: flex;
                             align-items: center;
                             justify-content: space-between;
-                            margin-bottom: 30px; 
-                            border-bottom: 3px solid #dc2626; 
-                            padding-bottom: 20px;
-                            gap: 20px;
+                            margin-bottom: 8px; 
+                            border-bottom: 1px dashed #2563eb; 
+                            padding-bottom: 4px;
+                            gap: 4px;
                         }
                         .header-company {
                             flex: 1;
                             text-align: center;
                         }
                         .company-name { 
-                            font-size: 20px; 
-                            font-weight: bold; 
-                            color: #dc2626; 
-                            margin-bottom: 8px;
+                            font-size: 12.5px; 
+                            font-weight: 700; 
+                            color: #2563eb; 
+                            margin-bottom: 2px;
                         }
                         .company-info { 
-                            font-size: 12px; 
-                            color: #666; 
-                            margin-bottom: 15px; 
+                            font-size: 8.8px; 
+                            color: #555; 
+                            margin-bottom: 2px; 
+                            line-height: 1.3;
                         }
                         .report-title { 
-                            font-size: 22px; 
-                            font-weight: bold; 
-                            margin-top: 15px;
+                            font-size: 11.2px; 
+                            font-weight: 700; 
+                            margin-top: 3px;
                             color: #1a1a1a;
                             text-transform: uppercase;
                         }
                         .debt-badge {
-                            background: #dc2626;
-                            color: white;
-                            padding: 6px 12px;
-                            border-radius: 6px;
-                            font-size: 12px;
-                            font-weight: bold;
-                            margin-left: 10px;
+                            background: #dbeafe;
+                            color: #1d4ed8;
+                            padding: 1px 5px;
+                            border-radius: 999px;
+                            border: 1px solid #93c5fd;
+                            font-size: 8px;
+                            font-weight: 700;
+                            margin-left: 4px;
                         }
                         
                         .report-details { 
                             display: flex; 
-                            justify-content: space-between; 
-                            margin-bottom: 30px; 
-                            gap: 40px;
+                            flex-direction: column;
+                            margin-bottom: 8px; 
+                            gap: 6px;
                         }
                         .report-info, .customer-info { 
-                            flex: 1;
+                            width: 100%;
                         }
                         .section-title { 
-                            font-weight: bold; 
-                            font-size: 16px;
-                            border-bottom: 2px solid #e5e7eb; 
-                            padding-bottom: 8px; 
-                            margin-bottom: 15px;
-                            color: #dc2626;
+                            font-weight: 700; 
+                            font-size: 10px;
+                            border-bottom: 1px dashed #e5e7eb; 
+                            padding-bottom: 2px; 
+                            margin-bottom: 3px;
+                            color: #2563eb;
                         }
                         .info-row { 
-                            margin-bottom: 8px; 
+                            margin-bottom: 2px; 
                             display: flex;
+                            font-size: 9px;
+                            flex-wrap: wrap;
                         }
                         .info-label { 
-                            font-weight: 600; 
-                            min-width: 120px;
+                            font-weight: 700; 
+                            min-width: 58px;
                             color: #555;
                         }
                         .info-value { 
                             color: #333;
+                            min-width: 0;
+                            word-break: break-word;
+                            overflow-wrap: break-word;
                         }
                         
-                        .orders-table { 
+                        .products-table { 
                             width: 100%; 
                             border-collapse: collapse; 
-                            margin-bottom: 30px;
-                            border: 2px solid #dc2626;
+                            margin-bottom: 8px;
+                            border: 1px solid #000;
+                            table-layout: fixed;
                         }
-                        .orders-table th { 
-                            background: #dc2626; 
-                            color: white; 
-                            padding: 12px 8px; 
+                        .products-table th,
+                        .products-table td {
+                            border: 1px solid #000;
+                            padding: 3px 4px;
+                            vertical-align: middle;
+                            overflow: hidden;
+                        }
+                        .products-table th { 
+                            background: #f8fafc; 
+                            color: #000; 
                             text-align: center; 
-                            font-weight: bold;
-                            font-size: 14px;
+                            font-weight: 700;
+                            font-size: 9px;
                         }
-                        .orders-table td { 
-                            padding: 10px 8px; 
+                        .products-table td { 
                             text-align: center; 
-                            border-bottom: 1px solid #e5e7eb;
+                            font-size: 9px;
+                            vertical-align: top;
+                            word-break: break-word;
+                            overflow-wrap: break-word;
                         }
+                        .products-table .col-order { width: 14%; text-align: left; }
+                        .products-table .col-date { width: 14%; text-align: center; }
+                        .products-table .col-product { width: 36%; text-align: left; }
+                        .products-table .col-payment { width: 14%; text-align: center; }
+                        .products-table .col-status { width: 10%; text-align: center; }
+                        .products-table .col-total { width: 12%; text-align: right; font-weight: 700; }
                         .order-id { text-align: left !important; font-weight: 600; }
-                        .product-name { text-align: left !important; font-weight: 500; }
+                        .product-name { text-align: left !important; font-weight: 600; }
                         .amount { 
                             text-align: right !important; 
-                            font-weight: 600; 
+                            font-weight: 700; 
                             color: #dc2626;
                         }
                         
                         .totals-section { 
-                            background: #fee2e2; 
-                            padding: 20px; 
-                            border-radius: 8px; 
-                            margin-bottom: 30px;
-                            border: 2px solid #dc2626;
+                            background: #f8fafc; 
+                            padding: 6px; 
+                            border-radius: 6px; 
+                            margin-bottom: 8px;
+                            border: 1px solid #dbeafe;
                         }
                         .summary-row { 
                             display: flex; 
                             justify-content: space-between; 
-                            padding: 8px 12px;
+                            padding: 3px 0;
                             border-radius: 6px;
-                            border: 1px solid #dc2626;
+                            border: none;
+                            font-size: 9px;
                         }
                         .summary-total { 
-                            font-weight: bold; 
-                            font-size: 18px; 
-                            color: #dc2626;
-                            border-top: 2px solid #dc2626;
-                            padding-top: 12px;
-                            background: white;
+                            font-weight: 700; 
+                            font-size: 10.5px; 
+                            color: #2563eb;
+                            border-top: 1px solid #bfdbfe;
+                            padding-top: 4px;
+                            background: transparent;
                         }
                         
+                        .signature-section { display: flex; justify-content: space-between; margin-top: 4px; margin-bottom: 8px; text-align: center; font-size: 9px; }
+                        .signature-box { width: 48%; }
+                        .signature-title { font-weight: 700; margin-bottom: 2px; color: #2563eb; font-size: 10px; }
+                        .signature-space { height: 26px; }
+
                         .footer-info { 
                             text-align: center; 
                             color: #666; 
-                            font-size: 12px; 
-                            border-top: 2px solid #e5e7eb; 
-                            padding-top: 20px;
+                            font-size: 9px; 
+                            border-top: 1px dashed #e5e7eb; 
+                            padding-top: 3px;
                         }
                         
                         .print-buttons { 
                             text-align: center; 
-                            margin: 30px 0; 
-                            gap: 15px; 
+                            margin: 8px 0; 
+                            gap: 6px; 
                             display: flex; 
                             justify-content: center;
                         }
                         @media print {
+                            @page { size: 80mm auto; margin: 3mm; }
                             .no-print { display: none !important; }
-                            body { padding: 0; }
-                            .report-container { box-shadow: none; }
+                            html, body { margin: 0; padding: 2mm !important; width: 80mm !important; max-width: 80mm !important; overflow: hidden !important; }
+                            .report-container { box-shadow: none; width: 74mm !important; max-width: 74mm !important; }
                         }
                         .btn { 
-                            padding: 12px 24px;
-                            margin: 0 10px;
+                            padding: 6px 10px;
+                            margin: 0 4px;
                             border: none;
                             border-radius: 6px;
                             font-weight: 600;
                             cursor: pointer;
                             font-size: 14px;
                         }
-                        .btn-print { background: #dc2626; color: white; }
+                        .btn-print { background: #22c55e; color: white; }
                         .btn-close { background: #6b7280; color: white; }
                         .btn:hover { opacity: 0.9; transform: translateY(-1px); }
                         
-                        .products-detail { 
-                            background: #f9fafb; 
-                            padding: 8px; 
-                            margin: 4px 0;
-                            border-radius: 4px;
-                            border-left: 3px solid #dc2626;
-                        }
+                        .product-line { margin-bottom: 3px; }
+                        .product-line:last-child { margin-bottom: 0; }
+                        .product-line-name { font-weight: 600; }
+                        .product-line-meta { color: #666; font-size: 8px; }
+                        .status-chip { display: inline-block; background: #fef3c7; color: #92400e; padding: 2px 4px; border-radius: 999px; font-size: 8px; font-weight: 700; }
                     </style>
                 </head>
                 <body>
@@ -13514,43 +13546,42 @@ class HamobileBanhang {
                         </div>
 
                         <!-- Orders Table with Product Details -->
-                        <table class="orders-table">
+                        <table class="products-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 12%">Mã đơn</th>
-                                    <th style="width: 12%">Ngày</th>
-                                    <th style="width: 35%">Chi tiết sản phẩm</th>
-                                    <th style="width: 15%">Phương thức TT</th>
-                                    <th style="width: 12%">Trạng thái</th>
-                                    <th style="width: 14%">Số tiền</th>
+                                    <th class="col-order">Mã đơn</th>
+                                    <th class="col-date">Ngày</th>
+                                    <th class="col-product">Sản phẩm</th>
+                                    <th class="col-payment">TT</th>
+                                    <th class="col-status">Trạng thái</th>
+                                    <th class="col-total">Tiền</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${unpaidOrders.map(order => `
                                     <tr>
-                                        <td class="order-id">${order.id}</td>
-                                        <td>${order.date}</td>
-                                        <td class="product-name">
+                                        <td class="order-id col-order">${order.id}</td>
+                                        <td class="col-date">${order.date}</td>
+                                        <td class="product-name col-product">
                                             ${order.products && order.products.length > 0 ? 
                                                 order.products.map(product => `
-                                                    <div class="products-detail">
-                                                        <strong>${product.name}</strong><br>
-                                                        <span style="color: #666; font-size: 12px;">
-                                                            SL: ${product.quantity} × ${product.price.toLocaleString('vi-VN')}đ = 
-                                                            <strong style="color: #dc2626;">${(product.quantity * product.price).toLocaleString('vi-VN')}đ</strong>
-                                                        </span>
+                                                    <div class="product-line">
+                                                        <div class="product-line-name">${product.name}</div>
+                                                        <div class="product-line-meta">
+                                                            SL: ${product.quantity} x ${product.price.toLocaleString('vi-VN')}đ
+                                                        </div>
                                                     </div>
                                                 `).join('') 
                                                 : '<span style="color: #999;">Không có chi tiết</span>'
                                             }
                                         </td>
-                                        <td>${order.paymentMethod}</td>
-                                        <td>
-                                            <span style="background: #fbbf24; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                                        <td class="col-payment">${order.paymentMethod}</td>
+                                        <td class="col-status">
+                                            <span class="status-chip">
                                                 ${order.paymentStatus}
                                             </span>
                                         </td>
-                                        <td class="amount">${order.total.toLocaleString('vi-VN')} đ</td>
+                                        <td class="amount col-total">${order.total.toLocaleString('vi-VN')} đ</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -13562,8 +13593,21 @@ class HamobileBanhang {
                                 <span>TỔNG CÔNG NỢ:</span>
                                 <span>${totalDebt.toLocaleString('vi-VN')} đ</span>
                             </div>
-                            <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #dc2626;">
+                            <div style="text-align: center; margin-top: 10px; font-size: 11px; color: #6b7280;">
                                 <strong>Ghi chú:</strong> Báo cáo bao gồm ${unpaidOrders.length} đơn hàng chưa thanh toán với tổng giá trị ${totalDebt.toLocaleString('vi-VN')} đồng
+                            </div>
+                        </div>
+
+                        <div class="signature-section">
+                            <div class="signature-box">
+                                <div class="signature-title">Khách hàng</div>
+                                <div>(Ký và ghi rõ họ tên)</div>
+                                <div class="signature-space"></div>
+                            </div>
+                            <div class="signature-box">
+                                <div class="signature-title">Cửa hàng</div>
+                                <div>(Ký và ghi rõ họ tên)</div>
+                                <div class="signature-space"></div>
                             </div>
                         </div>
 
@@ -13575,19 +13619,7 @@ class HamobileBanhang {
 
                         <!-- Footer -->
                         <div class="footer-info">
-                            <p><strong>Báo cáo được tạo tự động bởi hệ thống</strong></p>
-                            <p>Thời gian tạo: ${this.getVietnamTime().toLocaleString('vi-VN', { 
-                                timeZone: 'Asia/Ho_Chi_Minh',
-                                year: 'numeric',
-                                month: '2-digit', 
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit'
-                            })}</p>
-                            <p style="color: #dc2626; font-weight: 600;">
-                                Vui lòng liên hệ khách hàng để thu hồi công nợ kịp thời
-                            </p>
+                            <p><strong>Cảm ơn quý khách đã sử dụng dịch vụ!</strong></p>
                         </div>
                     </div>
                 </body>
@@ -14301,8 +14333,6 @@ class HamobileBanhang {
                         </button>
                     </div>
 
-                    <button onclick="closeModal(this.closest('div[style*=\"position: fixed\"]'))" 
-                            style="width: 100%; background: #6b7280; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer;">
                 </div>
             </div>
         `;
@@ -14482,8 +14512,6 @@ class HamobileBanhang {
                         </button>
                     </div>
 
-                    <button onclick="closeModal(this.closest('div[style*=\"position: fixed\"]'))" 
-                            style="width: 100%; background: #6b7280; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer;">
                 </div>
             </div>
         `;
@@ -14638,8 +14666,6 @@ class HamobileBanhang {
                         </button>
                     </div>
 
-                    <button onclick="closeModal(this.closest('div[style*=\"position: fixed\"]'))" 
-                            style="width: 100%; background: #6b7280; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer;">
                 </div>
             </div>
         `;
@@ -14811,8 +14837,6 @@ class HamobileBanhang {
                         </button>
                     </div>
 
-                    <button onclick="closeModal(this.closest('div[style*=\"position: fixed\"]'))" 
-                            style="width: 100%; background: #6b7280; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer;">
                 </div>
             </div>
         `;
