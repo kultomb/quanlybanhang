@@ -722,10 +722,12 @@ class HamobileBanhang {
         const textEl = document.getElementById('incognito-warning-text');
         if (el) {
             const hasFirebase = !!(window.FirebaseStorage && window.FirebaseStorage.getConfig && window.FirebaseStorage.getConfig());
+            if (hasFirebase) {
+                this.hideIncognitoWarning();
+                return;
+            }
             if (textEl) {
-                textEl.innerHTML = hasFirebase
-                    ? '<strong>Chế độ ẩn danh</strong> – Dữ liệu trên máy tạm thời, nhưng <strong>đã đồng bộ đám mây</strong>. Đóng tab vẫn khôi phục được từ đám mây.'
-                    : '<strong>Chế độ ẩn danh</strong> – Dữ liệu sẽ mất khi đóng tab. Vào Cài đặt → Firebase để cấu hình (dữ liệu không mất khi ẩn danh/xóa cache/đổi máy).';
+                textEl.innerHTML = '<strong>Chế độ ẩn danh</strong> – Dữ liệu sẽ mất khi đóng tab. Vào Cài đặt → Firebase để cấu hình (dữ liệu không mất khi ẩn danh/xóa cache/đổi máy).';
             }
             el.style.display = 'block';
             document.body.style.paddingTop = '60px';
