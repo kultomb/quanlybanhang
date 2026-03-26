@@ -13241,16 +13241,14 @@ class HamobileBanhang {
     // Print debt report for a customer
     printDebtReport(customerId) {
         try {
-            const customer = this.demoData.customers.find(c => c.id === customerId);
+            let customer = this.demoData.customers.find(c => c.id === customerId);
+            if (!customer) customer = this.getCustomersWithDebt().find(c => c.id === customerId);
             if (!customer) {
                 this.showNotification('❌ Không tìm thấy khách hàng!', 'error');
                 return;
             }
 
-            // Get company settings for report header
             const companySettings = this.getCompanySettings();
-            
-            // Override with global assets if available (for hosting)
             if (window.companyAssets && window.companyAssets.logo) {
                 companySettings.logo = window.companyAssets.logo;
             }
@@ -13258,38 +13256,94 @@ class HamobileBanhang {
                 companySettings.qrCode = window.companyAssets.qr;
             }
 
-            // Find all unpaid orders for this customer
-            const unpaidOrders = this.demoData.orders.filter(order => {
-                const matchById = order.customerId === customerId;
-                const matchByName = order.customer === customer.name || order.customerName === customer.name;
-                const isUnpaid = order.paymentStatus === 'Công nợ' ||
-                                order.status === 'Công nợ';
-                return (matchById || matchByName) && isUnpaid;
-            });
+            const matchCustomer = (entry) => this._matchCustomer(entry, customer);
+            const safeText = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            const formatMoney = (value) => `${(Number(value) || 0).toLocaleString('vi-VN')} đ`;
 
-            if (unpaidOrders.length === 0) {
+            const orderRows = (this.demoData.orders || []).reduce((rows, order) => {
+                if (!matchCustomer(order)) return rows;
+                const total = Number(order.total) || 0;
+                const paid = order.amountPaid != null ? Number(order.amountPaid) || 0 : ((order.paymentStatus === 'Đã thanh toán') ? total : 0);
+                const debt = Math.max(0, total - paid);
+                if (debt <= 0) return rows;
+
+                const productHtml = order.products && order.products.length > 0
+                    ? order.products.map(product => `
+                        <div class="detail-line">
+                            <div class="detail-name">${safeText(product.name || product.productName || '-')}</div>
+                            <div class="detail-meta">SL: ${Number(product.quantity) || 1} x ${formatMoney(product.price)}</div>
+                        </div>
+                    `).join('')
+                    : '<span style="color: #999;">Không có chi tiết</span>';
+
+                rows.push({
+                    type: 'Đơn máy',
+                    code: order.id || '-',
+                    date: order.date || '-',
+                    detailHtml: productHtml,
+                    total,
+                    paid,
+                    debt,
+                    status: order.paymentStatus || 'Công nợ'
+                });
+                return rows;
+            }, []);
+
+            const repairRows = (this.demoData.repairs || []).reduce((rows, repair) => {
+                if ((repair.status || '') !== 'Đã trả' || !matchCustomer(repair)) return rows;
+                const total = Number(repair.repairCost) || 0;
+                const paid = Number(repair.amountPaid) || 0;
+                const debt = Math.max(0, total - paid);
+                if (debt <= 0) return rows;
+
+                rows.push({
+                    type: 'Sửa chữa',
+                    code: repair.id || '-',
+                    date: repair.date || '-',
+                    detailHtml: `
+                        <div class="detail-line">
+                            <div class="detail-name">${safeText(repair.deviceName || repair.device || 'Phiếu sửa chữa')}</div>
+                            <div class="detail-meta">${safeText(repair.issue || repair.problem || 'Công sửa chữa')}</div>
+                        </div>
+                    `,
+                    total,
+                    paid,
+                    debt,
+                    status: repair.paymentStatus || 'Công nợ'
+                });
+                return rows;
+            }, []);
+
+            const debtRows = [...orderRows, ...repairRows];
+            if (debtRows.length === 0) {
                 this.showNotification('❌ Khách hàng này không có công nợ!', 'error');
                 return;
             }
 
-            // Calculate total debt
-            const totalDebt = unpaidOrders.reduce((sum, order) => sum + order.total, 0);
+            const totalValue = debtRows.reduce((sum, row) => sum + row.total, 0);
+            const totalPaid = debtRows.reduce((sum, row) => sum + row.paid, 0);
+            const totalDebt = debtRows.reduce((sum, row) => sum + row.debt, 0);
+            const orderCount = orderRows.length;
+            const repairCount = repairRows.length;
 
-            // Generate debt report window
             const reportWindow = window.open('', '_blank');
             reportWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <meta charset="utf-8">
-                    <title>Báo cáo công nợ - ${customer.name}</title>
+                    <title>Báo cáo công nợ - ${safeText(customer.name)}</title>
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
                         html, body { overflow-x: hidden; max-width: 80mm; }
-                        body { 
-                            font-family: Arial, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
-                            font-size: 10.6px; 
-                            line-height: 1.45; 
+                        body {
+                            font-family: Arial, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                            font-size: 10.6px;
+                            line-height: 1.45;
                             letter-spacing: 0.01em;
                             word-spacing: 0.02em;
                             padding: 2mm;
@@ -13299,20 +13353,20 @@ class HamobileBanhang {
                             max-width: 74mm;
                             margin: 0 auto;
                         }
-                        .report-container { 
+                        .report-container {
                             width: 100%;
-                            max-width: 74mm; 
-                            margin: 0 auto; 
+                            max-width: 74mm;
+                            margin: 0 auto;
                             background: white;
                             overflow: hidden;
                             padding: 0 1mm;
                         }
-                        .report-header { 
+                        .report-header {
                             display: flex;
                             align-items: center;
                             justify-content: space-between;
-                            margin-bottom: 8px; 
-                            border-bottom: 1px dashed #2563eb; 
+                            margin-bottom: 8px;
+                            border-bottom: 1px dashed #2563eb;
                             padding-bottom: 4px;
                             gap: 4px;
                         }
@@ -13320,21 +13374,21 @@ class HamobileBanhang {
                             flex: 1;
                             text-align: center;
                         }
-                        .company-name { 
-                            font-size: 12.5px; 
-                            font-weight: 700; 
-                            color: #2563eb; 
+                        .company-name {
+                            font-size: 12.5px;
+                            font-weight: 700;
+                            color: #2563eb;
                             margin-bottom: 2px;
                         }
-                        .company-info { 
-                            font-size: 8.8px; 
-                            color: #555; 
-                            margin-bottom: 2px; 
+                        .company-info {
+                            font-size: 8.8px;
+                            color: #555;
+                            margin-bottom: 2px;
                             line-height: 1.3;
                         }
-                        .report-title { 
-                            font-size: 11.2px; 
-                            font-weight: 700; 
+                        .report-title {
+                            font-size: 11.2px;
+                            font-weight: 700;
                             margin-top: 3px;
                             color: #1a1a1a;
                             text-transform: uppercase;
@@ -13349,45 +13403,43 @@ class HamobileBanhang {
                             font-weight: 700;
                             margin-left: 4px;
                         }
-                        
-                        .report-details { 
-                            display: flex; 
+                        .report-details {
+                            display: flex;
                             flex-direction: column;
-                            margin-bottom: 8px; 
+                            margin-bottom: 8px;
                             gap: 6px;
                         }
-                        .report-info, .customer-info { 
+                        .report-info, .customer-info {
                             width: 100%;
                         }
-                        .section-title { 
-                            font-weight: 700; 
+                        .section-title {
+                            font-weight: 700;
                             font-size: 10px;
-                            border-bottom: 1px dashed #e5e7eb; 
-                            padding-bottom: 2px; 
+                            border-bottom: 1px dashed #e5e7eb;
+                            padding-bottom: 2px;
                             margin-bottom: 3px;
                             color: #2563eb;
                         }
-                        .info-row { 
-                            margin-bottom: 2px; 
+                        .info-row {
+                            margin-bottom: 2px;
                             display: flex;
                             font-size: 9px;
                             flex-wrap: wrap;
                         }
-                        .info-label { 
-                            font-weight: 700; 
+                        .info-label {
+                            font-weight: 700;
                             min-width: 58px;
                             color: #555;
                         }
-                        .info-value { 
+                        .info-value {
                             color: #333;
                             min-width: 0;
                             word-break: break-word;
                             overflow-wrap: break-word;
                         }
-                        
-                        .products-table { 
-                            width: 100%; 
-                            border-collapse: collapse; 
+                        .products-table {
+                            width: 100%;
+                            border-collapse: collapse;
                             margin-bottom: 8px;
                             border: 1px solid #000;
                             table-layout: fixed;
@@ -13396,79 +13448,91 @@ class HamobileBanhang {
                         .products-table td {
                             border: 1px solid #000;
                             padding: 3px 4px;
-                            vertical-align: middle;
+                            vertical-align: top;
                             overflow: hidden;
                         }
-                        .products-table th { 
-                            background: #f8fafc; 
-                            color: #000; 
-                            text-align: center; 
+                        .products-table th {
+                            background: #f8fafc;
+                            color: #000;
+                            text-align: center;
                             font-weight: 700;
-                            font-size: 9px;
+                            font-size: 8px;
                         }
-                        .products-table td { 
-                            text-align: center; 
-                            font-size: 9px;
-                            vertical-align: top;
+                        .products-table td {
+                            text-align: center;
+                            font-size: 8px;
                             word-break: break-word;
                             overflow-wrap: break-word;
                         }
-                        .products-table .col-order { width: 14%; text-align: left; }
-                        .products-table .col-date { width: 14%; text-align: center; }
-                        .products-table .col-product { width: 36%; text-align: left; }
-                        .products-table .col-payment { width: 14%; text-align: center; }
-                        .products-table .col-status { width: 10%; text-align: center; }
-                        .products-table .col-total { width: 12%; text-align: right; font-weight: 700; }
-                        .order-id { text-align: left !important; font-weight: 600; }
-                        .product-name { text-align: left !important; font-weight: 600; }
-                        .amount { 
-                            text-align: right !important; 
-                            font-weight: 700; 
-                            color: #dc2626;
+                        .products-table .col-type { width: 11%; }
+                        .products-table .col-code { width: 14%; text-align: left; }
+                        .products-table .col-date { width: 13%; }
+                        .products-table .col-detail { width: 24%; text-align: left; }
+                        .products-table .col-money { width: 12.5%; text-align: right; }
+                        .type-chip {
+                            display: inline-block;
+                            padding: 2px 4px;
+                            border-radius: 999px;
+                            font-size: 7px;
+                            font-weight: 700;
+                            background: #e0e7ff;
+                            color: #3730a3;
                         }
-                        
-                        .totals-section { 
-                            background: #f8fafc; 
-                            padding: 6px; 
-                            border-radius: 6px; 
+                        .type-chip.repair {
+                            background: #dcfce7;
+                            color: #166534;
+                        }
+                        .code-cell { text-align: left !important; font-weight: 600; }
+                        .detail-cell { text-align: left !important; }
+                        .detail-line { margin-bottom: 3px; }
+                        .detail-line:last-child { margin-bottom: 0; }
+                        .detail-name { font-weight: 600; }
+                        .detail-meta { color: #666; font-size: 7.5px; }
+                        .money-cell {
+                            text-align: right !important;
+                            font-weight: 700;
+                        }
+                        .debt-cell { color: #dc2626; }
+                        .paid-cell { color: #166534; }
+                        .totals-section {
+                            background: #f8fafc;
+                            padding: 6px;
+                            border-radius: 6px;
                             margin-bottom: 8px;
                             border: 1px solid #dbeafe;
                         }
-                        .summary-row { 
-                            display: flex; 
-                            justify-content: space-between; 
+                        .summary-row {
+                            display: flex;
+                            justify-content: space-between;
                             padding: 3px 0;
                             border-radius: 6px;
                             border: none;
                             font-size: 9px;
                         }
-                        .summary-total { 
-                            font-weight: 700; 
-                            font-size: 10.5px; 
-                            color: #2563eb;
+                        .summary-total {
+                            font-weight: 700;
+                            font-size: 10.5px;
+                            color: #dc2626;
                             border-top: 1px solid #bfdbfe;
                             padding-top: 4px;
                             background: transparent;
                         }
-                        
                         .signature-section { display: flex; justify-content: space-between; margin-top: 4px; margin-bottom: 8px; text-align: center; font-size: 9px; }
                         .signature-box { width: 48%; }
                         .signature-title { font-weight: 700; margin-bottom: 2px; color: #2563eb; font-size: 10px; }
                         .signature-space { height: 26px; }
-
-                        .footer-info { 
-                            text-align: center; 
-                            color: #666; 
-                            font-size: 9px; 
-                            border-top: 1px dashed #e5e7eb; 
+                        .footer-info {
+                            text-align: center;
+                            color: #666;
+                            font-size: 9px;
+                            border-top: 1px dashed #e5e7eb;
                             padding-top: 3px;
                         }
-                        
-                        .print-buttons { 
-                            text-align: center; 
-                            margin: 8px 0; 
-                            gap: 6px; 
-                            display: flex; 
+                        .print-buttons {
+                            text-align: center;
+                            margin: 8px 0;
+                            gap: 6px;
+                            display: flex;
                             justify-content: center;
                         }
                         @media print {
@@ -13477,7 +13541,7 @@ class HamobileBanhang {
                             html, body { margin: 0; padding: 2mm !important; width: 80mm !important; max-width: 80mm !important; overflow: hidden !important; }
                             .report-container { box-shadow: none; width: 74mm !important; max-width: 74mm !important; }
                         }
-                        .btn { 
+                        .btn {
                             padding: 6px 10px;
                             margin: 0 4px;
                             border: none;
@@ -13489,35 +13553,26 @@ class HamobileBanhang {
                         .btn-print { background: #22c55e; color: white; }
                         .btn-close { background: #6b7280; color: white; }
                         .btn:hover { opacity: 0.9; transform: translateY(-1px); }
-                        
-                        .product-line { margin-bottom: 3px; }
-                        .product-line:last-child { margin-bottom: 0; }
-                        .product-line-name { font-weight: 600; }
-                        .product-line-meta { color: #666; font-size: 8px; }
-                        .status-chip { display: inline-block; background: #fef3c7; color: #92400e; padding: 2px 4px; border-radius: 999px; font-size: 8px; font-weight: 700; }
                     </style>
                 </head>
                 <body>
                     <div class="report-container">
-                        <!-- Header -->
                         <div class="report-header">
-                            <!-- Company Info Section -->
                             <div class="header-company">
-                                <div class="company-name">${companySettings.companyName || 'Cửa hàng Điện thoại'}</div>
+                                <div class="company-name">${safeText(companySettings.companyName || 'Cửa hàng Điện thoại')}</div>
                                 <div class="company-info">
-                                    ${companySettings.address || '123 Trần Hưng Đạo, Quận 1, TP.HCM'}<br>
-                                    Điện thoại: ${companySettings.phone || '0901.234.567'}${companySettings.email ? ' | Email: ' + companySettings.email : ''}<br>
-                                    ${companySettings.taxCode ? 'MST: ' + companySettings.taxCode : ''}
-                                    ${companySettings.description ? '<br><em>' + companySettings.description + '</em>' : ''}
+                                    ${safeText(companySettings.address || '123 Trần Hưng Đạo, Quận 1, TP.HCM')}<br>
+                                    Điện thoại: ${safeText(companySettings.phone || '0901.234.567')}${companySettings.email ? ' | Email: ' + safeText(companySettings.email) : ''}<br>
+                                    ${companySettings.taxCode ? 'MST: ' + safeText(companySettings.taxCode) : ''}
+                                    ${companySettings.description ? '<br><em>' + safeText(companySettings.description) + '</em>' : ''}
                                 </div>
                                 <div class="report-title">
                                     BÁO CÁO CÔNG NỢ KHÁCH HÀNG
-                                    <span class="debt-badge">${unpaidOrders.length} đơn hàng</span>
+                                    <span class="debt-badge">${debtRows.length} khoản nợ</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Report & Customer Details -->
                         <div class="report-details">
                             <div class="report-info">
                                 <div class="section-title">Thông tin báo cáo</div>
@@ -13530,86 +13585,87 @@ class HamobileBanhang {
                                     <span class="info-value">&nbsp;${this.getVietnamTime().toLocaleTimeString('vi-VN')}</span>
                                 </div>
                                 <div class="info-row">
-                                    <span class="info-label">Số đơn nợ:</span>
-                                    <span class="info-value" style="color: #dc2626; font-weight: 600;">&nbsp;${unpaidOrders.length} đơn hàng</span>
+                                    <span class="info-label">Đơn máy:</span>
+                                    <span class="info-value">&nbsp;${orderCount} đơn</span>
                                 </div>
                                 <div class="info-row">
-                                    <span class="info-label">Tổng công nợ:</span>
-                                    <span class="info-value" style="color: #dc2626; font-weight: 700; font-size: 16px;">&nbsp;${totalDebt.toLocaleString('vi-VN')} đ</span>
+                                    <span class="info-label">Sửa chữa:</span>
+                                    <span class="info-value">&nbsp;${repairCount} phiếu</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Tổng còn nợ:</span>
+                                    <span class="info-value" style="color: #dc2626; font-weight: 700; font-size: 16px;">&nbsp;${formatMoney(totalDebt)}</span>
                                 </div>
                             </div>
-                            
+
                             <div class="customer-info">
                                 <div class="section-title">Thông tin khách hàng</div>
                                 <div class="info-row">
                                     <span class="info-label">Mã KH:</span>
-                                    <span class="info-value">&nbsp;${customer.id}</span>
+                                    <span class="info-value">&nbsp;${safeText(customer.id)}</span>
                                 </div>
                                 <div class="info-row">
-                                    <span class="info-label">Tên khách hàng:</span>
-                                    <span class="info-value">&nbsp;${customer.name}</span>
+                                    <span class="info-label">Tên KH:</span>
+                                    <span class="info-value">&nbsp;${safeText(customer.name)}</span>
                                 </div>
                                 <div class="info-row">
                                     <span class="info-label">Số điện thoại:</span>
-                                    <span class="info-value">&nbsp;${customer.phone}</span>
+                                    <span class="info-value">&nbsp;${safeText(customer.phone || '-')}</span>
                                 </div>
                                 <div class="info-row">
                                     <span class="info-label">Địa chỉ:</span>
-                                    <span class="info-value">&nbsp;${customer.address}</span>
+                                    <span class="info-value">&nbsp;${safeText(customer.address || '-')}</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Orders Table with Product Details -->
                         <table class="products-table">
                             <thead>
                                 <tr>
-                                    <th class="col-order">Mã đơn</th>
+                                    <th class="col-type">Loại</th>
+                                    <th class="col-code">Mã</th>
                                     <th class="col-date">Ngày</th>
-                                    <th class="col-product">Sản phẩm</th>
-                                    <th class="col-payment">TT</th>
-                                    <th class="col-status">Trạng thái</th>
-                                    <th class="col-total">Tiền</th>
+                                    <th class="col-detail">Nội dung</th>
+                                    <th class="col-money">Giá trị</th>
+                                    <th class="col-money">Đã trả</th>
+                                    <th class="col-money">Còn nợ</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${unpaidOrders.map(order => `
+                                ${debtRows.map(row => `
                                     <tr>
-                                        <td class="order-id col-order">${order.id}</td>
-                                        <td class="col-date">${order.date}</td>
-                                        <td class="product-name col-product">
-                                            ${order.products && order.products.length > 0 ? 
-                                                order.products.map(product => `
-                                                    <div class="product-line">
-                                                        <div class="product-line-name">${product.name}</div>
-                                                        <div class="product-line-meta">
-                                                            SL: ${product.quantity} x ${product.price.toLocaleString('vi-VN')}đ
-                                                        </div>
-                                                    </div>
-                                                `).join('') 
-                                                : '<span style="color: #999;">Không có chi tiết</span>'
-                                            }
+                                        <td class="col-type">
+                                            <span class="type-chip ${row.type === 'Sửa chữa' ? 'repair' : ''}">${row.type}</span>
                                         </td>
-                                        <td class="col-payment">${order.paymentMethod}</td>
-                                        <td class="col-status">
-                                            <span class="status-chip">
-                                                ${order.paymentStatus}
-                                            </span>
+                                        <td class="code-cell col-code">${safeText(row.code)}</td>
+                                        <td class="col-date">${safeText(row.date)}</td>
+                                        <td class="detail-cell col-detail">
+                                            ${row.detailHtml}
+                                            <div class="detail-meta" style="margin-top: 3px;">Trạng thái: ${safeText(row.status)}</div>
                                         </td>
-                                        <td class="amount col-total">${order.total.toLocaleString('vi-VN')} đ</td>
+                                        <td class="money-cell col-money">${formatMoney(row.total)}</td>
+                                        <td class="money-cell paid-cell col-money">${formatMoney(row.paid)}</td>
+                                        <td class="money-cell debt-cell col-money">${formatMoney(row.debt)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
 
-                        <!-- Total Summary -->
                         <div class="totals-section">
-                            <div class="summary-row summary-total">
-                                <span>TỔNG CÔNG NỢ:</span>
-                                <span>${totalDebt.toLocaleString('vi-VN')} đ</span>
+                            <div class="summary-row">
+                                <span>Tổng giá trị:</span>
+                                <span>${formatMoney(totalValue)}</span>
                             </div>
-                            <div style="text-align: center; margin-top: 10px; font-size: 11px; color: #6b7280;">
-                                <strong>Ghi chú:</strong> Báo cáo bao gồm ${unpaidOrders.length} đơn hàng chưa thanh toán với tổng giá trị ${totalDebt.toLocaleString('vi-VN')} đồng
+                            <div class="summary-row">
+                                <span>Khách đã trả:</span>
+                                <span style="color: #166534; font-weight: 700;">${formatMoney(totalPaid)}</span>
+                            </div>
+                            <div class="summary-row summary-total">
+                                <span>TỔNG CÒN NỢ:</span>
+                                <span>${formatMoney(totalDebt)}</span>
+                            </div>
+                            <div style="text-align: center; margin-top: 10px; font-size: 10px; color: #6b7280;">
+                                Giá trị máy/dịch vụ, số tiền đã trả và công nợ còn lại được tách riêng để đối chiếu.
                             </div>
                         </div>
 
@@ -13626,13 +13682,11 @@ class HamobileBanhang {
                             </div>
                         </div>
 
-                        <!-- Print Buttons -->
                         <div class="print-buttons no-print">
                             <button class="btn btn-print" onclick="window.print()">🖨️ In báo cáo công nợ</button>
                             <button class="btn btn-close" onclick="window.close()">❌ Đóng</button>
                         </div>
 
-                        <!-- Footer -->
                         <div class="footer-info">
                             <p><strong>Cảm ơn quý khách đã sử dụng dịch vụ!</strong></p>
                         </div>
@@ -13640,12 +13694,12 @@ class HamobileBanhang {
                 </body>
                 </html>
             `);
-            
+
             reportWindow.document.close();
             reportWindow.focus();
-            
-            this.showNotification(`✅ Đã tạo báo cáo công nợ cho khách hàng ${customer.name} (${unpaidOrders.length} đơn hàng)`, 'success');
-            
+
+            this.showNotification(`✅ Đã tạo báo cáo công nợ cho khách hàng ${customer.name} (${debtRows.length} khoản nợ)`, 'success');
+
         } catch (error) {
             console.error('Lỗi tạo báo cáo công nợ:', error);
             this.showNotification('❌ Lỗi tạo báo cáo công nợ: ' + error.message, 'error');
