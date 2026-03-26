@@ -1,4 +1,6 @@
 import { cookies } from "next/headers";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "ha_session_token";
 

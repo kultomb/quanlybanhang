@@ -1,4 +1,6 @@
 import { adminDb } from "@/lib/firebase-admin";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type GenericWebhookPayload = {
   id?: string | number;
