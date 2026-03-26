@@ -1,5 +1,7 @@
 import AccountPage from "@/components/AccountPage";
 
+export const dynamic = "force-dynamic";
+
 type ShopAccountPageProps = {
   params: Promise<{ shop: string }>;
 };

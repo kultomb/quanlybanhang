@@ -1,6 +1,8 @@
 import AccountPage from "@/components/AccountPage";
 import RequireAuth from "@/components/RequireAuth";
 
+export const dynamic = "force-dynamic";
+
 type AccountRootPageProps = {
   searchParams: Promise<{ shop?: string }>;
 };

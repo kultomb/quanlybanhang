@@ -1,5 +1,7 @@
 import RequireAuth from "@/components/RequireAuth";
 
+export const dynamic = "force-dynamic";
+
 type ShopPageProps = {
   params: Promise<{ shop: string }>;
 };
