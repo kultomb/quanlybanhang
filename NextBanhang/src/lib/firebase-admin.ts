@@ -1,5 +1,4 @@
-import { App, cert, getApp, getApps, initializeApp } from "firebase-admin/app";
-import { getDatabase } from "firebase-admin/database";
+import admin from "firebase-admin";
 
 const databaseURL =
   process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL ||
@@ -24,18 +23,18 @@ function getServiceAccount() {
   }
 }
 
-function getAdminApp(): App {
-  if (getApps().length) return getApp();
+function getAdminApp() {
+  if (admin.apps.length) return admin.app();
   const svc = getServiceAccount();
   if (!svc) {
     throw new Error("Missing FIREBASE_ADMIN_CREDENTIALS");
   }
-  return initializeApp({
-    credential: cert(svc),
+  return admin.initializeApp({
+    credential: admin.credential.cert(svc),
     databaseURL,
   });
 }
 
 export function adminDb() {
-  return getDatabase(getAdminApp());
+  return admin.database(getAdminApp());
 }
