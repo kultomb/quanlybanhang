@@ -3155,6 +3155,7 @@ class HamobileBanhang {
         }
         this.addProductToPOS(p.id);
         if (statusEl) statusEl.textContent = 'Đã thêm: ' + (p.name || p.id);
+        this.stopPOSBarcodeScanner();
     }
     stopPOSBarcodeScanner() {
         this._posScannerActive = false;
