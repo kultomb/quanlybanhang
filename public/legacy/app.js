@@ -341,6 +341,7 @@ class HamobileBanhang {
         this._posScannerActive = false;
         this._posScannerLastCode = '';
         this._posScannerLastAt = 0;
+        this._posHtml5Scanner = null;
         this.productsSearchQuery = '';
         this.suppliersSearchQuery = '';
         this.ordersSearchQuery = '';
@@ -372,6 +373,19 @@ class HamobileBanhang {
         if (loaded && loaded.data && loaded.data.customers && loaded.data.products) {
             const maybeDefaultDemo = window.FirebaseStorage.isLikelyBundledDemoData(loaded.data);
             if (maybeDefaultDemo && !localHadData) {
+                const cfgNow = window.FirebaseStorage.getConfig();
+                const recovered = await this.tryRecoverCloudDataByAlternateKeys(cfgNow);
+                if (recovered && recovered.loaded && recovered.loaded.data) {
+                    this.demoData = recovered.loaded.data;
+                    window.companyAssets.logo = recovered.loaded.company?.logo || null;
+                    window.companyAssets.qr = recovered.loaded.company?.qrCode || recovered.loaded.company?.qr || null;
+                    this.migrateProductData();
+                    this._ready = true;
+                    this.clearOldDataIfNeeded();
+                    this.init();
+                    setTimeout(() => this.showNotification('✅ Đã tự động chuyển sang đúng kho dữ liệu của shop.', 'success'), 700);
+                    return;
+                }
                 this._pendingCloudLoaded = loaded;
                 this._pendingCloudLocalHadData = localHadData;
                 if (content) {
@@ -523,6 +537,39 @@ class HamobileBanhang {
     }
     applyFirebaseConfigFromForm() {
         this.initAsync();
+    }
+
+    getLikelyBackupKeys(currentKey) {
+        const normalize = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+        const keys = [];
+        const push = (k) => { const n = normalize(k); if (n && !keys.includes(n)) keys.push(n); };
+        push(currentKey);
+        const url = new URL(window.location.href);
+        const shop = normalize(url.searchParams.get('shop') || '');
+        if (shop) {
+            push('shop_' + shop);
+            push(shop);
+        }
+        const ck = normalize(currentKey || '');
+        if (ck.startsWith('shop_')) push(ck.slice(5));
+        else if (ck) push('shop_' + ck);
+        return keys;
+    }
+
+    async tryRecoverCloudDataByAlternateKeys(currentCfg) {
+        const cfg = currentCfg || window.FirebaseStorage.getConfig();
+        if (!cfg || !cfg.url || !cfg.key) return null;
+        const originalKey = cfg.key;
+        const candidates = this.getLikelyBackupKeys(originalKey).filter((k) => k !== originalKey);
+        for (const key of candidates) {
+            window.FirebaseStorage.setConfig(cfg.url, key);
+            const alt = await window.FirebaseStorage.load();
+            if (alt && alt.data && alt.data.customers && alt.data.products && !window.FirebaseStorage.isLikelyBundledDemoData(alt.data)) {
+                return { loaded: alt, key };
+            }
+        }
+        window.FirebaseStorage.setConfig(cfg.url, originalKey);
+        return null;
     }
     
     initializeData() {
@@ -2964,6 +3011,7 @@ class HamobileBanhang {
                         <button type="button" onclick="app.stopPOSBarcodeScanner()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;">Đóng</button>
                     </div>
                     <video id="pos-barcode-video" autoplay playsinline muted style="width:100%; max-height: 60vh; border-radius: 10px; background: #000;"></video>
+                    <div id="pos-barcode-fallback" style="display:none; width:100%; background:#000; border-radius:10px; overflow:hidden;"></div>
                     <div id="pos-barcode-scan-status" style="margin-top:8px; font-size:13px; color:#cbd5e1;">Đưa mã vạch vào giữa khung hình...</div>
                 </div>
             </div>
@@ -2980,7 +3028,7 @@ class HamobileBanhang {
             video.srcObject = stream;
             const hasNative = typeof window.BarcodeDetector !== 'undefined';
             if (!hasNative) {
-                if (statusEl) statusEl.textContent = 'Trình duyệt chưa hỗ trợ quét trực tiếp. Vui lòng dùng Chrome/Edge mới.';
+                await this.startPOSHtml5FallbackScanner(statusEl);
                 return;
             }
             const detector = new window.BarcodeDetector({ formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e'] });
@@ -2999,6 +3047,51 @@ class HamobileBanhang {
         } catch (e) {
             this.stopPOSBarcodeScanner();
             this.showNotification('Không mở được camera để quét mã.', 'error');
+        }
+    }
+    async ensureHtml5QrcodeLoaded() {
+        if (window.Html5Qrcode) return true;
+        if (window._haHtml5QrcodeLoading) {
+            await window._haHtml5QrcodeLoading;
+            return !!window.Html5Qrcode;
+        }
+        window._haHtml5QrcodeLoading = new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.head.appendChild(script);
+        });
+        await window._haHtml5QrcodeLoading;
+        return !!window.Html5Qrcode;
+    }
+    async startPOSHtml5FallbackScanner(statusEl) {
+        const ok = await this.ensureHtml5QrcodeLoaded();
+        const video = document.getElementById('pos-barcode-video');
+        const fallbackEl = document.getElementById('pos-barcode-fallback');
+        if (!ok || !fallbackEl) {
+            if (statusEl) statusEl.textContent = 'Thiết bị chưa hỗ trợ quét camera trên trình duyệt này.';
+            return;
+        }
+        if (video) video.style.display = 'none';
+        fallbackEl.style.display = 'block';
+        try {
+            this._posHtml5Scanner = new window.Html5Qrcode('pos-barcode-fallback');
+            await this._posHtml5Scanner.start(
+                { facingMode: 'environment' },
+                { fps: 10, qrbox: { width: 220, height: 120 }, rememberLastUsedCamera: true, formatsToSupport: [
+                    window.Html5QrcodeSupportedFormats.CODE_128,
+                    window.Html5QrcodeSupportedFormats.EAN_13,
+                    window.Html5QrcodeSupportedFormats.EAN_8,
+                    window.Html5QrcodeSupportedFormats.UPC_A,
+                    window.Html5QrcodeSupportedFormats.UPC_E,
+                ] },
+                (decodedText) => this.handlePOSScannedCode(decodedText),
+                () => {}
+            );
+            if (statusEl) statusEl.textContent = 'Đang quét bằng chế độ tương thích...';
+        } catch (_) {
+            if (statusEl) statusEl.textContent = 'Không thể khởi động camera quét mã trên trình duyệt này.';
         }
     }
     handlePOSScannedCode(rawCode) {
@@ -3020,6 +3113,11 @@ class HamobileBanhang {
     }
     stopPOSBarcodeScanner() {
         this._posScannerActive = false;
+        if (this._posHtml5Scanner) {
+            const s = this._posHtml5Scanner;
+            this._posHtml5Scanner = null;
+            Promise.resolve().then(() => s.stop()).then(() => s.clear()).catch(() => {});
+        }
         if (this._posScannerStream) {
             try { this._posScannerStream.getTracks().forEach(t => t.stop()); } catch (_) {}
             this._posScannerStream = null;
