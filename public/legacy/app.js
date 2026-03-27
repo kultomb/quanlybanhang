@@ -342,6 +342,7 @@ class HamobileBanhang {
         this._posScannerLastCode = '';
         this._posScannerLastAt = 0;
         this._posHtml5Scanner = null;
+        this._posPreferredCameraId = '';
         this.productsSearchQuery = '';
         this.suppliersSearchQuery = '';
         this.ordersSearchQuery = '';
@@ -2997,6 +2998,32 @@ class HamobileBanhang {
         if (direct) return direct;
         return products.find(p => Array.isArray(p.imeis) && p.imeis.some(v => String(v || '').trim() === code)) || null;
     }
+    getPOSCameraLabelScore(label) {
+        const txt = String(label || '').toLowerCase();
+        if (!txt) return 0;
+        let score = 0;
+        if (/(tele|periscope|zoom|optical|3x|2x|5x)/.test(txt)) score += 120;
+        if (/(back|rear|environment|sau|tras|traseira|arriere|hinten)/.test(txt)) score += 60;
+        if (/(wide|ultra[\s-]*wide|0\.5x)/.test(txt)) score -= 20;
+        if (/(front|user|selfie|truoc|frontal)/.test(txt)) score -= 120;
+        return score;
+    }
+    async getPreferredPOSRearCameraId() {
+        if (!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)) return '';
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cams = (devices || []).filter(d => d.kind === 'videoinput');
+            if (!cams.length) return '';
+            let best = null;
+            for (const cam of cams) {
+                const score = this.getPOSCameraLabelScore(cam.label || '');
+                if (!best || score > best.score) best = { id: cam.deviceId, score };
+            }
+            return best && best.score > -100 ? (best.id || '') : '';
+        } catch (_) {
+            return '';
+        }
+    }
     async tunePOSScannerTrackForNearBarcode(statusEl) {
         const track = this._posScannerStream && this._posScannerStream.getVideoTracks ? this._posScannerStream.getVideoTracks()[0] : null;
         if (!track || !track.getCapabilities || !track.applyConstraints) return;
@@ -3005,9 +3032,13 @@ class HamobileBanhang {
             const advanced = [];
             if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
             if (Array.isArray(caps.focusMode) && caps.focusMode.includes('single-shot')) advanced.push({ focusMode: 'single-shot' });
-            if (caps.zoom && typeof caps.zoom.min === 'number') advanced.push({ zoom: caps.zoom.min });
+            if (caps.focusDistance && typeof caps.focusDistance.max === 'number') advanced.push({ focusDistance: caps.focusDistance.max });
+            if (caps.zoom && typeof caps.zoom.min === 'number' && typeof caps.zoom.max === 'number') {
+                const targetZoom = caps.zoom.min + ((caps.zoom.max - caps.zoom.min) * 0.65);
+                advanced.push({ zoom: targetZoom });
+            }
             if (advanced.length) await track.applyConstraints({ advanced });
-            if (statusEl && advanced.length) statusEl.textContent = 'Đang ưu tiên lấy nét gần cho mã vạch...';
+            if (statusEl && advanced.length) statusEl.textContent = 'Đang ưu tiên camera zoom/lấy nét gần cho mã vạch...';
         } catch (_) {}
     }
     async openPOSBarcodeScanner() {
@@ -3034,8 +3065,16 @@ class HamobileBanhang {
         const statusEl = document.getElementById('pos-barcode-scan-status');
         this._posScannerLastCode = '';
         this._posScannerLastAt = 0;
+        this._posPreferredCameraId = '';
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+            const preferredCameraId = await this.getPreferredPOSRearCameraId();
+            this._posPreferredCameraId = preferredCameraId || '';
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: preferredCameraId
+                    ? { deviceId: { exact: preferredCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+                    : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+                audio: false
+            });
             this._posScannerStream = stream;
             this._posScannerActive = true;
             video.srcObject = stream;
@@ -3093,8 +3132,9 @@ class HamobileBanhang {
         fallbackEl.style.display = 'block';
         try {
             this._posHtml5Scanner = new window.Html5Qrcode('pos-barcode-fallback');
+            const cameraSource = this._posPreferredCameraId || { facingMode: 'environment' };
             await this._posHtml5Scanner.start(
-                { facingMode: 'environment' },
+                cameraSource,
                 { fps: 10, qrbox: { width: 220, height: 120 }, rememberLastUsedCamera: true, formatsToSupport: [
                     window.Html5QrcodeSupportedFormats.CODE_128,
                     window.Html5QrcodeSupportedFormats.EAN_13,
