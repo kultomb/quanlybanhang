@@ -11,7 +11,8 @@ export default async function ShopPage({ params }: ShopPageProps) {
 
   return (
     <RequireAuth>
-      <main style={{ width: "100vw", height: "100vh", margin: 0 }}>
+      <main style={{ width: "100vw", height: "100vh", margin: 0, position: "relative" }}>
+        {/* Chỉ nút tài khoản — logo/brand nằm trong iframe (một nguồn), căn cùng dải với .top-utility-bar */}
         <AccountBar shop={shop} />
         <ShopLegacyFrame shop={shop} />
       </main>

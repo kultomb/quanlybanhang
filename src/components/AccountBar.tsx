@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { auth } from "@/lib/backend/client";
 
 type AccountBarProps = {
   shop?: string;
+  /** Gắn trong layout flex (không fixed) — ít dùng */
+  docked?: boolean;
 };
 
-export default function AccountBar({ shop }: AccountBarProps) {
+export default function AccountBar({ shop, docked = false }: AccountBarProps) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [email, setEmail] = useState("");
@@ -49,20 +51,29 @@ export default function AccountBar({ shop }: AccountBarProps) {
     };
   }, []);
 
-  const accountName = useMemo(() => {
-    if (!email) return "Khách";
-    return email.split("@")[0] || email;
-  }, [email]);
-
-  const shortShop = useMemo(() => {
+  const displayShop = useMemo(() => {
     if (!shop) return "Tài khoản";
-    return shop.length > 16 ? `${shop.slice(0, 16)}...` : shop;
+    return shop;
   }, [shop]);
 
   async function handleLogout() {
     await signOut(auth);
     router.replace("/login");
   }
+
+  const shellStyle: CSSProperties = docked
+    ? {
+        position: "relative",
+        flexShrink: 0,
+        zIndex: 20,
+      }
+    : {
+        position: "fixed",
+        /* Hạ nhẹ so với mép trên để cân với cụm logo (icon + tiêu đề) trong .top-utility-bar */
+        top: isMobile ? 16 : 17,
+        right: isMobile ? 16 : 20,
+        zIndex: 1200,
+      };
 
   return (
     <>
@@ -72,21 +83,14 @@ export default function AccountBar({ shop }: AccountBarProps) {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 1199,
+            zIndex: docked ? 15 : 1199,
             background: "transparent",
           }}
         />
       ) : null}
-      <div
-        ref={rootRef}
-        style={{
-          position: "fixed",
-          top: isMobile ? 10 : 12,
-          right: isMobile ? 16 : 20,
-          zIndex: 1200,
-        }}
-      >
+      <div ref={rootRef} style={shellStyle}>
         <button
+          type="button"
           onClick={() => setOpen((v) => !v)}
           title="Mở menu tài khoản"
           aria-label="Mở menu tài khoản"
@@ -100,7 +104,7 @@ export default function AccountBar({ shop }: AccountBarProps) {
             color: "white",
             fontSize: isMobile ? 12 : 13,
             cursor: "pointer",
-            boxShadow: "0 10px 24px rgba(5,150,105,0.18)",
+            boxShadow: docked ? "0 2px 10px rgba(5,150,105,0.12)" : "0 2px 12px rgba(5,150,105,0.15)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -125,25 +129,30 @@ export default function AccountBar({ shop }: AccountBarProps) {
               fontWeight: 700,
               flexShrink: 0,
             }}
+            aria-hidden
           >
             👤
           </span>
           <span
             style={{
               minWidth: 0,
-              flex: 1,
-              textAlign: "left",
+              maxWidth: isMobile ? 140 : 160,
               color: "#065f46",
               fontWeight: 700,
+              fontSize: isMobile ? 12 : 13,
+              lineHeight: 1.2,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              padding: 0,
-              fontSize: isMobile ? 12 : 13,
+              textAlign: "left",
             }}
-            title={`${shop || "Tài khoản"} • ${loading ? "Đang tải..." : accountName}`}
+            title={
+              loading
+                ? "Đang tải..."
+                : `${shop || "Tài khoản"}${email ? ` • ${email}` : ""}`
+            }
           >
-            {shortShop}
+            {loading ? "…" : displayShop}
           </span>
         </button>
 
@@ -163,6 +172,7 @@ export default function AccountBar({ shop }: AccountBarProps) {
               fontSize: 13,
               display: "grid",
               gap: 10,
+              zIndex: 25,
             }}
           >
             {email ? (
@@ -184,6 +194,7 @@ export default function AccountBar({ shop }: AccountBarProps) {
                   Tài khoản / Đổi mật khẩu
                 </Link>
                 <button
+                  type="button"
                   onClick={handleLogout}
                   style={{
                     width: "100%",
