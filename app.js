@@ -3044,9 +3044,9 @@ class HamobileBanhang {
     }
     async getPreferredPOSRearCameraId() {
         const list = await this.buildPOSRearCameraRotationList();
-        return list[1] || list[0] || '';
+        return list[0] || '';
     }
-    /** Sau khi đã mở camera một lần (có quyền), liệt kê camera sau để luân phiên như ScanApp (tối đa 4). */
+    /** Chỉ một camera: vị trí thứ 3 (index 2) trong danh sách camera sau đã sắp theo điểm nhãn — không dùng camera khác, không luân phiên. */
     async buildPOSRearCameraRotationList() {
         if (!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)) return [];
         try {
@@ -3075,11 +3075,12 @@ class HamobileBanhang {
                     if (d.deviceId && !seen.has(d.deviceId)) {
                         seen.add(d.deviceId);
                         out.push(d.deviceId);
-                        if (out.length >= 4) break;
                     }
                 }
             }
-            return out.slice(0, 4);
+            if (!out.length) return [];
+            const idx = Math.min(2, out.length - 1);
+            return [out[idx]];
         } catch (_) {
             return [];
         }
@@ -3175,8 +3176,7 @@ class HamobileBanhang {
             const camList = await this.buildPOSRearCameraRotationList();
             this._posScannerCameraIds = camList;
             this._posScannerCameraIndex = 0;
-            const preferredIdx = camList.length > 1 ? 1 : 0;
-            const firstId = camList[preferredIdx] || '';
+            const firstId = camList[0] || '';
             this._posPreferredCameraId = firstId;
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: this._posScannerVideoConstraints(firstId),
@@ -3186,8 +3186,8 @@ class HamobileBanhang {
             this._posScannerActive = true;
             video.srcObject = stream;
             await this.tunePOSScannerTrackForNearBarcode(statusEl);
-            if (statusEl && camList.length > 1) {
-                statusEl.textContent = 'Đang dùng camera 2/' + camList.length + ' để lấy nét tốt hơn...';
+            if (statusEl && camList.length) {
+                statusEl.textContent = 'Đang dùng camera sau vị trí 3 (cố định, không đổi camera khác)...';
             }
             const hasNative = typeof window.BarcodeDetector !== 'undefined';
             if (!hasNative) {
