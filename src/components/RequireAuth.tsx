@@ -158,40 +158,7 @@ export default function RequireAuth({ children }: RequireAuthProps) {
     };
   }, []);
 
-  if (!ready) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          background: "#f8fafc",
-          color: "#334155",
-          fontSize: 14,
-          fontWeight: 600,
-        }}
-      >
-        Đang xác thực phiên đăng nhập...
-      </main>
-    );
-  }
-
-  if (!authed) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          background: "#f8fafc",
-          color: "#64748b",
-          fontSize: 14,
-          fontWeight: 500,
-        }}
-      >
-        Đang chuyển đến trang đăng nhập...
-      </main>
-    );
-  }
+  if (!ready) return null;
+  if (!authed) return null;
   return <>{children}</>;
 }
