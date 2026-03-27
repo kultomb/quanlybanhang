@@ -3630,6 +3630,7 @@ class HamobileBanhang {
         if (!this.selectedOrderIds) this.selectedOrderIds = new Set();
         if (this.ordersSearchQuery === undefined) this.ordersSearchQuery = '';
         if (this.ordersFilterPeriod === undefined) this.ordersFilterPeriod = 'all';
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const orders = this.demoData.orders || [];
         const vietnamTime = this.getVietnamTime();
         const todayStr = vietnamTime.toISOString().split('T')[0];
