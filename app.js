@@ -9852,7 +9852,7 @@ class HamobileBanhang {
         const select = document.getElementById('label-print-template');
         const templates = this.getLabelPrintTemplates();
         const selected = templates.find(t => t.id === (select ? select.value : ''));
-        return selected || templates[0];
+        return selected || templates.find(t => t.id === 'roll_2_74x22') || templates[0];
     }
 
     setTemplateFromCard(productId, templateId) {
@@ -9862,8 +9862,14 @@ class HamobileBanhang {
         const cards = document.querySelectorAll('[data-template-card]');
         cards.forEach((el) => {
             const active = el.getAttribute('data-template-card') === templateId;
-            el.style.borderColor = active ? '#2563eb' : '#e5e7eb';
-            el.style.boxShadow = active ? '0 0 0 1px #2563eb inset' : 'none';
+            const isRecommended = el.getAttribute('data-template-card') === 'roll_2_74x22';
+            if (active) {
+                el.style.borderColor = isRecommended ? '#dc2626' : '#2563eb';
+                el.style.boxShadow = isRecommended ? '0 0 0 1px #dc2626 inset' : '0 0 0 1px #2563eb inset';
+            } else {
+                el.style.borderColor = isRecommended ? '#fecaca' : '#e5e7eb';
+                el.style.boxShadow = 'none';
+            }
         });
     }
 
@@ -9915,8 +9921,9 @@ class HamobileBanhang {
             : Number(product.stock || 0);
         const defaultQty = Math.max(1, stockQty || 1);
         const templates = this.getLabelPrintTemplates();
+        const defaultTemplateId = 'roll_2_74x22';
         const templateCards = templates.map((t) => `
-            <div data-template-card="${t.id}" style="display:flex; gap:10px; align-items:center; border:1px solid #dbe3ef; border-radius:10px; padding:10px; background:#f8fafc; transition: all .15s ease;">
+            <div data-template-card="${t.id}" style="display:flex; gap:10px; align-items:center; border:${t.id === defaultTemplateId ? '1px solid #fecaca' : '1px solid #dbe3ef'}; border-radius:10px; padding:10px; background:${t.id === defaultTemplateId ? '#fff7f7' : '#f8fafc'}; transition: all .15s ease;">
                 <div style="width:112px; height:52px; border:1px solid #d1d5db; border-radius:8px; background:#f1f5f9; padding:5px; box-sizing:border-box; display:grid; grid-template-columns: repeat(${Math.max(1, Math.min(3, t.columns || 1))}, minmax(0, 1fr)); gap:3px; align-items:center; flex-shrink:0;">
                     ${Array.from({ length: Math.max(1, Math.min(3, t.columns || 1)) }).map(() => `
                         <div style="height:100%; border:1px solid #cbd5e1; border-radius:3px; background:#ffffff; position:relative; overflow:hidden;">
@@ -9928,7 +9935,7 @@ class HamobileBanhang {
                 </div>
                 <div style="flex:1;">
                     <div style="font-size:22px; font-weight:700; color:#111827; line-height:1;">${t.note.split('/')[0].trim()}</div>
-                    <div style="font-size:13px; font-weight:600; color:#111827; margin-top:6px;">${t.name}</div>
+                    <div style="font-size:13px; font-weight:600; color:#111827; margin-top:6px;">${t.name} ${t.id === defaultTemplateId ? '<span style="margin-left:6px; font-size:11px; color:#dc2626; font-weight:800;">Recommended</span>' : ''}</div>
                     <div style="font-size:12px; color:#6b7280; margin-top:2px;">${t.note}</div>
                     <button type="button" onclick="app.setTemplateFromCard('${productId}','${t.id}'); app.openLabelSheetPreview('${productId}','${t.id}')" style="margin-top:8px; padding:7px 12px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600;">Xem bản in</button>
                 </div>
@@ -9942,7 +9949,7 @@ class HamobileBanhang {
                         <button type="button" onclick="document.getElementById('print-label-modal').remove()" style="border:none;background:none;font-size:24px;cursor:pointer;">×</button>
                     </div>
                     <input id="label-print-qty" type="hidden" value="${defaultQty}">
-                    <input id="label-print-template" type="hidden" value="${templates[0].id}">
+                    <input id="label-print-template" type="hidden" value="${defaultTemplateId}">
                     <label style="display:flex; align-items:center; gap:8px; margin: 8px 0 12px; font-size:13px; color:#334155; font-weight:600;">
                         <input id="label-print-hide-price" type="checkbox" ${this._labelHidePrice ? 'checked' : ''} onchange="app.setLabelHidePrice(this.checked)">
                         Ẩn giá trên tem
@@ -9954,7 +9961,7 @@ class HamobileBanhang {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', html);
-        this.setTemplateFromCard(productId, templates[0].id);
+        this.setTemplateFromCard(productId, defaultTemplateId);
     }
 
     getTemplatePageSize(template) {
@@ -10162,6 +10169,7 @@ class HamobileBanhang {
         const labels = Array.isArray(forcedItems) ? forcedItems : this.getPrintableLabelItems(product, qty);
         const printType = forcedPrintType || 'product';
         const canPrintBarcode = product.printBarcode !== false;
+        const hidePrice = !!this._labelHidePrice;
         const template = forcedTemplateId
             ? (this.getLabelPrintTemplates().find(t => t.id === forcedTemplateId) || this.getSelectedLabelTemplate())
             : this.getSelectedLabelTemplate();
