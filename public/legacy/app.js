@@ -1741,10 +1741,14 @@ class HamobileBanhang {
             const priceCell = price.toLocaleString('vi-VN');
             const importPriceCell = importPrice > 0 ? importPrice.toLocaleString('vi-VN') : '-';
             const msp = product.id || product.sku || product.code || '-';
+            const imeiPreview = isImei
+                ? (product.imeis || []).slice(0, 2).map(x => String(x || '').trim()).filter(Boolean).join(', ')
+                : '';
+            const imeiMore = isImei && (product.imeis || []).length > 2 ? ` +${(product.imeis || []).length - 2}` : '';
             const wrappedProductName = this.wrapProductNameForTable(product.name, 17);
             return `<tr class="product-row" style="${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
                     <td class="product-cell-check" style="padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;"><input type="checkbox" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" ${checked ? 'checked' : ''} onchange="app.toggleProductSelect(this.getAttribute('data-product-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
-                    <td class="product-cell-name" style="padding: 12px; border-bottom: 1px solid #f1f5f9; max-width: 260px;"><div class="product-name" style="font-weight: 600; color: #1f2937; line-height: 1.35;">${wrappedProductName}</div><div class="product-msp" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(msp)}</div></td>
+                    <td class="product-cell-name" style="padding: 12px; border-bottom: 1px solid #f1f5f9; max-width: 260px;"><div class="product-name" style="font-weight: 600; color: #1f2937; line-height: 1.35;">${wrappedProductName}</div><div class="product-msp" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(msp)}</div>${imeiPreview ? `<div class="product-imei" style="font-size: 11px; color: #7f1d1d; font-weight: 700; margin-top: 3px; line-height: 1.3;" title="${escapeHtml((product.imeis || []).join(', '))}">IMEI: ${escapeHtml(imeiPreview)}${imeiMore}</div>` : ''}</td>
                     <td class="product-cell-category" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #6b7280;">${escapeHtml(product.category || '-')}</td>
                     <td class="product-cell-price" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500;">${priceCell}</td>
                     <td class="product-cell-import" style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${importPriceCell}</td>
@@ -9430,7 +9434,13 @@ class HamobileBanhang {
         const name = (p.name || '');
         const cat = (p.category || '');
         const id = (p.id || '');
-        return words.every(word => this.searchMatchWordBoundary(name, word) || this.searchMatchWordBoundary(cat, word) || this.searchMatch(id, word));
+        const imeiText = Array.isArray(p.imeis) ? p.imeis.join(' ') : '';
+        return words.every(word =>
+            this.searchMatchWordBoundary(name, word) ||
+            this.searchMatchWordBoundary(cat, word) ||
+            this.searchMatch(id, word) ||
+            this.searchMatch(imeiText, word)
+        );
     }
     productMatchesCategoryFilter(p, catFilter) {
         const pc = (p.category || '').trim();
