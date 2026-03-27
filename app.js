@@ -3026,6 +3026,19 @@ class HamobileBanhang {
         if (direct) return direct;
         return products.find(p => Array.isArray(p.imeis) && p.imeis.some(v => String(v || '').trim() === code)) || null;
     }
+    async tunePOSScannerTrackForNearBarcode(statusEl) {
+        const track = this._posScannerStream && this._posScannerStream.getVideoTracks ? this._posScannerStream.getVideoTracks()[0] : null;
+        if (!track || !track.getCapabilities || !track.applyConstraints) return;
+        try {
+            const caps = track.getCapabilities() || {};
+            const advanced = [];
+            if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+            if (Array.isArray(caps.focusMode) && caps.focusMode.includes('single-shot')) advanced.push({ focusMode: 'single-shot' });
+            if (caps.zoom && typeof caps.zoom.min === 'number') advanced.push({ zoom: caps.zoom.min });
+            if (advanced.length) await track.applyConstraints({ advanced });
+            if (statusEl && advanced.length) statusEl.textContent = 'Đang ưu tiên lấy nét gần cho mã vạch...';
+        } catch (_) {}
+    }
     async openPOSBarcodeScanner() {
         if (this._posScannerActive) return;
         if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
@@ -3055,8 +3068,11 @@ class HamobileBanhang {
             this._posScannerStream = stream;
             this._posScannerActive = true;
             video.srcObject = stream;
+            await this.tunePOSScannerTrackForNearBarcode(statusEl);
             const hasNative = typeof window.BarcodeDetector !== 'undefined';
             if (!hasNative) {
+                try { stream.getTracks().forEach(t => t.stop()); } catch (_) {}
+                this._posScannerStream = null;
                 await this.startPOSHtml5FallbackScanner(statusEl);
                 return;
             }
