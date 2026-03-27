@@ -1616,7 +1616,7 @@ class HamobileBanhang {
                                     <th class="product-th-import" style="padding: 12px; text-align: right;">Giá vốn</th>
                                     <th class="product-th-profit" style="padding: 12px; text-align: right;">Lợi nhuận</th>
                                     <th class="product-th-stock" style="padding: 12px; text-align: right;">Tồn kho</th>
-                                    <th class="product-th-actions" style="padding: 12px; text-align: center; width: 140px;">Thao tác</th>
+                                    <th class="product-th-actions" style="padding: 12px; text-align: center; width: 190px;">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody id="products-table-tbody">
@@ -1669,6 +1669,38 @@ class HamobileBanhang {
             </div>`;
         }).join('');
     }
+    wrapProductNameForTable(name, limit = 17) {
+        const normalized = String(name || '').trim();
+        if (!normalized) return '-';
+        const words = normalized.split(/\s+/);
+        const lines = [];
+        let current = '';
+        const pushCurrent = () => {
+            if (current) lines.push(current);
+            current = '';
+        };
+        words.forEach((word) => {
+            if (!word) return;
+            if (word.length > limit) {
+                pushCurrent();
+                for (let i = 0; i < word.length; i += limit) lines.push(word.slice(i, i + limit));
+                return;
+            }
+            if (!current) {
+                current = word;
+                return;
+            }
+            const next = `${current} ${word}`;
+            if (next.length > limit) {
+                pushCurrent();
+                current = word;
+            } else {
+                current = next;
+            }
+        });
+        pushCurrent();
+        return lines.map((line) => escapeHtml(line)).join('<br>');
+    }
     getProductTableRowsHtml(filtered) {
         if (!filtered || filtered.length === 0) return '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Không có sản phẩm nào.</td></tr>';
         return filtered.map((product, index) => {
@@ -1683,15 +1715,16 @@ class HamobileBanhang {
             const priceCell = price.toLocaleString('vi-VN');
             const importPriceCell = importPrice > 0 ? importPrice.toLocaleString('vi-VN') : '-';
             const msp = product.id || product.sku || product.code || '-';
+            const wrappedProductName = this.wrapProductNameForTable(product.name, 17);
             return `<tr class="product-row" style="${index % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
                     <td class="product-cell-check" style="padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;"><input type="checkbox" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" ${checked ? 'checked' : ''} onchange="app.toggleProductSelect(this.getAttribute('data-product-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
-                    <td class="product-cell-name" style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><div class="product-name" style="font-weight: 600; color: #1f2937;">${escapeHtml(product.name)}</div><div class="product-msp" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(msp)}</div></td>
+                    <td class="product-cell-name" style="padding: 12px; border-bottom: 1px solid #f1f5f9; max-width: 260px;"><div class="product-name" style="font-weight: 600; color: #1f2937; line-height: 1.35;">${wrappedProductName}</div><div class="product-msp" style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(msp)}</div></td>
                     <td class="product-cell-category" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #6b7280;">${escapeHtml(product.category || '-')}</td>
                     <td class="product-cell-price" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 500;">${priceCell}</td>
                     <td class="product-cell-import" style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${importPriceCell}</td>
                     <td class="product-cell-profit" style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${profitCell}</td>
                     <td class="product-cell-stock" style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 600;">${stockVal}</td>
-                    <td class="product-cell-actions" style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.showPrintLabelModal(this.getAttribute('data-product-id'))" style="background: #16a34a; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;">In tem</button><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.showEditProductForm(this.getAttribute('data-product-id'))" style="background: #3b82f6; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;">Sửa</button><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.deleteProductById(this.getAttribute('data-product-id'))" style="background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Xóa</button></td>
+                    <td class="product-cell-actions" style="padding: 12px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; min-width: 190px;"><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.showPrintLabelModal(this.getAttribute('data-product-id'))" style="background: #16a34a; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;">In tem</button><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.showEditProductForm(this.getAttribute('data-product-id'))" style="background: #3b82f6; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;">Sửa</button><button type="button" data-product-id="${(product.id || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="app.deleteProductById(this.getAttribute('data-product-id'))" style="background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Xóa</button></td>
                 </tr>`;
         }).join('');
     }
