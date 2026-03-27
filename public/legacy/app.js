@@ -3002,8 +3002,10 @@ class HamobileBanhang {
         const txt = String(label || '').toLowerCase();
         if (!txt) return 0;
         let score = 0;
-        if (/(tele|periscope|zoom|optical|3x|2x|5x)/.test(txt)) score += 120;
+        if (/(tele|periscope|zoom|optical|3x|2x|5x)/.test(txt)) score += 220;
+        if (/(back camera [2-9]|rear camera [2-9])/.test(txt)) score += 120; // Nhiều máy đặt tele là camera số lớn hơn
         if (/(back|rear|environment|sau|tras|traseira|arriere|hinten)/.test(txt)) score += 60;
+        if (/(back camera 1|rear camera 1|main camera)/.test(txt)) score -= 20;
         if (/(wide|ultra[\s-]*wide|0\.5x)/.test(txt)) score -= 20;
         if (/(front|user|selfie|truoc|frontal)/.test(txt)) score -= 120;
         return score;
@@ -3034,11 +3036,11 @@ class HamobileBanhang {
             if (Array.isArray(caps.focusMode) && caps.focusMode.includes('single-shot')) advanced.push({ focusMode: 'single-shot' });
             if (caps.focusDistance && typeof caps.focusDistance.max === 'number') advanced.push({ focusDistance: caps.focusDistance.max });
             if (caps.zoom && typeof caps.zoom.min === 'number' && typeof caps.zoom.max === 'number') {
-                const targetZoom = caps.zoom.min + ((caps.zoom.max - caps.zoom.min) * 0.65);
+                const targetZoom = caps.zoom.max;
                 advanced.push({ zoom: targetZoom });
             }
             if (advanced.length) await track.applyConstraints({ advanced });
-            if (statusEl && advanced.length) statusEl.textContent = 'Đang ưu tiên camera zoom/lấy nét gần cho mã vạch...';
+            if (statusEl && advanced.length) statusEl.textContent = 'Đang mở camera zoom để quét mã vạch...';
         } catch (_) {}
     }
     async openPOSBarcodeScanner() {
