@@ -10035,12 +10035,16 @@ class HamobileBanhang {
                 const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 104, 16) : '';
                 const priceText = Number(product.price || 0).toLocaleString('vi-VN') + ' VND';
                 const title = this.getAdaptiveLabelTitle(product.name || '');
+                const singleTitle = !title.line2;
+                const title1Top = singleTitle ? (hidePrice ? 12 : 9) : 3;
+                const barcodeTop = singleTitle ? (hidePrice ? 34 : 32) : 30;
+                const codeTop = hidePrice ? 61 : 49;
                 return `
                     <div style="position:absolute;top:0;${isRight ? 'left:145px;width:120px;' : 'left:-3px;width:121px;'}height:83px;overflow:hidden;">
-                        <div style="position:absolute;left:1px;top:3px;width:calc(100% - 2px);text-align:center;font-size:${title.fontPx}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title.line1 || '')}</div>
+                        <div style="position:absolute;left:1px;top:${title1Top}px;width:calc(100% - 2px);text-align:center;font-size:${title.fontPx}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title.line1 || '')}</div>
                         ${title.line2 ? `<div style="position:absolute;left:1px;top:15px;width:calc(100% - 2px);text-align:center;font-size:${title.fontPx}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title.line2)}</div>` : ''}
-                        <div style="position:absolute;left:8px;top:30px;width:104px;height:34px;overflow:hidden;">${canPrintBarcode ? barcodeSvg : ''}</div>
-                        <div style="position:absolute;left:4px;top:49px;width:calc(100% - 8px);font-size:9px;font-weight:600;line-height:1;text-align:center;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(item.line2 || '')}</div>
+                        <div style="position:absolute;left:8px;top:${barcodeTop}px;width:104px;height:34px;overflow:hidden;">${canPrintBarcode ? barcodeSvg : ''}</div>
+                        <div style="position:absolute;left:4px;top:${codeTop}px;width:calc(100% - 8px);font-size:9px;font-weight:600;line-height:1;text-align:center;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(item.line2 || '')}</div>
                         ${hidePrice ? '' : `<div style="position:absolute;left:4px;top:64px;width:calc(100% - 8px);font-size:12px;font-weight:800;line-height:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(priceText)}</div>`}
                     </div>
                 `;
@@ -10167,12 +10171,16 @@ class HamobileBanhang {
                     const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 104, 16) : '';
                     const priceText = Number(product.price || 0).toLocaleString('vi-VN') + ' VND';
                     const title = this.getAdaptiveLabelTitle(product.name || '');
+                    const singleTitle = !title.line2;
+                    const title1Top = singleTitle ? (hidePrice ? '2.8mm' : '2.1mm') : '1.0mm';
+                    const barcodeTop = singleTitle ? (hidePrice ? '8.6mm' : '8.2mm') : '8.0mm';
+                    const codeTop = hidePrice ? '16.4mm' : '12.7mm';
                     return `
                         <div class="kv-cell ${isRight ? 'right' : 'left'}">
-                            <div class="kv-title-l1" style="font-size:${title.fontPx}px;">${escapeHtml(title.line1 || '')}</div>
-                            <div class="kv-title-l2" style="font-size:${title.fontPx}px;">${escapeHtml(title.line2 || '')}</div>
-                            <div class="kv-barcode">${canPrintBarcode ? barcodeSvg : ''}</div>
-                            <div class="kv-code">${escapeHtml(item.line2 || '')}</div>
+                            <div class="kv-title-l1" style="top:${title1Top};font-size:${title.fontPx}px;">${escapeHtml(title.line1 || '')}</div>
+                            ${title.line2 ? `<div class="kv-title-l2" style="font-size:${title.fontPx}px;">${escapeHtml(title.line2 || '')}</div>` : ''}
+                            <div class="kv-barcode" style="top:${barcodeTop};">${canPrintBarcode ? barcodeSvg : ''}</div>
+                            <div class="kv-code" style="top:${codeTop};">${escapeHtml(item.line2 || '')}</div>
                             ${hidePrice ? '' : `<div class="kv-price">${escapeHtml(priceText)}</div>`}
                         </div>
                     `;
@@ -10201,7 +10209,8 @@ class HamobileBanhang {
                 const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 173, 27) : '';
                 const priceText = Number(product.price || 0).toLocaleString('vi-VN');
                 const title = this.getAdaptiveLabelTitle(product.name || '');
-                const imeiLine = printType === 'imei' ? `<div class="kv-code">${escapeHtml(item.line2 || '')}</div>` : '';
+                const imeiTop = hidePrice ? '22.8mm' : '20.4mm';
+                const imeiLine = printType === 'imei' ? `<div class="kv-code" style="top:${imeiTop};">${escapeHtml(item.line2 || '')}</div>` : '';
                 return `
                     <div class="kv-page">
                         <div class="kv-title-l1" style="font-size:${Math.max(11, title.fontPx + 1)}px;">${escapeHtml(title.line1 || '')}</div>
