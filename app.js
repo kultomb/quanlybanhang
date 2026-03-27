@@ -9899,6 +9899,10 @@ class HamobileBanhang {
     }
 
     showPrintLabelModal(productId) {
+        const existingModal = document.getElementById('print-label-modal');
+        if (existingModal) existingModal.remove();
+        const existingPreview = document.getElementById('label-sheet-preview-modal');
+        if (existingPreview) existingPreview.remove();
         const product = this.demoData.products.find(p => p.id === productId);
         if (!product) {
             this.showNotification('Không tìm thấy sản phẩm', 'error');
@@ -9957,6 +9961,8 @@ class HamobileBanhang {
     }
 
     openLabelSheetPreview(productId, templateId) {
+        const existingPreview = document.getElementById('label-sheet-preview-modal');
+        if (existingPreview) existingPreview.remove();
         const product = this.demoData.products.find(p => p.id === productId);
         const qtyInput = document.getElementById('label-print-qty');
         if (!product || !qtyInput) return;
@@ -10125,8 +10131,11 @@ class HamobileBanhang {
     printLabelSheetAllPages() {
         const st = this._labelSheetState;
         if (!st) return;
+        if (this._printingLabelSheet) return;
+        this._printingLabelSheet = true;
         // In toàn bộ theo số lượng đã chọn (giống KiotViet), không chỉ trang hiện tại.
         this.printProductLabels(st.productId, st.template.id, st.printType, st.labels);
+        window.setTimeout(() => { this._printingLabelSheet = false; }, 1200);
     }
 
     printProductLabels(productId, forcedTemplateId, forcedPrintType, forcedItems) {
