@@ -1,4 +1,3 @@
-import AccountBar from "@/components/AccountBar";
 import RequireAuth from "@/components/RequireAuth";
 import ShopLegacyFrame from "@/components/ShopLegacyFrame";
 
@@ -20,8 +19,7 @@ export default async function ShopPage({ params }: ShopPageProps) {
           overflow: "hidden",
         }}
       >
-        {/* Logo trong iframe (.top-utility-bar z-index:100); thanh tài khoản cùng lớp z=100, absolute trong main — không fixed/1200 đè cả iframe */}
-        <AccountBar shop={shop} />
+        {/* Tài khoản portal vào #next-account-slot trong iframe — cùng DOM/cuộn với .top-utility-bar */}
         <ShopLegacyFrame shop={shop} />
       </main>
     </RequireAuth>

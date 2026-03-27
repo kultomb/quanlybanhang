@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { auth } from "@/lib/backend/client";
 
 type AccountBarProps = {
@@ -35,19 +42,21 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
     return () => window.removeEventListener("resize", updateMobile);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const rootDoc = el.ownerDocument;
     const onDocClick = (event: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (!rootRef.current.contains(event.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const onEsc = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEsc);
+    rootDoc.addEventListener("mousedown", onDocClick);
+    rootDoc.addEventListener("keydown", onEsc);
     return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
+      rootDoc.removeEventListener("mousedown", onDocClick);
+      rootDoc.removeEventListener("keydown", onEsc);
     };
   }, []);
 
@@ -61,7 +70,7 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
     router.replace("/login");
   }
 
-  /** Cùng lớp với .top-utility-bar (legacy z-index:100): absolute trong main, không fixed — không cuộn/đè tách khỏi iframe */
+  /** Trang shop: dùng portal vào iframe (#next-account-slot) — không dùng strip này */
   const shopTopStripStyle: CSSProperties = {
     position: "absolute",
     top: 0,
