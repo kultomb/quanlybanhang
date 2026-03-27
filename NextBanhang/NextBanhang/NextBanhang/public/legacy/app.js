@@ -366,6 +366,28 @@ class HamobileBanhang {
         }
         const loaded = await window.FirebaseStorage.load();
         if (loaded && loaded.data && loaded.data.customers && loaded.data.products) {
+            const maybeDefaultDemo = window.FirebaseStorage.isLikelyBundledDemoData(loaded.data);
+            if (maybeDefaultDemo && !localHadData) {
+                this._pendingCloudLoaded = loaded;
+                this._pendingCloudLocalHadData = localHadData;
+                if (content) {
+                    const cfgNow = window.FirebaseStorage.getConfig() || {};
+                    content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 680px; margin: 0 auto;">' +
+                        '<h2>⚠️ Có thể đang vào nhầm kho dữ liệu</h2>' +
+                        '<p style="margin: 12px 0; color:#6b7280; line-height:1.6;">Hệ thống vừa tải về <strong>bộ dữ liệu demo mặc định</strong>. Nếu shop đã có dữ liệu ở máy khác, nhiều khả năng đang dùng sai <strong>Khóa sao lưu Firebase</strong>.</p>' +
+                        '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:12px;margin:14px 0;font-size:13px;line-height:1.5;">' +
+                        '<div><strong>Khóa hiện tại:</strong> ' + escapeHtml(cfgNow.key || '(trống)') + '</div>' +
+                        '<div style="margin-top:6px;color:#7c2d12;">Email/mật khẩu không tự map sang kho dữ liệu nếu khác khóa sao lưu.</div>' +
+                        '</div>' +
+                        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+                        '<button type="button" onclick="app.showSettingsPage()" style="padding:10px 14px;border:none;background:#2563eb;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;">Đổi khóa sao lưu</button>' +
+                        '<button type="button" onclick="app.continueWithLoadedDemoCloudData()" style="padding:10px 14px;border:1px solid #d1d5db;background:#fff;color:#111827;border-radius:8px;cursor:pointer;">Vẫn vào dữ liệu hiện tại</button>' +
+                        '</div>' +
+                        '</div>';
+                }
+                window.app = this;
+                return;
+            }
             this.demoData = loaded.data;
             window.companyAssets.logo = loaded.company?.logo || null;
             window.companyAssets.qr = loaded.company?.qrCode || loaded.company?.qr || null;
@@ -468,6 +490,32 @@ class HamobileBanhang {
         if (!localHadData && window._loadedFromCloud) {
             setTimeout(() => this.showNotification('✅ Đã khôi phục dữ liệu thành công.', 'success'), 800);
         }
+    }
+
+    continueWithLoadedDemoCloudData() {
+        const loaded = this._pendingCloudLoaded;
+        const localHadData = !!this._pendingCloudLocalHadData;
+        if (!loaded || !loaded.data) {
+            this.initAsync();
+            return;
+        }
+        this.demoData = loaded.data;
+        window.companyAssets.logo = loaded.company?.logo || null;
+        window.companyAssets.qr = loaded.company?.qrCode || loaded.company?.qr || null;
+        this.migrateProductData();
+        this._ready = true;
+        this.clearOldDataIfNeeded();
+        this.init();
+        if (!localHadData && window._loadedFromCloud) {
+            setTimeout(() => this.showNotification('⚠️ Đang dùng dữ liệu demo cloud. Hãy kiểm tra lại khóa sao lưu nếu không đúng shop.', 'warning'), 800);
+        }
+    }
+
+    showSettingsPage() {
+        this._ready = true;
+        this.init();
+        this.loadPage('settings');
+        this.showNotification('Vào Cài đặt và nhập đúng URL/Khóa sao lưu của shop.', 'info');
     }
     applyFirebaseConfigFromForm() {
         this.initAsync();
@@ -1242,8 +1290,8 @@ class HamobileBanhang {
         const todayRepairs = repairs.filter(r => r && r.date === todayStr);
         const yesterdayRepairs = repairs.filter(r => r && r.date === yesterdayStr);
         const calcRepairRevenue = (r) => (r.status || '') === 'Đã trả' ? (Number(r.repairCost) || 0) : 0;
-        const todayOrderRev = todayOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
-        const yesterdayOrderRev = yesterdayOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+        const todayOrderRev = todayOrders.reduce((s, o) => s + (this.isOrderFinalizedForRevenue(o) ? (Number(o.total) || 0) : 0), 0);
+        const yesterdayOrderRev = yesterdayOrders.reduce((s, o) => s + (this.isOrderFinalizedForRevenue(o) ? (Number(o.total) || 0) : 0), 0);
         const todayRepairRev = todayRepairs.reduce((s, r) => s + calcRepairRevenue(r), 0);
         const yesterdayRepairRev = yesterdayRepairs.reduce((s, r) => s + calcRepairRevenue(r), 0);
         const todayRevenue = todayOrderRev + todayRepairRev;
@@ -3641,9 +3689,14 @@ class HamobileBanhang {
             const originalIndex = orders.findIndex(o => o.id === order.id);
             const checked = this.selectedOrderIds.has(order.id);
             const productsStr = (order.products || []).map(p => (p.name || p.productName || '-') + ' x' + (p.quantity || 1)).join(', ') || '-';
-            return `<tr data-order-index="${originalIndex}" style="${idx % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
+            const isCancelled = !this.isOrderFinalizedForRevenue(order);
+            const rowBg = isCancelled ? '#fef2f2' : (idx % 2 === 0 ? '#fafbfc' : 'white');
+            const cancelBadge = isCancelled
+                ? `<div style="display:inline-block; margin-left:6px; padding:2px 6px; border-radius:999px; background:#ef4444; color:#fff; font-size:10px; font-weight:700;">ĐÃ HỦY</div>`
+                : '';
+            return `<tr data-order-index="${originalIndex}" style="background: ${rowBg};">
                 <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: middle;"><input type="checkbox" data-order-id="${escapeHtml(order.id || '')}" ${checked ? 'checked' : ''} onchange="app.toggleOrderSelect(this.getAttribute('data-order-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${order.id}</td>
+                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${order.id}${cancelBadge}</td>
                 <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.customerName || '-')}</td>
                 <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.phone || '-')}</td>
                 <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px;" title="${escapeHtml(order.address || '')}">${escapeHtml(order.address || '-')}</td>
@@ -3652,12 +3705,13 @@ class HamobileBanhang {
                 <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${(order.total || 0).toLocaleString('vi-VN')} VNĐ</td>
                 <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.paymentMethod || '-')}</td>
                 <td class="payment-cell" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">
-                    <button ondblclick="app.togglePaymentStatus(${originalIndex})" style="background: ${order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b'}; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;">${order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ'}</button>
+                    <button ondblclick="app.togglePaymentStatus(${originalIndex})" ${!this.isOrderFinalizedForRevenue(order) ? 'disabled' : ''} style="background: ${!this.isOrderFinalizedForRevenue(order) ? '#94a3b8' : (order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b')}; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: ${!this.isOrderFinalizedForRevenue(order) ? 'not-allowed' : 'pointer'}; font-size: 11px; font-weight: 600; white-space: nowrap;" title="${!this.isOrderFinalizedForRevenue(order) ? 'Đơn đã hủy - không đổi thanh toán' : 'Double click để đổi trạng thái thanh toán'}">${order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ'}</button>
                 </td>
                 <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">
                     <div style="display: flex; gap: 6px; flex-wrap: nowrap; align-items: center;">
                         <button onclick="app.showPrintOptionsPopup(${originalIndex})" style="flex-shrink: 0; background: var(--primary-green); color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 11px; white-space: nowrap;" title="In">In</button>
                         <button onclick="app.viewOrderDetails(${originalIndex})" style="flex-shrink: 0; background: var(--primary-blue); color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">Chi tiết</button>
+                        <button onclick="app.cancelOrder(${originalIndex})" style="flex-shrink: 0; background: #f59e0b; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">Hủy đơn</button>
                         <button onclick="app.deleteOrder(${originalIndex})" style="flex-shrink: 0; background: #ef4444; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">Xóa</button>
                     </div>
                 </td>
@@ -3743,11 +3797,12 @@ class HamobileBanhang {
                 (order.products || []).forEach(op => {
                     const pid = op.id || op.productId;
                     const prod = products.find(p => p.id === pid);
-                    if (prod && (op.quantity || 0) > 0) {
+                    if (prod && (op.quantity || 0) > 0 && !order.stockRestored) {
                         const qty = op.quantity || 1;
                         prod.stock = Math.max(0, (prod.stock ?? 0) + qty);
                     }
                 });
+                order.stockRestored = true;
                 this.demoData.orders.splice(index, 1);
             }
         });
@@ -3755,6 +3810,46 @@ class HamobileBanhang {
         this.saveToLocalStorage();
         this.loadPage('orders');
         this.showNotification('Đã xóa đơn hàng đã chọn và hoàn trả tồn kho', 'success');
+    }
+
+    isOrderFinalizedForRevenue(order) {
+        const st = String((order && order.status) || '').trim();
+        return st !== 'Hủy' && st !== 'Đã hủy';
+    }
+
+    restoreOrderStockAndDebt(order) {
+        if (!order || order.stockRestored) return false;
+        const products = this.demoData.products || [];
+        (order.products || []).forEach(op => {
+            const pid = op.id || op.productId;
+            const prod = products.find(p => p.id === pid);
+            if (!prod || !(op.quantity > 0)) return;
+            prod.stock = (prod.stock || 0) + op.quantity;
+        });
+        const customer = this.demoData.customers.find(c => c.id === order.customerId || c.name === order.customerName);
+        const orderDebt = Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0)));
+        if (customer && orderDebt > 0) {
+            customer.debt -= orderDebt;
+            if (customer.debt < 0) customer.debt = 0;
+        }
+        order.stockRestored = true;
+        return true;
+    }
+
+    cancelOrder(index) {
+        const order = this.demoData.orders[index];
+        if (!order) return;
+        if (order.status === 'Đã hủy') {
+            this.showNotification(`Đơn ${order.id} đã hủy trước đó`, 'info');
+            return;
+        }
+        if (!confirm(`Xác nhận hủy đơn ${order.id}? Hệ thống sẽ hoàn tồn kho và giữ lịch sử đơn.`)) return;
+        this.restoreOrderStockAndDebt(order);
+        order.status = 'Đã hủy';
+        order.cancelledAt = new Date().toISOString();
+        this.saveToLocalStorage();
+        this.showNotification(`Đã hủy đơn ${order.id} và hoàn trả tồn kho`, 'success');
+        this.loadPage('orders');
     }
 
     getRepairsContent() {
@@ -4855,9 +4950,10 @@ class HamobileBanhang {
         pw.focus();
     }
 
-    // Tính lợi nhuận thực theo giá vốn từng sản phẩm. Tính cho tất cả đơn (cả Công nợ và Đã TT) – đòi được hay không là việc của chủ cửa hàng.
+    // Tính lợi nhuận thực theo giá vốn từng sản phẩm. Bỏ qua đơn đã hủy/trả hàng.
     // Trừ cả giảm giá theo sản phẩm (item) VÀ giảm giá cấp đơn hàng (order.discount - bên mục Khách hàng).
     calcOrderProfit(order) {
+        if (!this.isOrderFinalizedForRevenue(order)) return 0;
         if (!order.products || !order.products.length) return 0;
         let profit = 0;
         const products = this.demoData.products || [];
@@ -4921,7 +5017,7 @@ class HamobileBanhang {
             if ((r.status || '') !== 'Đã trả') return s;
             return s + (Number(r.repairCost) || 0);
         }, 0);
-        const totalRevenue = filteredOrders.reduce((s, o) => s + (o.total || 0), 0) + repairRevenue;
+        const totalRevenue = filteredOrders.reduce((s, o) => s + (this.isOrderFinalizedForRevenue(o) ? (o.total || 0) : 0), 0) + repairRevenue;
         const orderProfit = filteredOrders.reduce((s, o) => s + this.calcOrderProfit(o), 0);
         const repairProfit = filteredRepairs.reduce((s, r) => s + this.calcRepairProfit(r), 0);
         const totalProfit = orderProfit + repairProfit;
@@ -12021,6 +12117,7 @@ class HamobileBanhang {
                                 <option value="Hoàn thành" ${order.status === 'Hoàn thành' ? 'selected' : ''}>Hoàn thành</option>
                                 <option value="Đã giao" ${order.status === 'Đã giao' ? 'selected' : ''}>Đã giao</option>
                                 <option value="Hủy" ${order.status === 'Hủy' ? 'selected' : ''}>Hủy</option>
+                                <option value="Đã hủy" ${order.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
                             </select>
                         </div>
                         
@@ -12149,6 +12246,23 @@ class HamobileBanhang {
         // Cập nhật đơn hàng
         const newPaymentStatus = formData.get('paymentStatus');
         const newStatus = formData.get('status');
+        const oldCancelled = !this.isOrderFinalizedForRevenue(order);
+        const newCancelled = !this.isOrderFinalizedForRevenue({ status: newStatus });
+        if (oldCancelled && !newCancelled) {
+            this.showNotification('Đơn đã hủy không thể mở lại để tránh lệch tồn/công nợ', 'warning');
+            return;
+        }
+        if (newCancelled) {
+            this.restoreOrderStockAndDebt(order);
+            order.status = 'Đã hủy';
+            order.notes = formData.get('notes') || order.notes || '';
+            order.paymentMethod = formData.get('paymentMethod') || order.paymentMethod || '';
+            this.saveToLocalStorage();
+            this.showNotification(`Đã hủy đơn hàng ${order.id} và hoàn trả tồn kho`, 'success');
+            this.loadPage('orders');
+            const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
+            return;
+        }
         
         let newAmountPaid = this.parsePrice(formData.get('amountPaid'));
         if (isNaN(newAmountPaid) || newAmountPaid < 0) newAmountPaid = 0;
@@ -12220,12 +12334,25 @@ class HamobileBanhang {
         event.preventDefault();
         const form = event.target;
         const formData = new FormData(form);
-        
-        this.demoData.orders[index].status = formData.get('status');
-        this.demoData.orders[index].paymentMethod = formData.get('paymentMethod');
+        const order = this.demoData.orders[index];
+        if (!order) return;
+        const newStatus = formData.get('status');
+        const oldCancelled = !this.isOrderFinalizedForRevenue(order);
+        const newCancelled = !this.isOrderFinalizedForRevenue({ status: newStatus });
+        if (oldCancelled && !newCancelled) {
+            this.showNotification('Đơn đã hủy không thể mở lại để tránh lệch tồn/công nợ', 'warning');
+            return;
+        }
+        if (newCancelled) {
+            this.restoreOrderStockAndDebt(order);
+            order.status = 'Đã hủy';
+        } else {
+            order.status = newStatus;
+        }
+        order.paymentMethod = formData.get('paymentMethod');
         
         this.saveToLocalStorage();
-        this.showNotification(`Đã cập nhật đơn hàng ${this.demoData.orders[index].id}`, 'success');
+        this.showNotification(`Đã cập nhật đơn hàng ${order.id}`, 'success');
         this.loadPage('orders');
         const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
     }
@@ -12234,20 +12361,7 @@ class HamobileBanhang {
         const order = this.demoData.orders[index];
         if (!order) return;
         if (confirm(`Bạn có chắc muốn xóa đơn hàng ${order.id}?`)) {
-            const products = this.demoData.products || [];
-            (order.products || []).forEach(op => {
-                const pid = op.id || op.productId;
-                const prod = products.find(p => p.id === pid);
-                if (!prod || !(op.quantity > 0)) return;
-                // IMEI giữ nguyên ở sản phẩm, chỉ hoàn trả tồn kho (stock)
-                prod.stock = (prod.stock || 0) + op.quantity;
-            });
-            const customer = this.demoData.customers.find(c => c.id === order.customerId || c.name === order.customerName);
-            const orderDebt = Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0)));
-            if (customer && orderDebt > 0) {
-                customer.debt -= orderDebt;
-                if (customer.debt < 0) customer.debt = 0;
-            }
+            this.restoreOrderStockAndDebt(order);
             this.demoData.orders.splice(index, 1);
             this.saveToLocalStorage();
             this.showNotification(`Đã xóa đơn hàng ${order.id} và hoàn trả tồn kho`, 'success');
@@ -12302,6 +12416,10 @@ class HamobileBanhang {
 
     togglePaymentStatus(index) {
         const order = this.demoData.orders[index];
+        if (!this.isOrderFinalizedForRevenue(order)) {
+            this.showNotification('Đơn đã hủy không đổi trạng thái thanh toán', 'warning');
+            return;
+        }
         let customer = this.demoData.customers.find(c => c.id === order.customerId || c.name === order.customerName);
         if (!customer && (order.customerId || order.customerName)) {
             const cid = order.customerId || order.customerName;
@@ -12318,15 +12436,15 @@ class HamobileBanhang {
         
         if (order.paymentStatus === 'Đã thanh toán') {
             newPaymentStatus = 'Công nợ';
-            newStatus = order.status !== 'Hủy' ? 'Đang xử lý' : order.status;
+            newStatus = this.isOrderFinalizedForRevenue(order) ? 'Đang xử lý' : order.status;
             statusDescription = `<span style="color: #22c55e; font-weight: 600;">Đã thanh toán</span> → <span style="color: #ef4444; font-weight: 600;">Công nợ</span>`;
         } else if (order.paymentStatus === 'Công nợ') {
             newPaymentStatus = 'Đã thanh toán';
-            newStatus = order.status !== 'Hủy' ? 'Hoàn thành' : order.status;
+            newStatus = this.isOrderFinalizedForRevenue(order) ? 'Hoàn thành' : order.status;
             statusDescription = `<span style="color: #ef4444; font-weight: 600;">Công nợ</span> → <span style="color: #22c55e; font-weight: 600;">Đã thanh toán</span>`;
         } else {
             newPaymentStatus = 'Đã thanh toán';
-            newStatus = order.status !== 'Hủy' ? 'Hoàn thành' : order.status;
+            newStatus = this.isOrderFinalizedForRevenue(order) ? 'Hoàn thành' : order.status;
             statusDescription = `<span style="color: #f59e0b; font-weight: 600;">Công nợ</span> → <span style="color: #22c55e; font-weight: 600;">Đã thanh toán</span>`;
         }
 
@@ -12589,7 +12707,7 @@ class HamobileBanhang {
     
     showTrendAnalysis() {
         // Tính toán dữ liệu phân tích
-        const orderRevenue = this.demoData.orders.reduce((sum, order) => sum + (order.total || 0), 0);
+        const orderRevenue = this.demoData.orders.reduce((sum, order) => sum + (this.isOrderFinalizedForRevenue(order) ? (order.total || 0) : 0), 0);
         const repairRevenue = (this.demoData.repairs || []).reduce((s, r) => {
             if ((r.status || '') !== 'Đã trả') return s;
             return s + (Number(r.repairCost) || 0);
@@ -14496,7 +14614,7 @@ class HamobileBanhang {
         }, 0);
 
         // Tính toán lại các số liệu thống kê (Doanh thu = đơn hàng + sửa chữa)
-        const orderRevenue = filteredOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        const orderRevenue = filteredOrders.reduce((sum, order) => sum + (this.isOrderFinalizedForRevenue(order) ? (order.total || 0) : 0), 0);
         const totalRevenue = orderRevenue + repairRevenue;
 
         const orderProfit = filteredOrders.reduce((sum, order) => sum + this.calcOrderProfit(order), 0);
@@ -15221,7 +15339,7 @@ class HamobileBanhang {
         }, 0);
 
         // Tính toán các chỉ số tài chính
-        const orderRevenue = filteredOrders.filter(order => order.paymentStatus === 'Đã thanh toán').reduce((sum, order) => sum + (order.total || 0), 0);
+        const orderRevenue = filteredOrders.filter(order => order.paymentStatus === 'Đã thanh toán' && this.isOrderFinalizedForRevenue(order)).reduce((sum, order) => sum + (order.total || 0), 0);
         const totalRevenue = orderRevenue + repairRevenue;
         const totalDebt = this.demoData.customers.reduce((sum, customer) => sum + customer.debt, 0);
         const totalInventoryValue = this.demoData.products.reduce((sum, p) => sum + (p.price * p.stock), 0);

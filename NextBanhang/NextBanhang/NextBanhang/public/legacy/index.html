@@ -24,12 +24,6 @@
                     <p class="app-subtitle">Quản lý bán hàng offline</p>
                 </div>
             </a>
-            <div class="top-utility-actions">
-                <button type="button" class="top-account-btn" onclick="window.app && app.loadPage('account')">
-                    <span class="top-account-icon">👤</span>
-                    <span class="top-account-text">Tài khoản</span>
-                </button>
-            </div>
         </div>
         
         <!-- Main Nav Bar -->
@@ -87,13 +81,13 @@
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto;">
             <span style="font-size: 24px;">⚠️</span>
             <div style="flex: 1; min-width: 200px;" id="incognito-warning-text">
-                <strong>Chế độ ẩn danh</strong> – Dữ liệu trên máy sẽ mất khi đóng tab. Cấu hình Máy chủ dữ liệu để lưu trên đám mây (không mất khi ẩn danh/xóa cache/đổi máy).
+                <strong>Chế độ ẩn danh</strong> – Dữ liệu trên máy sẽ mất khi đóng tab. Cấu hình Firebase để lưu trên đám mây (không mất khi ẩn danh/xóa cache/đổi máy).
             </div>
             <button type="button" onclick="if(window.app){app.manualBackup();app.hideIncognitoWarning();}" style="background: white; color: #dc2626; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap;">📥 Sao lưu file</button>
             <button type="button" onclick="if(window.app)app.hideIncognitoWarning()" style="background: rgba(255,255,255,0.3); color: white; border: 1px solid rgba(255,255,255,0.6); padding: 10px 16px; border-radius: 8px; cursor: pointer;">Đã hiểu</button>
         </div>
     </div>
 
-    <script src="app.js?v=account-direct-v3"></script>
+    <script src="app.js"></script>
 </body>
 </html>
