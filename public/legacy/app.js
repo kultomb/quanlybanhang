@@ -3643,20 +3643,20 @@ class HamobileBanhang {
                                    style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                         </div>
                         ${selectionBar}
-                        <div style="overflow-x: auto;">
-                            <table id="orders-table" style="width: 100%; min-width: 1100px; border-collapse: collapse; background: white; table-layout: fixed;">
+                        <div style="overflow-x: hidden;">
+                            <table id="orders-table" style="width: 100%; border-collapse: collapse; background: white; table-layout: fixed;">
                                 <colgroup>
-                                    <col style="width: 48px;">
-                                    <col style="width: 85px;">
-                                    <col style="width: 150px;">
-                                    <col style="width: 105px;">
-                                    <col style="width: 12%;">
-                                    <col style="width: 30%;">
-                                    <col style="width: 110px;">
-                                    <col style="width: 110px;">
-                                    <col style="width: 100px;">
-                                    <col style="width: 90px;">
-                                    <col style="width: 150px;">
+                                    <col style="width: 4%;">
+                                    <col style="width: 7%;">
+                                    <col style="width: 11%;">
+                                    <col style="width: 7%;">
+                                    <col style="width: 10%;">
+                                    <col style="width: 17%;">
+                                    <col style="width: 9%;">
+                                    <col style="width: 9%;">
+                                    <col style="width: 8%;">
+                                    <col style="width: 7%;">
+                                    <col style="width: 11%;">
                                 </colgroup>
                                 <thead>
                                     <tr style="background: #f8fafc;">
@@ -3707,12 +3707,12 @@ class HamobileBanhang {
                 <td class="payment-cell" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">
                     <button ondblclick="app.togglePaymentStatus(${originalIndex})" ${!this.isOrderFinalizedForRevenue(order) ? 'disabled' : ''} style="background: ${!this.isOrderFinalizedForRevenue(order) ? '#94a3b8' : (order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b')}; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: ${!this.isOrderFinalizedForRevenue(order) ? 'not-allowed' : 'pointer'}; font-size: 11px; font-weight: 600; white-space: nowrap;" title="${!this.isOrderFinalizedForRevenue(order) ? 'Đơn đã hủy - không đổi thanh toán' : 'Double click để đổi trạng thái thanh toán'}">${order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ'}</button>
                 </td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; white-space: nowrap;">
-                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; align-items: center;">
-                        <button onclick="app.showPrintOptionsPopup(${originalIndex})" style="flex-shrink: 0; background: var(--primary-green); color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 11px; white-space: nowrap;" title="In">In</button>
-                        <button onclick="app.viewOrderDetails(${originalIndex})" style="flex-shrink: 0; background: var(--primary-blue); color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">Chi tiết</button>
-                        <button onclick="app.cancelOrder(${originalIndex})" style="flex-shrink: 0; background: #f59e0b; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">Hủy đơn</button>
-                        <button onclick="app.deleteOrder(${originalIndex})" style="flex-shrink: 0; background: #ef4444; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;">Xóa</button>
+                <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; white-space: normal;">
+                    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;">
+                        <button onclick="app.showPrintOptionsPopup(${originalIndex})" style="width: 100%; background: var(--primary-green); color: white; border: none; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 10px; white-space: nowrap;" title="In">In</button>
+                        <button onclick="app.viewOrderDetails(${originalIndex})" style="width: 100%; background: var(--primary-blue); color: white; border: none; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 10px; white-space: nowrap;">Chi tiết</button>
+                        <button onclick="app.cancelOrder(${originalIndex})" style="width: 100%; background: #f59e0b; color: white; border: none; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 10px; white-space: nowrap;">Hủy đơn</button>
+                        <button onclick="app.deleteOrder(${originalIndex})" style="width: 100%; background: #ef4444; color: white; border: none; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 10px; white-space: nowrap;">Xóa</button>
                     </div>
                 </td>
             </tr>`;
