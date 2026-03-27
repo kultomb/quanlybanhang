@@ -9864,7 +9864,7 @@ class HamobileBanhang {
         const templates = this.getLabelPrintTemplates();
         const defaultTemplateId = 'roll_2_74x22';
         const templateCards = templates.map((t) => `
-            <div data-template-card="${t.id}" style="display:flex; gap:10px; align-items:center; border:${t.id === defaultTemplateId ? '1px solid #fecaca' : '1px solid #dbe3ef'}; border-radius:10px; padding:10px; background:${t.id === defaultTemplateId ? '#fff7f7' : '#f8fafc'}; transition: all .15s ease;">
+            <div data-template-card="${t.id}" onclick="app.setTemplateFromCard('${productId}','${t.id}'); app.openLabelSheetPreview('${productId}','${t.id}')" style="display:flex; gap:10px; align-items:center; border:${t.id === defaultTemplateId ? '1px solid #fecaca' : '1px solid #dbe3ef'}; border-radius:10px; padding:10px; background:${t.id === defaultTemplateId ? '#fff7f7' : '#f8fafc'}; transition: all .15s ease; cursor:pointer;">
                 <div style="width:112px; height:52px; border:1px solid #d1d5db; border-radius:8px; background:#f1f5f9; padding:5px; box-sizing:border-box; display:grid; grid-template-columns: repeat(${Math.max(1, Math.min(3, t.columns || 1))}, minmax(0, 1fr)); gap:3px; align-items:center; flex-shrink:0;">
                     ${Array.from({ length: Math.max(1, Math.min(3, t.columns || 1)) }).map(() => `
                         <div style="height:100%; border:1px solid #cbd5e1; border-radius:3px; background:#ffffff; position:relative; overflow:hidden;">
