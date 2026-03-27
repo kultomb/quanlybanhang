@@ -12,7 +12,15 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
     <iframe
       src={src}
       title={`Legacy Sales App - ${shop}`}
-      style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 0,
+        width: "100%",
+        height: "100%",
+        border: "none",
+        display: "block",
+      }}
     />
   );
 }

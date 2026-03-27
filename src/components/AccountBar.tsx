@@ -61,13 +61,13 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
     router.replace("/login");
   }
 
-  /** Cố định cùng dải với .top-utility-bar trong iframe (padding 10px 20px), không “trôi” xuống vùng dashboard */
-  const fixedTopStripStyle: CSSProperties = {
-    position: "fixed",
+  /** Cùng lớp với .top-utility-bar (legacy z-index:100): absolute trong main, không fixed — không cuộn/đè tách khỏi iframe */
+  const shopTopStripStyle: CSSProperties = {
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1200,
+    zIndex: 100,
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
@@ -150,13 +150,9 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
               textOverflow: "ellipsis",
               textAlign: "left",
             }}
-            title={
-              loading
-                ? "Đang tải..."
-                : `${shop || "Tài khoản"}${email ? ` • ${email}` : ""}`
-            }
+            title={`${shop || "Tài khoản"}${email ? ` • ${email}` : ""}${loading ? " — Đang đồng bộ..." : ""}`}
           >
-            {loading ? "…" : displayShop}
+            {displayShop}
           </span>
         </button>
 
@@ -246,15 +242,15 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
         <div
           onClick={() => setOpen(false)}
           style={{
-            position: "fixed",
+            position: docked ? "fixed" : "absolute",
             inset: 0,
-            zIndex: docked ? 15 : 1199,
+            zIndex: docked ? 15 : 99,
             background: "transparent",
           }}
         />
       ) : null}
       {!docked ? (
-        <div style={fixedTopStripStyle}>
+        <div style={shopTopStripStyle}>
           <div ref={rootRef} style={shellStyle}>
             {accountControls}
           </div>
