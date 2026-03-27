@@ -678,7 +678,7 @@ class HamobileBanhang {
                     product.minStock = Math.max(5, Math.floor((product.stock || 0) * 0.2));
                     needsSave = true;
                 }
-                if (typeof product.printBarcode === 'undefined') {
+                if (product.printBarcode !== true) {
                     product.printBarcode = true;
                     needsSave = true;
                 }
@@ -8213,8 +8213,6 @@ class HamobileBanhang {
         const importPriceVal = (prefill && prefill.importPrice != null) ? this.formatPrice(prefill.importPrice) : '';
         const priceVal = (prefill && prefill.price != null) ? this.formatPrice(prefill.price) : '';
         const isImeiMode = !!(prefill && prefill.hasImei);
-        const barcodeVal = (prefill && prefill.barcode != null) ? String(prefill.barcode) : '';
-        const printBarcodeChecked = (prefill && typeof prefill.printBarcode !== 'undefined') ? !!prefill.printBarcode : true;
         
         const formHTML = `
             <div id="add-product-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) { var m=document.getElementById('add-product-modal'); if(m)m.remove(); }">
@@ -8245,16 +8243,6 @@ class HamobileBanhang {
                             <select name="category" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" id="add-product-category-select">
                                 ${this.getCategoryOptions()}
                             </select>
-                        </div>
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Mã in mã vạch:</label>
-                            <input type="text" name="barcode" value="${escapeHtml(barcodeVal)}" placeholder="Để trống sẽ dùng Mã SP" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px;">
-                        </div>
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
-                                <input type="checkbox" name="printBarcode" ${printBarcodeChecked ? 'checked' : ''} style="width: 16px; height: 16px;">
-                                In mã vạch khi in tem
-                            </label>
                         </div>
                         <div data-stock-mode="imei" style="margin-bottom: 16px; display: ${isImeiMode ? 'block' : 'none'};">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">IMEI</label>
@@ -8396,8 +8384,8 @@ class HamobileBanhang {
             id: 'SP' + String(this.demoData.products.length + 1).padStart(3, '0'),
             name: formData.get('name'),
             category: formData.get('category'),
-            barcode: (formData.get('barcode') || '').toString().trim() || autoBarcode,
-            printBarcode: !!formData.get('printBarcode'),
+            barcode: autoBarcode,
+            printBarcode: true,
             importPrice: this.parsePrice(formData.get('importPrice')),
             price: this.parsePrice(formData.get('price')),
             stock: hasImei ? imeis.length : parseInt(formData.get('stock') || '0'),
@@ -8477,8 +8465,6 @@ class HamobileBanhang {
             `<option value="${s.id}" ${s.id === product.supplier ? 'selected' : ''}>${s.name}</option>`
         ).join('');
         const imeiText = (product.imeis && product.imeis[0]) ? product.imeis[0] : (product.imei || '');
-        const barcodeVal = (product.barcode || product.id || '');
-        const printBarcodeChecked = product.printBarcode !== false;
         
         const formHTML = `
             <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
@@ -8509,16 +8495,6 @@ class HamobileBanhang {
                             <select name="category" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
                                 ${this.getCategoryOptionsWithSelected(product.category)}
                             </select>
-                        </div>
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Mã in mã vạch:</label>
-                            <input type="text" name="barcode" value="${escapeHtml(barcodeVal)}" placeholder="Để trống sẽ dùng Mã SP" style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px;">
-                        </div>
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
-                                <input type="checkbox" name="printBarcode" ${printBarcodeChecked ? 'checked' : ''} style="width: 16px; height: 16px;">
-                                In mã vạch khi in tem
-                            </label>
                         </div>
                         <div data-stock-mode="imei" style="margin-bottom: 16px; ${product.hasImei ? '' : 'display: none;'}">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">IMEI (mỗi máy 1 số, dùng để quản lý hàng hóa)</label>
@@ -8597,8 +8573,8 @@ class HamobileBanhang {
             ...this.demoData.products[productIndex],
             name: formData.get('name'),
             category: formData.get('category'),
-            barcode: (formData.get('barcode') || '').toString().trim() || autoBarcode,
-            printBarcode: !!formData.get('printBarcode'),
+            barcode: this.demoData.products[productIndex].barcode || autoBarcode,
+            printBarcode: true,
             importPrice: this.parsePrice(formData.get('importPrice')),
             price: this.parsePrice(formData.get('price')),
             stock: stockModeImei ? imeis.length : parseInt(formData.get('stock') || '0'),
@@ -8625,11 +8601,8 @@ class HamobileBanhang {
     }
 
     generateAutoBarcode(product, indexHint) {
-        const idRaw = String((product && product.id) || '').trim();
-        const onlyDigits = idRaw.replace(/\D/g, '');
-        const idx = Number.isFinite(indexHint) ? Math.max(0, Number(indexHint)) : 0;
-        const seedNum = onlyDigits ? parseInt(onlyDigits.slice(-8), 10) : (idx + 1);
-        const body12 = ('893' + String(seedNum).padStart(9, '0')).slice(0, 12);
+        const random9 = String(Math.floor(Math.random() * 1000000000)).padStart(9, '0');
+        const body12 = ('893' + random9).slice(0, 12);
         return body12 + String(this.calcEan13CheckDigit(body12));
     }
 
@@ -9703,8 +9676,6 @@ class HamobileBanhang {
         console.log('Found product:', product);
         
         const isImei = product.hasImei && product.imeis && product.imeis.length > 0;
-        const barcodeValue = (product.barcode || product.id || '').toString().trim();
-        const canPrintBarcode = product.printBarcode !== false;
         const effectiveStock = isImei ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
         const profit = product.importPrice ? product.price - product.importPrice : 0;
         const profitPercent = product.importPrice ? ((profit / product.importPrice) * 100).toFixed(1) : 0;
@@ -9720,8 +9691,6 @@ class HamobileBanhang {
                         <div style="background: #f8fafc; padding: 16px; border-radius: 8px;">
                             <h4 style="color: var(--primary-blue); margin-bottom: 8px;">Thông tin cơ bản</h4>
                             <p><strong>Mã SP:</strong> ${product.id}</p>
-                            <p><strong>Mã in mã vạch:</strong> ${barcodeValue || product.id}</p>
-                            <p><strong>In mã vạch:</strong> ${canPrintBarcode ? 'Bật' : 'Tắt'}</p>
                             <p><strong>Tên:</strong> ${product.name}</p>
                             <p><strong>Danh mục:</strong> ${product.category}</p>
                             <p><strong>Nhà cung cấp:</strong> ${product.supplier || 'N/A'}</p>
@@ -9777,42 +9746,56 @@ class HamobileBanhang {
     }
 
     normalizeCode39Value(raw) {
-        const source = String(raw || '').toUpperCase().trim();
-        const cleaned = source.replace(/[^0-9A-Z\-\.\ \$\/\+\%]/g, '');
+        // Kept name for backward compatibility, now normalized for Code 128-B.
+        const source = String(raw || '').trim();
+        const cleaned = source.replace(/[^\x20-\x7E]/g, '');
         return cleaned || 'SP';
     }
 
     generateCode39Svg(value, width = 260, height = 56) {
-        const CODE39 = {
-            '0': 'nnnwwnwnn', '1': 'wnnwnnnnw', '2': 'nnwwnnnnw', '3': 'wnwwnnnnn',
-            '4': 'nnnwwnnnw', '5': 'wnnwwnnnn', '6': 'nnwwwnnnn', '7': 'nnnwnnwnw',
-            '8': 'wnnwnnwnn', '9': 'nnwwnnwnn', 'A': 'wnnnnwnnw', 'B': 'nnwnnwnnw',
-            'C': 'wnwnnwnnn', 'D': 'nnnnwwnnw', 'E': 'wnnnwwnnn', 'F': 'nnwnwwnnn',
-            'G': 'nnnnnwwnw', 'H': 'wnnnnwwnn', 'I': 'nnwnnwwnn', 'J': 'nnnnwwwnn',
-            'K': 'wnnnnnnww', 'L': 'nnwnnnnww', 'M': 'wnwnnnnwn', 'N': 'nnnnwnnww',
-            'O': 'wnnnwnnwn', 'P': 'nnwnwnnwn', 'Q': 'nnnnnnwww', 'R': 'wnnnnnwwn',
-            'S': 'nnwnnnwwn', 'T': 'nnnnwnwwn', 'U': 'wwnnnnnnw', 'V': 'nwwnnnnnw',
-            'W': 'wwwnnnnnn', 'X': 'nwnnwnnnw', 'Y': 'wwnnwnnnn', 'Z': 'nwwnwnnnn',
-            '-': 'nwnnnnwnw', '.': 'wwnnnnwnn', ' ': 'nwwnnnwnn', '$': 'nwnwnwnnn',
-            '/': 'nwnwnnnwn', '+': 'nwnnnwnwn', '%': 'nnnwnwnwn', '*': 'nwnnwnwnn'
-        };
-        const normalized = '*' + this.normalizeCode39Value(value) + '*';
-        let x = 0;
+        // Kept name for backward compatibility, now renders Code 128-B.
+        const CODE128_PATTERNS = [
+            '212222','222122','222221','121223','121322','131222','122213','122312','132212','221213',
+            '221312','231212','112232','122132','122231','113222','123122','123221','223211','221132',
+            '221231','213212','223112','312131','311222','321122','321221','312212','322112','322211',
+            '212123','212321','232121','111323','131123','131321','112313','132113','132311','211313',
+            '231113','231311','112133','112331','132131','113123','113321','133121','313121','211331',
+            '231131','213113','213311','213131','311123','311321','331121','312113','312311','332111',
+            '314111','221411','431111','111224','111422','121124','121421','141122','141221','112214',
+            '112412','122114','122411','142112','142211','241211','221114','413111','241112','134111',
+            '111242','121142','121241','114212','124112','124211','411212','421112','421211','212141',
+            '214121','412121','111143','111341','131141','114113','114311','411113','411311','113141',
+            '114131','311141','411131','211412','211214','211232','2331112'
+        ];
+
+        const normalized = this.normalizeCode39Value(value);
+        const codes = [];
+        for (let i = 0; i < normalized.length; i++) {
+            const code = normalized.charCodeAt(i) - 32;
+            codes.push(code >= 0 && code <= 94 ? code : 0);
+        }
+
+        const sequence = [104, ...codes];
+        let checksum = 104;
+        for (let i = 0; i < codes.length; i++) checksum += codes[i] * (i + 1);
+        sequence.push(checksum % 103);
+        sequence.push(106);
+
+        const moduleW = 1;
+        const quiet = 10;
+        let x = quiet;
         let bars = '';
-        const narrow = 0.9;
-        const wide = 2.1;
-        for (let c = 0; c < normalized.length; c++) {
-            const ch = normalized[c];
-            const pattern = CODE39[ch] || CODE39['-'];
+
+        for (const code of sequence) {
+            const pattern = CODE128_PATTERNS[code] || CODE128_PATTERNS[0];
             for (let i = 0; i < pattern.length; i++) {
-                const w = pattern[i] === 'w' ? wide : narrow;
+                const w = parseInt(pattern[i], 10) * moduleW;
                 const isBar = i % 2 === 0;
                 if (isBar) bars += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="#111827"/>`;
                 x += w;
             }
-            if (c < normalized.length - 1) x += narrow;
         }
-        const totalWidth = Math.max(x, 1);
+        const totalWidth = x + quiet;
         return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="${height}" viewBox="0 0 ${totalWidth} ${height}" preserveAspectRatio="none" style="display:block;max-width:100%;">${bars}</svg>`;
     }
 
