@@ -3015,7 +3015,7 @@ class HamobileBanhang {
     }
     async getPreferredPOSRearCameraId() {
         const list = await this.buildPOSRearCameraRotationList();
-        return list[0] || '';
+        return list[1] || list[0] || '';
     }
     /** Sau khi đã mở camera một lần (có quyền), liệt kê camera sau để luân phiên như ScanApp (tối đa 4). */
     async buildPOSRearCameraRotationList() {
@@ -3146,7 +3146,8 @@ class HamobileBanhang {
             const camList = await this.buildPOSRearCameraRotationList();
             this._posScannerCameraIds = camList;
             this._posScannerCameraIndex = 0;
-            const firstId = camList[0] || '';
+            const preferredIdx = camList.length > 1 ? 1 : 0;
+            const firstId = camList[preferredIdx] || '';
             this._posPreferredCameraId = firstId;
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: this._posScannerVideoConstraints(firstId),
@@ -3157,20 +3158,13 @@ class HamobileBanhang {
             video.srcObject = stream;
             await this.tunePOSScannerTrackForNearBarcode(statusEl);
             if (statusEl && camList.length > 1) {
-                statusEl.textContent = 'Camera 1/' + camList.length + ' — đang quét (tự đổi camera để bắt mã nhanh)...';
+                statusEl.textContent = 'Đang dùng camera 2/' + camList.length + ' để lấy nét tốt hơn...';
             }
             const hasNative = typeof window.BarcodeDetector !== 'undefined';
             if (!hasNative) {
                 try { stream.getTracks().forEach(t => t.stop()); } catch (_) {}
                 this._posScannerStream = null;
                 await this.startPOSHtml5FallbackScanner(statusEl);
-                if (camList.length > 1) {
-                    const self = this;
-                    this._posScannerRotateTimerId = window.setInterval(function() {
-                        if (!self._posScannerActive) return;
-                        void self.rotatePOSScannerCamera(statusEl);
-                    }, 2600);
-                }
                 return;
             }
             const detector = new window.BarcodeDetector({ formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e'] });
@@ -3186,13 +3180,6 @@ class HamobileBanhang {
                 if (this._posScannerActive) window.requestAnimationFrame(scanLoop);
             };
             window.requestAnimationFrame(scanLoop);
-            if (camList.length > 1) {
-                const self = this;
-                this._posScannerRotateTimerId = window.setInterval(function() {
-                    if (!self._posScannerActive) return;
-                    void self.rotatePOSScannerCamera(statusEl);
-                }, 2600);
-            }
         } catch (e) {
             this.stopPOSBarcodeScanner();
             this.showNotification('Không mở được camera để quét mã.', 'error');

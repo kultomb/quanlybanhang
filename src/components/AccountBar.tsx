@@ -61,6 +61,25 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
     router.replace("/login");
   }
 
+  /** Cố định cùng dải với .top-utility-bar trong iframe (padding 10px 20px), không “trôi” xuống vùng dashboard */
+  const fixedTopStripStyle: CSSProperties = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1200,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    minHeight: 52,
+    paddingTop: "max(10px, env(safe-area-inset-top))",
+    paddingBottom: 10,
+    paddingLeft: isMobile ? 16 : 20,
+    paddingRight: isMobile ? 16 : 20,
+    boxSizing: "border-box",
+    pointerEvents: "none",
+  };
+
   const shellStyle: CSSProperties = docked
     ? {
         position: "relative",
@@ -68,28 +87,13 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
         zIndex: 20,
       }
     : {
-        position: "fixed",
-        /* Hạ nhẹ so với mép trên để cân với cụm logo (icon + tiêu đề) trong .top-utility-bar */
-        top: isMobile ? 16 : 17,
-        right: isMobile ? 16 : 20,
-        zIndex: 1200,
+        position: "relative",
+        pointerEvents: "auto",
       };
 
-  return (
+  const accountControls = (
     <>
-      {open ? (
-        <div
-          onClick={() => setOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: docked ? 15 : 1199,
-            background: "transparent",
-          }}
-        />
-      ) : null}
-      <div ref={rootRef} style={shellStyle}>
-        <button
+      <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           title="Mở menu tài khoản"
@@ -160,7 +164,7 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
           <div
             style={{
               position: "absolute",
-              top: isMobile ? 42 : 46,
+              top: "calc(100% + 6px)",
               right: 0,
               width: isMobile ? "min(280px, calc(100vw - 20px))" : 300,
               background: "white",
@@ -233,7 +237,33 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
             )}
           </div>
         ) : null}
-      </div>
+    </>
+  );
+
+  return (
+    <>
+      {open ? (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: docked ? 15 : 1199,
+            background: "transparent",
+          }}
+        />
+      ) : null}
+      {!docked ? (
+        <div style={fixedTopStripStyle}>
+          <div ref={rootRef} style={shellStyle}>
+            {accountControls}
+          </div>
+        </div>
+      ) : (
+        <div ref={rootRef} style={shellStyle}>
+          {accountControls}
+        </div>
+      )}
     </>
   );
 }
