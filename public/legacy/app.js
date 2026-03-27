@@ -337,6 +337,10 @@ class HamobileBanhang {
         this.selectedOrderIds = new Set();
         this.posCart = { items: [], customerId: 'KH_LE', customerName: 'Khách lẻ', discount: 0 };
         this.posMobileStep = 1; // 1: Danh sách SP | 2: Chọn KH + giỏ hàng
+        this._posScannerStream = null;
+        this._posScannerActive = false;
+        this._posScannerLastCode = '';
+        this._posScannerLastAt = 0;
         this.productsSearchQuery = '';
         this.suppliersSearchQuery = '';
         this.ordersSearchQuery = '';
@@ -2489,7 +2493,7 @@ class HamobileBanhang {
                     <h2 style="margin: 0; font-size: 18px; font-weight: 700;">Bán hàng</h2>
                     <div style="display: flex; gap: 8px; margin-top: 10px; align-items: center;">
                         <input type="text" id="pos-product-search-mobile" class="pos-mobile-search-input" placeholder="Tên, mã hàng, mã vạch, lô dat..." oninput="app.syncPosSearchMobileStep1(this.value)" style="flex:1; padding: 10px 14px; border: none; border-radius: 8px; font-size: 14px;">
-                        <button type="button" style="width: 44px; height: 44px; background: rgba(255,255,255,0.2); border: none; border-radius: 8px; cursor: pointer; font-size: 18px;" onclick="app.showNotification('Quét mã vạch', 'info')" title="Quét mã">📷</button>
+                        <button type="button" style="width: 44px; height: 44px; background: rgba(255,255,255,0.2); border: none; border-radius: 8px; cursor: pointer; font-size: 18px;" onclick="app.openPOSBarcodeScanner()" title="Quét mã">📷</button>
                     </div>
                     <div class="pos-header-customer" style="display: flex; align-items: center; gap: 8px; margin-top: 10px; flex: 1; min-width: 0;">
                         <div class="pos-header-customer-trigger" onclick="app.showPOSCustomerListFullModal()" style="flex: 1; display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; min-width: 0;">
@@ -2513,6 +2517,7 @@ class HamobileBanhang {
                 <div class="pos-mobile-step2-header" style="background: var(--header-gradient); color: white; padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap;">
                     <button type="button" onclick="app.goToPOSMobileStep(1)" style="background: rgba(255,255,255,0.2); border: none; border-radius: 8px; width: 40px; height: 40px; cursor: pointer; font-size: 18px; flex-shrink: 0;" title="Quay lại chọn sản phẩm">←</button>
                     <input type="text" id="pos-step2-search" placeholder="Tìm thêm sản phẩm..." oninput="app.syncPosSearchMobileStep2(this.value)" onfocus="app.showPosStep2SearchResults(this.value)" style="flex: 1; min-width: 0; padding: 10px 14px; border: none; border-radius: 8px; font-size: 14px; color: #1f2937;">
+                    <button type="button" style="background: rgba(255,255,255,0.2); border: none; border-radius: 8px; width: 40px; height: 40px; cursor: pointer; font-size: 18px; flex-shrink: 0;" onclick="app.openPOSBarcodeScanner()" title="Quét mã">📷</button>
                     <div class="pos-header-customer" style="display: flex; align-items: center; flex-shrink: 0; min-width: 0;">
                         <div class="pos-header-customer-trigger" onclick="app.showPOSCustomerListFullModal()" style="flex: 1; display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer;">
                             <span>👤</span>
@@ -2547,6 +2552,7 @@ class HamobileBanhang {
                            oninput="app.syncPosSearch(this.value)"
                            style="flex: 1; min-width: 240px; padding: 12px 20px; border: none; border-radius: 8px; font-size: 15px;"
                            value="">
+                    <button type="button" onclick="app.openPOSBarcodeScanner()" style="width: 44px; height: 44px; background: rgba(255,255,255,0.2); border: none; border-radius: 8px; cursor: pointer; font-size: 18px;" title="Quét mã vạch">📷</button>
                     <span class="pos-header-datetime" style="font-size: 14px;">${dateStr} ${timeStr}</span>
                     <a href="#orders" class="pos-header-link-orders" style="color: white; text-decoration: none; font-weight: 600;">📋 Đơn hàng</a>
                     <a href="#reports" class="pos-header-link-reports" style="color: white; text-decoration: none;">📊 Báo cáo</a>
@@ -2932,6 +2938,94 @@ class HamobileBanhang {
         if (h) h.value = val || '';
         if (m) m.value = val || '';
         this.searchPOSProducts(val);
+    }
+    findProductByBarcodeForPOS(rawCode) {
+        const code = String(rawCode || '').trim();
+        if (!code) return null;
+        const products = this.demoData.products || [];
+        const direct = products.find(p =>
+            String(p.barcode || '').trim() === code ||
+            String(p.id || '').trim() === code
+        );
+        if (direct) return direct;
+        return products.find(p => Array.isArray(p.imeis) && p.imeis.some(v => String(v || '').trim() === code)) || null;
+    }
+    async openPOSBarcodeScanner() {
+        if (this._posScannerActive) return;
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+            this.showNotification('Thiết bị không hỗ trợ camera quét mã.', 'error');
+            return;
+        }
+        const modalHtml = `
+            <div id="pos-barcode-scan-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 2000; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this) app.stopPOSBarcodeScanner()">
+                <div style="width: min(560px, 94vw); background: #0f172a; border-radius: 12px; padding: 12px; color: #e2e8f0;" onclick="event.stopPropagation()">
+                    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong>Quét mã vạch để thêm sản phẩm</strong>
+                        <button type="button" onclick="app.stopPOSBarcodeScanner()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;">Đóng</button>
+                    </div>
+                    <video id="pos-barcode-video" autoplay playsinline muted style="width:100%; max-height: 60vh; border-radius: 10px; background: #000;"></video>
+                    <div id="pos-barcode-scan-status" style="margin-top:8px; font-size:13px; color:#cbd5e1;">Đưa mã vạch vào giữa khung hình...</div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const video = document.getElementById('pos-barcode-video');
+        const statusEl = document.getElementById('pos-barcode-scan-status');
+        this._posScannerLastCode = '';
+        this._posScannerLastAt = 0;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+            this._posScannerStream = stream;
+            this._posScannerActive = true;
+            video.srcObject = stream;
+            const hasNative = typeof window.BarcodeDetector !== 'undefined';
+            if (!hasNative) {
+                if (statusEl) statusEl.textContent = 'Trình duyệt chưa hỗ trợ quét trực tiếp. Vui lòng dùng Chrome/Edge mới.';
+                return;
+            }
+            const detector = new window.BarcodeDetector({ formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+            const scanLoop = async () => {
+                if (!this._posScannerActive) return;
+                try {
+                    const results = await detector.detect(video);
+                    if (results && results.length) {
+                        const code = String(results[0].rawValue || '').trim();
+                        if (code) this.handlePOSScannedCode(code);
+                    }
+                } catch (_) {}
+                if (this._posScannerActive) window.requestAnimationFrame(scanLoop);
+            };
+            window.requestAnimationFrame(scanLoop);
+        } catch (e) {
+            this.stopPOSBarcodeScanner();
+            this.showNotification('Không mở được camera để quét mã.', 'error');
+        }
+    }
+    handlePOSScannedCode(rawCode) {
+        const code = String(rawCode || '').trim();
+        if (!code) return;
+        const now = Date.now();
+        if (this._posScannerLastCode === code && now - this._posScannerLastAt < 1200) return;
+        this._posScannerLastCode = code;
+        this._posScannerLastAt = now;
+        const statusEl = document.getElementById('pos-barcode-scan-status');
+        const p = this.findProductByBarcodeForPOS(code);
+        if (!p) {
+            if (statusEl) statusEl.textContent = 'Khong tim thay san pham cho ma: ' + code;
+            this.showNotification('Không tìm thấy sản phẩm từ mã quét', 'warning');
+            return;
+        }
+        this.addProductToPOS(p.id);
+        if (statusEl) statusEl.textContent = 'Đã thêm: ' + (p.name || p.id);
+    }
+    stopPOSBarcodeScanner() {
+        this._posScannerActive = false;
+        if (this._posScannerStream) {
+            try { this._posScannerStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+            this._posScannerStream = null;
+        }
+        const modal = document.getElementById('pos-barcode-scan-modal');
+        if (modal) modal.remove();
     }
     productSearchRelevance(p, term) {
         const words = term.split(/\s+/).filter(w => w.length > 0);
