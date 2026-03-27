@@ -3383,7 +3383,6 @@ class HamobileBanhang {
         } else {
             this.saveToLocalStorage();
         }
-        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         if (isMobile) { this.posMobileStep = 1; this.loadPage('sales'); } else this.refreshPOSUI();
         const isDebt = this.posCart._saveAsDebt;
         this.showNotification(isDebt ? 'Đã lưu đơn công nợ ' + newOrder.id : 'Đã thanh toán đơn ' + newOrder.id, 'success');
