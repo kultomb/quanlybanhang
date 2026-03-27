@@ -3361,6 +3361,7 @@ class HamobileBanhang {
         const orderDebt = Math.max(0, total - amountPaid);
         const isPaidFull = orderDebt === 0;
         const orders = this.demoData.orders || [];
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const maxNum = orders.reduce((m, o) => {
             const n = parseInt((o.id || '').replace(/\D/g, ''), 10);
             return isNaN(n) ? m : Math.max(m, n);
@@ -3672,8 +3673,8 @@ class HamobileBanhang {
                                    style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                         </div>
                         ${selectionBar}
-                        <div style="overflow-x: hidden;">
-                            <table id="orders-table" style="width: 100%; border-collapse: collapse; background: white; table-layout: fixed;">
+                        <div style="overflow-x: ${isMobile ? 'auto' : 'hidden'}; -webkit-overflow-scrolling: touch;">
+                            <table id="orders-table" style="width: 100%; ${isMobile ? 'min-width: 980px;' : ''} border-collapse: collapse; background: white; table-layout: fixed;">
                                 <colgroup>
                                     <col style="width: 4%;">
                                     <col style="width: 7%;">
