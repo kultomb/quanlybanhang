@@ -343,6 +343,9 @@ class HamobileBanhang {
         this._posScannerLastAt = 0;
         this._posHtml5Scanner = null;
         this._posPreferredCameraId = '';
+        this._posScannerCameraIds = [];
+        this._posScannerCameraIndex = 0;
+        this._posScannerRotateTimerId = null;
         this.productsSearchQuery = '';
         this.suppliersSearchQuery = '';
         this.ordersSearchQuery = '';
@@ -3011,19 +3014,82 @@ class HamobileBanhang {
         return score;
     }
     async getPreferredPOSRearCameraId() {
-        if (!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)) return '';
+        const list = await this.buildPOSRearCameraRotationList();
+        return list[0] || '';
+    }
+    /** Sau khi đã mở camera một lần (có quyền), liệt kê camera sau để luân phiên như ScanApp (tối đa 4). */
+    async buildPOSRearCameraRotationList() {
+        if (!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)) return [];
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
             const cams = (devices || []).filter(d => d.kind === 'videoinput');
-            if (!cams.length) return '';
-            let best = null;
-            for (const cam of cams) {
-                const score = this.getPOSCameraLabelScore(cam.label || '');
-                if (!best || score > best.score) best = { id: cam.deviceId, score };
+            const scored = [];
+            for (const d of cams) {
+                const label = String(d.label || '');
+                const low = label.toLowerCase();
+                if ((/(^|[^a-z])(front|selfie|user)([^a-z]|$)/.test(low) || /facetime/.test(low)) && !/(back|rear|environment)/.test(low)) continue;
+                const score = this.getPOSCameraLabelScore(label);
+                if (score < -90) continue;
+                scored.push({ id: d.deviceId, score });
             }
-            return best && best.score > -100 ? (best.id || '') : '';
+            scored.sort((a, b) => b.score - a.score);
+            const out = [];
+            const seen = new Set();
+            for (const x of scored) {
+                if (x.id && !seen.has(x.id)) {
+                    seen.add(x.id);
+                    out.push(x.id);
+                }
+            }
+            if (!out.length && cams.length) {
+                for (const d of cams) {
+                    if (d.deviceId && !seen.has(d.deviceId)) {
+                        seen.add(d.deviceId);
+                        out.push(d.deviceId);
+                        if (out.length >= 4) break;
+                    }
+                }
+            }
+            return out.slice(0, 4);
         } catch (_) {
-            return '';
+            return [];
+        }
+    }
+    _posScannerVideoConstraints(deviceId) {
+        const base = { width: { ideal: 1920 }, height: { ideal: 1080 }, focusMode: { ideal: 'continuous' } };
+        return deviceId
+            ? Object.assign({ deviceId: { exact: deviceId } }, base)
+            : Object.assign({ facingMode: { ideal: 'environment' } }, base);
+    }
+    async rotatePOSScannerCamera(statusEl) {
+        if (!this._posScannerActive || !this._posScannerCameraIds || this._posScannerCameraIds.length < 2) return;
+        this._posScannerCameraIndex = (this._posScannerCameraIndex + 1) % this._posScannerCameraIds.length;
+        const id = this._posScannerCameraIds[this._posScannerCameraIndex];
+        this._posPreferredCameraId = id || '';
+        const n = this._posScannerCameraIds.length;
+        const idx = this._posScannerCameraIndex + 1;
+        if (statusEl) statusEl.textContent = 'Đang đổi camera ' + idx + '/' + n + ' để quét nhanh hơn...';
+        if (this._posHtml5Scanner) {
+            try {
+                const s = this._posHtml5Scanner;
+                this._posHtml5Scanner = null;
+                await Promise.resolve().then(() => s.stop()).then(() => s.clear()).catch(() => {});
+            } catch (_) {}
+            await this.startPOSHtml5FallbackScanner(statusEl);
+            return;
+        }
+        try {
+            if (this._posScannerStream) {
+                try { this._posScannerStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+                this._posScannerStream = null;
+            }
+            const stream = await navigator.mediaDevices.getUserMedia({ video: this._posScannerVideoConstraints(id), audio: false });
+            this._posScannerStream = stream;
+            const video = document.getElementById('pos-barcode-video');
+            if (video) video.srcObject = stream;
+            await this.tunePOSScannerTrackForNearBarcode(statusEl);
+        } catch (_) {
+            if (statusEl) statusEl.textContent = 'Không đổi được camera, giữ camera hiện tại.';
         }
     }
     async tunePOSScannerTrackForNearBarcode(statusEl) {
@@ -3064,24 +3130,47 @@ class HamobileBanhang {
         this._posScannerLastCode = '';
         this._posScannerLastAt = 0;
         this._posPreferredCameraId = '';
+        this._posScannerCameraIds = [];
+        this._posScannerCameraIndex = 0;
+        if (this._posScannerRotateTimerId) {
+            try { clearInterval(this._posScannerRotateTimerId); } catch (_) {}
+            this._posScannerRotateTimerId = null;
+        }
         try {
-            const preferredCameraId = await this.getPreferredPOSRearCameraId();
-            this._posPreferredCameraId = preferredCameraId || '';
+            let prime = await navigator.mediaDevices.getUserMedia({
+                video: this._posScannerVideoConstraints(''),
+                audio: false
+            });
+            try { prime.getTracks().forEach(t => t.stop()); } catch (_) {}
+            prime = null;
+            const camList = await this.buildPOSRearCameraRotationList();
+            this._posScannerCameraIds = camList;
+            this._posScannerCameraIndex = 0;
+            const firstId = camList[0] || '';
+            this._posPreferredCameraId = firstId;
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: preferredCameraId
-                    ? { deviceId: { exact: preferredCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 }, focusMode: { ideal: 'continuous' } }
-                    : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, focusMode: { ideal: 'continuous' } },
+                video: this._posScannerVideoConstraints(firstId),
                 audio: false
             });
             this._posScannerStream = stream;
             this._posScannerActive = true;
             video.srcObject = stream;
             await this.tunePOSScannerTrackForNearBarcode(statusEl);
+            if (statusEl && camList.length > 1) {
+                statusEl.textContent = 'Camera 1/' + camList.length + ' — đang quét (tự đổi camera để bắt mã nhanh)...';
+            }
             const hasNative = typeof window.BarcodeDetector !== 'undefined';
             if (!hasNative) {
                 try { stream.getTracks().forEach(t => t.stop()); } catch (_) {}
                 this._posScannerStream = null;
                 await this.startPOSHtml5FallbackScanner(statusEl);
+                if (camList.length > 1) {
+                    const self = this;
+                    this._posScannerRotateTimerId = window.setInterval(function() {
+                        if (!self._posScannerActive) return;
+                        void self.rotatePOSScannerCamera(statusEl);
+                    }, 2600);
+                }
                 return;
             }
             const detector = new window.BarcodeDetector({ formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e'] });
@@ -3097,6 +3186,13 @@ class HamobileBanhang {
                 if (this._posScannerActive) window.requestAnimationFrame(scanLoop);
             };
             window.requestAnimationFrame(scanLoop);
+            if (camList.length > 1) {
+                const self = this;
+                this._posScannerRotateTimerId = window.setInterval(function() {
+                    if (!self._posScannerActive) return;
+                    void self.rotatePOSScannerCamera(statusEl);
+                }, 2600);
+            }
         } catch (e) {
             this.stopPOSBarcodeScanner();
             this.showNotification('Không mở được camera để quét mã.', 'error');
@@ -3168,6 +3264,12 @@ class HamobileBanhang {
     }
     stopPOSBarcodeScanner() {
         this._posScannerActive = false;
+        if (this._posScannerRotateTimerId) {
+            try { clearInterval(this._posScannerRotateTimerId); } catch (_) {}
+            this._posScannerRotateTimerId = null;
+        }
+        this._posScannerCameraIds = [];
+        this._posScannerCameraIndex = 0;
         if (this._posHtml5Scanner) {
             const s = this._posHtml5Scanner;
             this._posHtml5Scanner = null;
