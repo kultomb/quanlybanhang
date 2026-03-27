@@ -75,35 +75,42 @@ export default function RequireAuth({ children }: RequireAuthProps) {
         return;
       }
       void (async () => {
-        const profileSnap = await get(ref(rtdb, `users/${user.uid}`));
-        const profile = (profileSnap.val() || {}) as { shopSlug?: string; paymentStatus?: string };
-        const shopSlug = String(profile.shopSlug || "");
-        const paymentStatus = profile.paymentStatus === "active" ? "active" : "pending";
+        try {
+          const profileSnap = await get(ref(rtdb, `users/${user.uid}`));
+          const profile = (profileSnap.val() || {}) as { shopSlug?: string; paymentStatus?: string };
+          const shopSlug = String(profile.shopSlug || "");
+          const paymentStatus = profile.paymentStatus === "active" ? "active" : "pending";
 
-        if (!hasValidShopSlug(shopSlug)) {
-          if (forcingLogout) return;
-          forcingLogout = true;
-          await forceLogoutMissingShop();
-          return;
-        }
-
-        if (paymentStatus !== "active") {
-          const target = toPaymentRequiredPath(shopSlug);
-          try {
-            if (window.top && window.top !== window) {
-              window.top.location.href = target;
-              return;
-            }
-          } catch {
-            // Ignore cross-frame redirect issues.
+          if (!hasValidShopSlug(shopSlug)) {
+            if (forcingLogout) return;
+            forcingLogout = true;
+            await forceLogoutMissingShop();
+            return;
           }
-          window.location.href = target;
-          return;
-        }
 
-        await syncIdToken();
-        setAuthed(true);
-        setReady(true);
+          if (paymentStatus !== "active") {
+            const target = toPaymentRequiredPath(shopSlug);
+            try {
+              if (window.top && window.top !== window) {
+                window.top.location.href = target;
+                return;
+              }
+            } catch {
+              // Ignore cross-frame redirect issues.
+            }
+            window.location.href = target;
+            return;
+          }
+
+          await syncIdToken();
+          setAuthed(true);
+          setReady(true);
+        } catch {
+          // Avoid blank screen when profile fetch fails (rules/env mismatch, transient network).
+          setAuthed(false);
+          setReady(true);
+          redirectToLogin();
+        }
       })();
     });
 
@@ -118,23 +125,29 @@ export default function RequireAuth({ children }: RequireAuthProps) {
         return;
       }
       void (async () => {
-        const profileSnap = await get(ref(rtdb, `users/${user.uid}`));
-        const profile = (profileSnap.val() || {}) as { shopSlug?: string; paymentStatus?: string };
-        const shopSlug = String(profile.shopSlug || "");
-        const paymentStatus = profile.paymentStatus === "active" ? "active" : "pending";
-        if (!hasValidShopSlug(shopSlug)) {
-          if (forcingLogout) return;
-          forcingLogout = true;
-          await forceLogoutMissingShop();
-          return;
+        try {
+          const profileSnap = await get(ref(rtdb, `users/${user.uid}`));
+          const profile = (profileSnap.val() || {}) as { shopSlug?: string; paymentStatus?: string };
+          const shopSlug = String(profile.shopSlug || "");
+          const paymentStatus = profile.paymentStatus === "active" ? "active" : "pending";
+          if (!hasValidShopSlug(shopSlug)) {
+            if (forcingLogout) return;
+            forcingLogout = true;
+            await forceLogoutMissingShop();
+            return;
+          }
+          if (paymentStatus !== "active") {
+            window.location.href = toPaymentRequiredPath(shopSlug);
+            return;
+          }
+          await syncIdToken();
+          setAuthed(true);
+          setReady(true);
+        } catch {
+          setAuthed(false);
+          setReady(true);
+          redirectToLogin();
         }
-        if (paymentStatus !== "active") {
-          window.location.href = toPaymentRequiredPath(shopSlug);
-          return;
-        }
-        await syncIdToken();
-        setAuthed(true);
-        setReady(true);
       })();
     }, 1200);
 
