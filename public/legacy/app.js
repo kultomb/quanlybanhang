@@ -10173,8 +10173,8 @@ class HamobileBanhang {
             const rows = [];
             for (let i = 0; i < labels.length; i += 2) rows.push(labels.slice(i, i + 2));
             printBody = rows.map((row) => {
-                const renderCell = (item, isRight) => {
-                    if (!item) return `<div class="kv-cell ${isRight ? 'right' : 'left'} empty"></div>`;
+                const renderCell = (item) => {
+                    if (!item) return `<div class="kv-cell empty"></div>`;
                     const codeValue = this.getLabelSheetCodeValue(product, item, printType);
                     const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 104, 16) : '';
                     const priceText = Number(product.price || 0).toLocaleString('vi-VN') + ' VND';
@@ -10184,7 +10184,7 @@ class HamobileBanhang {
                     const barcodeTop = singleTitle ? (hidePrice ? '8.6mm' : '8.2mm') : '8.0mm';
                     const codeTop = hidePrice ? '16.4mm' : '12.7mm';
                     return `
-                        <div class="kv-cell ${isRight ? 'right' : 'left'}">
+                        <div class="kv-cell">
                             <div class="kv-title-l1" style="top:${title1Top};font-size:${title.fontPx}px;">${escapeHtml(title.line1 || '')}</div>
                             ${title.line2 ? `<div class="kv-title-l2" style="font-size:${title.fontPx}px;">${escapeHtml(title.line2 || '')}</div>` : ''}
                             <div class="kv-barcode" style="top:${barcodeTop};">${canPrintBarcode ? barcodeSvg : ''}</div>
@@ -10193,21 +10193,19 @@ class HamobileBanhang {
                         </div>
                     `;
                 };
-                return `<div class="kv-page">${renderCell(row[0], false)}${renderCell(row[1], true)}</div>`;
+                return `<div class="kv-page">${renderCell(row[0])}${renderCell(row[1])}</div>`;
             }).join('');
             printStyles = `
-                @page { size: 70mm 22mm; margin: 0; }
-                html, body { margin: 0 !important; padding: 0 !important; width: 70mm; font-family: Arial, sans-serif; }
+                @page { size: ${template.id === 'roll_2_74x22' ? '74mm' : '72mm'} 22mm; margin: 0; }
+                html, body { margin: 0 !important; padding: 0 !important; width: ${template.id === 'roll_2_74x22' ? '74mm' : '72mm'}; font-family: Arial, sans-serif; }
                 body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                .kv-page { position: relative; width: 70mm; height: 22mm; page-break-after: always; page-break-inside: avoid; break-inside: avoid; overflow: hidden; }
-                .kv-cell { position: absolute; top: 0; overflow: hidden; }
-                .kv-cell.left { left: -1mm; width: 32mm; height: 22mm; }
-                .kv-cell.right { left: 33mm; width: 32mm; height: 22mm; }
+                .kv-page { display:flex; width: ${template.id === 'roll_2_74x22' ? '74mm' : '72mm'}; height: 22mm; page-break-after: always; page-break-inside: avoid; break-inside: avoid; overflow: hidden; }
+                .kv-cell { position: relative; width: 50%; height: 22mm; overflow: hidden; }
                 .kv-cell.empty { border: none; }
                 .kv-title-l1 { position: absolute; left: 1px; top: 3px; width: calc(100% - 2px); text-align: center; font-size: 10px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                 .kv-title-l2 { position: absolute; left: 1px; top: 15px; width: calc(100% - 2px); text-align: center; font-size: 10px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 11px; }
-                .kv-barcode { position: absolute; left: 8px; top: 30px; width: 104px; height: 34px; overflow: hidden; }
-                .kv-barcode svg { width: 104px; height: 16px; display: block; }
+                .kv-barcode { position: absolute; left: 2.2mm; top: 30px; width: calc(100% - 4.4mm); height: 34px; overflow: hidden; }
+                .kv-barcode svg { width: 100%; height: 16px; display: block; }
                 .kv-code { position: absolute; left: 0; top: 12.7mm; width: 100%; font-size: 2.8mm; font-weight: 600; text-align: center; font-family: monospace; }
                 .kv-price { position: absolute; left: 0; top: 16.0mm; width: 100%; font-size: 3.3mm; font-weight: 800; text-align: center; }
             `;
