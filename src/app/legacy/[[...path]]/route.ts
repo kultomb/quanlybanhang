@@ -4,7 +4,7 @@ import path from "node:path";
 const LEGACY_ROOT = path.resolve(process.cwd(), "public", "legacy");
 const DEFAULT_RTDB_URL =
   process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL ||
-  "https://dangnnhap-8687d-default-rtdb.asia-southeast1.firebasedatabase.app";
+  "https://banhangnew-134a6-default-rtdb.asia-southeast1.firebasedatabase.app";
 const DEFAULT_BACKUP_KEY = process.env.NEXT_PUBLIC_DEFAULT_BACKUP_KEY || "shop_autokey";
 const SHOP_COOKIE_NAME = "ha_shop_slug";
 

@@ -2,7 +2,7 @@ import admin from "firebase-admin";
 
 const databaseURL =
   process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL ||
-  "https://dangnnhap-8687d-default-rtdb.asia-southeast1.firebasedatabase.app";
+  "https://banhangnew-134a6-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 function getServiceAccount() {
   const raw = process.env.FIREBASE_ADMIN_CREDENTIALS || "";
