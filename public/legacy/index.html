@@ -12,53 +12,6 @@
     <link rel="stylesheet" href="styles.css">
     <script>window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || { url: '', key: '' };</script>
     <script src="firebase-config.js"></script>
-    <script>
-      (function () {
-        function showBootError(title, detail) {
-          try {
-            var existing = document.getElementById("legacy-boot-error");
-            if (existing) return;
-            var wrap = document.createElement("div");
-            wrap.id = "legacy-boot-error";
-            wrap.style.cssText = "position:fixed;inset:0;z-index:999999;background:#f8fafc;color:#0f172a;display:grid;place-items:center;padding:20px;font-family:Arial,sans-serif;";
-            var box = document.createElement("div");
-            box.style.cssText = "max-width:760px;width:100%;background:white;border:1px solid #fecaca;border-radius:12px;padding:16px;box-shadow:0 12px 30px rgba(2,6,23,0.12);";
-            box.innerHTML =
-              "<h2 style='margin:0 0 8px;font-size:20px;color:#b91c1c'>Khong the tai giao dien ban hang</h2>" +
-              "<div style='font-size:14px;color:#334155;margin-bottom:8px'>" + (title || "Loi khoi tao ung dung legacy.") + "</div>" +
-              "<pre style='margin:0;padding:10px;border-radius:8px;background:#0f172a;color:#e2e8f0;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow:auto'>" + (detail || "Khong co thong tin loi.") + "</pre>" +
-              "<div style='margin-top:10px;font-size:12px;color:#64748b'>Hay mo DevTools Console hoac kiem tra env Firebase tren Vercel.</div>";
-            wrap.appendChild(box);
-            document.body.appendChild(wrap);
-          } catch (_) {}
-        }
-
-        window.addEventListener("error", function (ev) {
-          var message = (ev && ev.message) || "Runtime error";
-          var source = (ev && ev.filename) || "";
-          var line = ev && ev.lineno ? ":" + ev.lineno : "";
-          showBootError("Phat hien loi JavaScript khi tai trang.", message + (source ? ("\n" + source + line) : ""));
-        });
-
-        window.addEventListener("unhandledrejection", function (ev) {
-          var reason = ev && ev.reason;
-          var detail = typeof reason === "string" ? reason : (reason && reason.message) ? reason.message : JSON.stringify(reason || {});
-          showBootError("Phat hien loi Promise khong duoc xu ly.", detail);
-        });
-
-        window.setTimeout(function () {
-          var hasApp = !!window.app;
-          var content = document.getElementById("main-content");
-          var hasContent = !!(content && (content.textContent || "").trim().length);
-          if (!hasApp && !hasContent) {
-            showBootError(
-              "Ung dung legacy khong khoi tao sau 6 giay.",
-              "window.app khong ton tai. Co the app.js loi, duong dan file sai hoac env/rules Firebase gay treo khoi tao."
-            );
-          }
-        }, 6000);
-      })();
-    </script>
 </head>
 <body>
     <div class="app-container" id="appContainer">
