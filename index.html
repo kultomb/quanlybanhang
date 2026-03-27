@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Quản lý Bán hàng Offline</title>
+    <meta name="description" content="Hệ thống quản lý bán hàng - hoạt động hoàn toàn offline">
+    
+    <link rel="stylesheet" href="styles.css">
+    <script>window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || { url: '', key: '' };</script>
+    <script src="firebase-config.js"></script>
+</head>
+<body>
+    <div class="app-container" id="appContainer">
+        <!-- Top Bar - KiotViet Style -->
+        <div class="top-utility-bar">
+            <a href="#dashboard" class="top-brand" id="shopBrandLink" title="Về trang chủ">
+                <span class="logo-icon">🛒</span>
+                <div>
+                    <h1 class="app-title">Shop Bán hàng</h1>
+                    <p class="app-subtitle">Quản lý bán hàng offline</p>
+                </div>
+            </a>
+        </div>
+        
+        <!-- Main Nav Bar -->
+        <div class="main-nav-bar">
+            <button class="mobile-menu-toggle" id="mobileMenuToggle" onclick="toggleMobileMenu()" aria-label="Menu">
+                ☰
+            </button>
+            <div class="mobile-overlay" id="mobileOverlay" onclick="toggleMobileMenu()"></div>
+            
+            <nav class="main-nav-menu" id="mainNavMenu">
+                <a href="#dashboard" class="nav-item active" data-page="dashboard"><span class="nav-item-icon">📊</span>Tổng quan</a>
+                <a href="#customers" class="nav-item" data-page="customers"><span class="nav-item-icon">👥</span>Khách hàng</a>
+                <a href="#suppliers" class="nav-item" data-page="suppliers"><span class="nav-item-icon">🏢</span>Nhà cung cấp</a>
+                <a href="#products" class="nav-item" data-page="products"><span class="nav-item-icon">📦</span>Sản phẩm</a>
+                <a href="#orders" class="nav-item" data-page="orders"><span class="nav-item-icon">📋</span>Đơn hàng</a>
+                <a href="#categories" class="nav-item" data-page="categories"><span class="nav-item-icon">📂</span>Danh mục</a>
+                <a href="#inventory" class="nav-item" data-page="inventory"><span class="nav-item-icon">📋</span>Kho hàng</a>
+                <a href="#debts" class="nav-item" data-page="debts"><span class="nav-item-icon">💳</span>Công nợ</a>
+                <a href="#repairs" class="nav-item" data-page="repairs"><span class="nav-item-icon">🔧</span>Sửa chữa</a>
+                <a href="#reports" class="nav-item" data-page="reports"><span class="nav-item-icon">📈</span>Báo cáo</a>
+                <a href="#settings" class="nav-item" data-page="settings"><span class="nav-item-icon">⚙️</span>Cài đặt</a>
+                <a href="#company-info" class="nav-item" data-page="company-info"><span class="nav-item-icon">🏢</span>Thông tin Shop</a>
+            </nav>
+            
+            <div class="main-nav-actions">
+                <button type="button" class="nav-action-btn" onclick="window.app && app.loadPage('sales')">
+                    <span>💰</span> Bán hàng
+                </button>
+                <button type="button" class="nav-action-btn" onclick="window.app && app.showAddRepairForm()">
+                    <span>🔧</span> Sửa chữa
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header" id="page-header" style="display: none;">
+                <div>
+                    <h1 class="header-title" id="page-title">Hệ thống Quản lý</h1>
+                    <p class="header-subtitle" id="page-subtitle">Quản lý bán hàng doanh nghiệp Việt Nam</p>
+                </div>
+            </div>
+            
+            <div class="content" id="main-content">
+                <!-- Dashboard Content sẽ được load động từ JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Cảnh báo chế độ ẩn danh / storage không lưu trữ -->
+    <div id="incognito-warning" style="display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 10000; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; padding: 12px 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 14px; line-height: 1.5;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto;">
+            <span style="font-size: 24px;">⚠️</span>
+            <div style="flex: 1; min-width: 200px;" id="incognito-warning-text">
+                <strong>Chế độ ẩn danh</strong> – Dữ liệu trên máy sẽ mất khi đóng tab. Cấu hình Firebase để lưu trên đám mây (không mất khi ẩn danh/xóa cache/đổi máy).
+            </div>
+            <button type="button" onclick="if(window.app){app.manualBackup();app.hideIncognitoWarning();}" style="background: white; color: #dc2626; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap;">📥 Sao lưu file</button>
+            <button type="button" onclick="if(window.app)app.hideIncognitoWarning()" style="background: rgba(255,255,255,0.3); color: white; border: 1px solid rgba(255,255,255,0.6); padding: 10px 16px; border-radius: 8px; cursor: pointer;">Đã hiểu</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
