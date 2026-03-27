@@ -3064,12 +3064,8 @@ class HamobileBanhang {
             if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
             if (Array.isArray(caps.focusMode) && caps.focusMode.includes('single-shot')) advanced.push({ focusMode: 'single-shot' });
             if (caps.focusDistance && typeof caps.focusDistance.max === 'number') advanced.push({ focusDistance: caps.focusDistance.max });
-            if (caps.zoom && typeof caps.zoom.min === 'number' && typeof caps.zoom.max === 'number') {
-                const targetZoom = caps.zoom.max;
-                advanced.push({ zoom: targetZoom });
-            }
             if (advanced.length) await track.applyConstraints({ advanced });
-            if (statusEl && advanced.length) statusEl.textContent = 'Đang mở camera zoom để quét mã vạch...';
+            if (statusEl && advanced.length) statusEl.textContent = 'Đang tối ưu lấy nét liên tục để quét mã vạch...';
         } catch (_) {}
     }
     async openPOSBarcodeScanner() {
@@ -3102,8 +3098,8 @@ class HamobileBanhang {
             this._posPreferredCameraId = preferredCameraId || '';
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: preferredCameraId
-                    ? { deviceId: { exact: preferredCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-                    : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+                    ? { deviceId: { exact: preferredCameraId }, width: { ideal: 1920 }, height: { ideal: 1080 }, focusMode: { ideal: 'continuous' } }
+                    : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, focusMode: { ideal: 'continuous' } },
                 audio: false
             });
             this._posScannerStream = stream;
