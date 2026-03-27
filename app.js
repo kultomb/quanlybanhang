@@ -9830,12 +9830,12 @@ class HamobileBanhang {
         if (imeiList.length > 0) {
             return imeiList.map((imei) => ({
                 code: String(imei || '').trim() || baseCode,
-                line2: 'IMEI: ' + String(imei || '').trim()
+                line2: String(imei || '').trim()
             }));
         }
         return Array.from({ length: qty }).map(() => ({
             code: baseCode,
-            line2: 'IMEI: chưa có'
+            line2: 'chưa có IMEI'
         }));
     }
 
@@ -9875,6 +9875,7 @@ class HamobileBanhang {
         const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
         const labels = this.getPrintableLabelItems(product, qty);
         const canPrintBarcode = product.printBarcode !== false;
+        const hidePrice = !!this._labelHidePrice;
         const template = this.getSelectedLabelTemplate();
         const previewColumns = Math.max(1, Math.min(template.columns, 4));
         const previewWidth = Math.max(130, Math.round(template.widthMm * 3.4));
@@ -9942,6 +9943,10 @@ class HamobileBanhang {
                     </div>
                     <input id="label-print-qty" type="hidden" value="${defaultQty}">
                     <input id="label-print-template" type="hidden" value="${templates[0].id}">
+                    <label style="display:flex; align-items:center; gap:8px; margin: 8px 0 12px; font-size:13px; color:#334155; font-weight:600;">
+                        <input id="label-print-hide-price" type="checkbox" ${this._labelHidePrice ? 'checked' : ''} onchange="app.setLabelHidePrice(this.checked)">
+                        Ẩn giá trên tem
+                    </label>
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; max-height: 70vh; overflow:auto; padding:2px;">
                         ${templateCards}
                     </div>
@@ -9992,6 +9997,11 @@ class HamobileBanhang {
         `;
         document.body.insertAdjacentHTML('beforeend', html);
         this._labelSheetState = { productId, template, labels, pageSize, page: 1, totalPages, printType };
+        this.renderLabelSheetPage();
+    }
+
+    setLabelHidePrice(checked) {
+        this._labelHidePrice = !!checked;
         this.renderLabelSheetPage();
     }
 
@@ -10075,6 +10085,7 @@ class HamobileBanhang {
         const start = (st.page - 1) * st.pageSize;
         const pageItems = st.labels.slice(start, start + st.pageSize);
         const canPrintBarcode = product.printBarcode !== false;
+        const hidePrice = !!this._labelHidePrice;
         indicator.textContent = `${st.page}/${st.totalPages}`;
         const isTwoLabelTemplate = st.template && (st.template.id === 'roll_2_72x22' || st.template.id === 'roll_2_74x22');
         if (isTwoLabelTemplate) {
@@ -10089,8 +10100,8 @@ class HamobileBanhang {
                         <div style="position:absolute;left:1px;top:3px;width:calc(100% - 2px);text-align:center;font-size:${title.fontPx}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title.line1 || '')}</div>
                         ${title.line2 ? `<div style="position:absolute;left:1px;top:15px;width:calc(100% - 2px);text-align:center;font-size:${title.fontPx}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title.line2)}</div>` : ''}
                         <div style="position:absolute;left:8px;top:30px;width:104px;height:34px;overflow:hidden;">${canPrintBarcode ? barcodeSvg : ''}</div>
-                        <div style="position:absolute;left:4px;top:49px;width:calc(100% - 8px);font-size:11px;font-weight:600;text-align:center;font-family:monospace;">${escapeHtml(item.line2 || '')}</div>
-                        <div style="position:absolute;left:4px;top:62px;width:calc(100% - 8px);font-size:13px;font-weight:800;text-align:center;">${escapeHtml(priceText)}</div>
+                        <div style="position:absolute;left:4px;top:49px;width:calc(100% - 8px);font-size:9px;font-weight:600;line-height:1;text-align:center;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(item.line2 || '')}</div>
+                        ${hidePrice ? '' : `<div style="position:absolute;left:4px;top:64px;width:calc(100% - 8px);font-size:12px;font-weight:800;line-height:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(priceText)}</div>`}
                     </div>
                 `;
             };
@@ -10113,7 +10124,8 @@ class HamobileBanhang {
                         <div style="width:170px; height:82px; background:#fff; border:1px solid #d1d5db; padding:6px; box-sizing:border-box;">
                             <div style="font-size:11px; text-align:center; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(product.name || '')}</div>
                             ${canPrintBarcode ? `<div style="width:100%; overflow:hidden;">${barcodeSvg}</div>` : `<div style="font-size:10px;color:#6b7280;text-align:center;">Tắt in mã vạch</div>`}
-                            <div style="font-size:11px; text-align:center; font-family:monospace;">${escapeHtml(item.line2 || '')}</div>
+                            <div style="font-size:9px; text-align:center; font-family:monospace;">${escapeHtml(item.line2 || '')}</div>
+                            ${hidePrice ? '' : `<div style="font-size:11px; font-weight:800; text-align:center;">${escapeHtml(Number(product.price || 0).toLocaleString('vi-VN') + ' VND')}</div>`}
                         </div>
                     `;
                 }).join('')}
@@ -10160,7 +10172,7 @@ class HamobileBanhang {
                     <div class="name">${escapeHtml(product.name || '')}</div>
                     ${canPrintBarcode ? `<div class="barcode">${barcodeSvg}</div>` : `<div class="barcode-disabled">Sản phẩm đang tắt in mã vạch</div>`}
                     <div class="line2">${escapeHtml(item.line2 || '')}</div>
-                    <div class="code">${escapeHtml(codeValue)}</div>
+                    ${hidePrice ? '' : `<div class="code">${escapeHtml(codeValue)}</div>`}
                 </div>
             `;
         }).join('');
@@ -10185,7 +10197,7 @@ class HamobileBanhang {
                             <div class="kv-title-l2" style="font-size:${title.fontPx}px;">${escapeHtml(title.line2 || '')}</div>
                             <div class="kv-barcode">${canPrintBarcode ? barcodeSvg : ''}</div>
                             <div class="kv-code">${escapeHtml(item.line2 || '')}</div>
-                            <div class="kv-price">${escapeHtml(priceText)}</div>
+                            ${hidePrice ? '' : `<div class="kv-price">${escapeHtml(priceText)}</div>`}
                         </div>
                     `;
                 };
@@ -10221,7 +10233,7 @@ class HamobileBanhang {
                             <div class="kv-title-l2" style="font-size:${title.fontPx}px;">${escapeHtml(title.line2 || '')}</div>
                             <div class="kv-barcode">${canPrintBarcode ? barcodeSvg : ''}</div>
                             <div class="kv-code">${escapeHtml(item.line2 || '')}</div>
-                            <div class="kv-price">${escapeHtml(priceText)}</div>
+                            ${hidePrice ? '' : `<div class="kv-price">${escapeHtml(priceText)}</div>`}
                         </div>
                     `;
                 };
@@ -10256,7 +10268,7 @@ class HamobileBanhang {
                         <div class="kv-title-l2" style="font-size:${Math.max(11, title.fontPx + 1)}px;">${escapeHtml(title.line2 || '')}</div>
                         <div class="kv-barcode">${canPrintBarcode ? barcodeSvg : ''}</div>
                         ${imeiLine}
-                        <div class="kv-price">${escapeHtml(priceText)}<span class="kv-price-unit"> VND</span></div>
+                        ${hidePrice ? '' : `<div class="kv-price">${escapeHtml(priceText)}<span class="kv-price-unit"> VND</span></div>`}
                     </div>
                 `;
             }).join('');
