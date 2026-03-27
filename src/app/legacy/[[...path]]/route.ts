@@ -1,12 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { adminAuth, adminDb } from "@/lib/backend/server";
 
 const LEGACY_ROOT = path.resolve(process.cwd(), "public", "legacy");
-const DEFAULT_RTDB_URL =
-  process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL ||
-  "https://banhangnew-134a6-default-rtdb.asia-southeast1.firebasedatabase.app";
+const DEFAULT_RTDB_URL = "/api/rtdb";
 const DEFAULT_BACKUP_KEY = process.env.NEXT_PUBLIC_DEFAULT_BACKUP_KEY || "shop_autokey";
 const SHOP_COOKIE_NAME = "ha_shop_slug";
+const SESSION_COOKIE_NAME = "ha_session_token";
 
 const CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -43,6 +43,28 @@ function normalizeShopSlug(value: string) {
     .replace(/[^a-z0-9-]/g, "");
 }
 
+async function resolveUserShopSlug(uid: string) {
+  const direct = String((await adminDb().ref(`users/${uid}/shopSlug`).get()).val() || "").trim();
+  if (direct) return normalizeShopSlug(direct);
+
+  const shopsSnap = await adminDb().ref("shops").get();
+  const shops = (shopsSnap.val() || {}) as Record<string, { ownerUid?: string; slug?: string }>;
+  for (const [slug, value] of Object.entries(shops)) {
+    if (String(value?.ownerUid || "").trim() === uid) {
+      return normalizeShopSlug(String(value?.slug || slug));
+    }
+  }
+  return "";
+}
+
+async function resolveShopSlugFromSession(request: Request) {
+  const token = String(getCookieValue(request, SESSION_COOKIE_NAME) || "").trim();
+  if (!token) return "";
+  const decoded = await adminAuth().verifyIdToken(token).catch(() => null);
+  if (!decoded?.uid) return "";
+  return resolveUserShopSlug(decoded.uid);
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ path?: string[] }> },
@@ -58,7 +80,9 @@ export async function GET(
 
   if (fileName === "firebase-config.js") {
     const cookieShop = normalizeShopSlug(getCookieValue(request, SHOP_COOKIE_NAME));
-    const fallbackKey = cookieShop ? `shop_${cookieShop}` : DEFAULT_BACKUP_KEY;
+    const sessionShop = await resolveShopSlugFromSession(request);
+    const fallbackShop = cookieShop || sessionShop;
+    const fallbackKey = fallbackShop ? `shop_${fallbackShop}` : DEFAULT_BACKUP_KEY;
     const defaultConfigJs =
       `;(function(){var c=window.FIREBASE_CONFIG||{};var seg=(location.pathname.split('/').filter(Boolean)[0]||'').toLowerCase().replace(/[^a-z0-9-]/g,'');var autoKey=(seg&&seg!=='legacy')?('shop_'+seg):'${fallbackKey}';window.FIREBASE_CONFIG={url:(c.url&&String(c.url).trim())?String(c.url).trim():'${DEFAULT_RTDB_URL}',key:(c.key&&String(c.key).trim())?String(c.key).trim():autoKey};})();`;
     return new Response(defaultConfigJs, {
@@ -72,8 +96,10 @@ export async function GET(
       const raw = await readFile(absolutePath, "utf-8");
       const shop = normalizeShopSlug(url.searchParams.get("shop") || "");
       const cookieShop = normalizeShopSlug(getCookieValue(request, SHOP_COOKIE_NAME));
+      const sessionShop = await resolveShopSlugFromSession(request);
       const requestedKey = String(url.searchParams.get("key") || "").trim();
-      const backupKey = requestedKey || (shop ? `shop_${shop}` : (cookieShop ? `shop_${cookieShop}` : DEFAULT_BACKUP_KEY));
+      const inferredShop = shop || cookieShop || sessionShop;
+      const backupKey = requestedKey || (inferredShop ? `shop_${inferredShop}` : DEFAULT_BACKUP_KEY);
       const injectedConfig =
         `<script>window.FIREBASE_CONFIG = { url: '${DEFAULT_RTDB_URL}', key: '${backupKey}' };</script>`;
       let content = raw.replace(
