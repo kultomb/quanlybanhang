@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { useEffect } from "react";
-import { auth, rtdb } from "@/lib/firebase";
+import { auth, rtdb } from "@/lib/backend/client";
 
 export default function AppPage() {
   const router = useRouter();

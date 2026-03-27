@@ -10,7 +10,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { get, ref, set, serverTimestamp } from "firebase/database";
-import { auth, rtdb } from "@/lib/firebase";
+import { auth, rtdb } from "@/lib/backend/client";
 
 function getAuthErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : "";

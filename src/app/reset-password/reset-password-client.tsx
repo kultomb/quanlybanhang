@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/backend/client";
 import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
 
 export default function ResetPasswordClient() {

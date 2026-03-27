@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { get, ref } from "firebase/database";
-import { auth, rtdb } from "@/lib/firebase";
+import { auth, rtdb } from "@/lib/backend/client";
 import { forceLogoutMissingShop, hasValidShopSlug } from "@/lib/client-auth";
 
 function toPaymentRequiredPath(shopSlug?: string) {

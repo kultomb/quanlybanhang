@@ -11,7 +11,7 @@ import {
   updatePassword,
 } from "firebase/auth";
 import { get, ref } from "firebase/database";
-import { auth, rtdb } from "@/lib/firebase";
+import { auth, rtdb } from "@/lib/backend/client";
 
 export default function AccountClient() {
   const searchParams = useSearchParams();

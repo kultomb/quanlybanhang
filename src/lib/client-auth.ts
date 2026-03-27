@@ -1,7 +1,7 @@
 "use client";
 
 import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/backend/client";
 
 const LOGIN_REDIRECT = "/login?reason=missing-shop";
 

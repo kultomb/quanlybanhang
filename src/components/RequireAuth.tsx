@@ -1,10 +1,10 @@
 "use client";
 
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/backend/client";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { ReactNode, useEffect, useState } from "react";
-import { rtdb } from "@/lib/firebase";
+import { rtdb } from "@/lib/backend/client";
 import { forceLogoutMissingShop, hasValidShopSlug } from "@/lib/client-auth";
 
 function toPaymentRequiredPath(shopSlug?: string) {

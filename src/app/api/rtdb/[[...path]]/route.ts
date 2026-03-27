@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { adminAuth, adminDb } from "@/lib/backend/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 

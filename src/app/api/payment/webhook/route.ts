@@ -1,4 +1,4 @@
-import { adminDb } from "@/lib/firebase-admin";
+import { adminDb } from "@/lib/backend/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 

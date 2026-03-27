@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/backend/client";
 
 type AccountBarProps = {
   shop?: string;

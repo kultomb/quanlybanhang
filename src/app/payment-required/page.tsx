@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { auth, rtdb } from "@/lib/firebase";
+import { auth, rtdb } from "@/lib/backend/client";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import Link from "next/link";
