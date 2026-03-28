@@ -768,7 +768,7 @@ class HamobileBanhang {
     init() {
         this.setupNavigation();
         this.setupEventListeners();
-        this.checkStorageRisk();
+        this.checkStorageRisk(); // chỉ toast nhẹ nếu localStorage thật sự lỗi — không còn thanh đỏ / chặn thoát trang
         this.startAutoSync();
         this.retryPendingSyncAndNotify();
         const hashPage = (window.location.hash || '#dashboard').replace('#', '') || 'dashboard';
@@ -828,40 +828,51 @@ class HamobileBanhang {
         } else if (el) el.style.display = 'none';
     }
     async checkStorageRisk() {
+        const hasFirebase = !!(window.FirebaseStorage && window.FirebaseStorage.getConfig && window.FirebaseStorage.getConfig());
+        if (hasFirebase) return;
+        try {
+            if (window.self !== window.top) {
+                const p = new URLSearchParams(window.location.search || '');
+                if (p.get('shop')) return;
+            }
+        } catch (_) {}
+        try {
+            const k = '__ha_storage_probe__';
+            localStorage.setItem(k, '1');
+            localStorage.removeItem(k);
+        } catch (_) {
+            this.showIncognitoWarning();
+            this._storageRiskMode = true;
+            return;
+        }
         if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.persisted === 'function') {
             try {
-                const persisted = await navigator.storage.persisted();
-                if (!persisted) {
-                    this.showIncognitoWarning();
-                    this._storageRiskMode = true;
+                let persisted = await navigator.storage.persisted();
+                if (!persisted && typeof navigator.storage.persist === 'function') {
+                    try {
+                        persisted = await navigator.storage.persist();
+                    } catch (_) {}
                 }
+                // Không bật cảnh báo chỉ vì persisted === false — Chrome/Edge thường trả false dù tab thường.
             } catch (_) {}
         }
     }
     showIncognitoWarning() {
-        const el = document.getElementById('incognito-warning');
-        const textEl = document.getElementById('incognito-warning-text');
-        if (el) {
-            const hasFirebase = !!(window.FirebaseStorage && window.FirebaseStorage.getConfig && window.FirebaseStorage.getConfig());
-            if (hasFirebase) {
-                this.hideIncognitoWarning();
-                return;
-            }
-            if (textEl) {
-                textEl.innerHTML = '<strong>Chế độ ẩn danh</strong> – Dữ liệu sẽ mất khi đóng tab. Vào Cài đặt → Firebase để cấu hình (dữ liệu không mất khi ẩn danh/xóa cache/đổi máy).';
-            }
-            el.style.display = 'block';
-            document.body.style.paddingTop = '60px';
+        const hasFirebase = !!(window.FirebaseStorage && window.FirebaseStorage.getConfig && window.FirebaseStorage.getConfig());
+        if (hasFirebase) {
+            this.hideIncognitoWarning();
+            return;
         }
-        if (!this._beforeUnloadAdded) {
-            this._beforeUnloadAdded = true;
-            window.addEventListener('beforeunload', this._beforeUnloadHandler = function(e) {
-                e.preventDefault();
-                e.returnValue = '';
-            });
-        }
+        this.hideIncognitoWarning();
+        const msg = 'Đây là thông báo từ ứng dụng quản lý bán hàng của bạn (không phải trang lạ hay mã độc). Trình duyệt đang chặn lưu tạm trên máy — dữ liệu trên đám mây vẫn an toàn nếu đã cấu hình đồng bộ. Gợi ý: Cài đặt → Firebase, hoặc dùng tab trình duyệt thường / tắt chặn cookie cho site này.';
+        this.showNotification(msg, 'info', 16000, true);
     }
     hideIncognitoWarning() {
+        if (this._beforeUnloadAdded && this._beforeUnloadHandler) {
+            try { window.removeEventListener('beforeunload', this._beforeUnloadHandler); } catch (_) {}
+            this._beforeUnloadAdded = false;
+            this._beforeUnloadHandler = null;
+        }
         const el = document.getElementById('incognito-warning');
         if (el) {
             el.style.display = 'none';
@@ -6192,16 +6203,19 @@ class HamobileBanhang {
         });
     }
     
-    showNotification(message, type = 'info') {
+    showNotification(message, type = 'info', durationMs = 3000, longForm = false) {
         const notification = document.getElementById('notification');
         if (!notification) return;
-        
+        if (notification._notifyTimer) {
+            try { clearTimeout(notification._notifyTimer); } catch (_) {}
+            notification._notifyTimer = null;
+        }
         notification.textContent = message;
-        notification.className = `notification show ${type}`;
-        
-        setTimeout(() => {
+        notification.className = `notification show ${type}` + (longForm ? ' notification-long' : '');
+        notification._notifyTimer = setTimeout(() => {
             notification.classList.remove('show');
-        }, 3000);
+            notification._notifyTimer = null;
+        }, durationMs);
     }
     
     
@@ -16238,6 +16252,13 @@ const notificationStyles = `
     .notification.info {
         background: var(--header-gradient);
     }
+    .notification.notification-long {
+        max-width: min(440px, 94vw);
+        font-weight: 500;
+        font-size: 14px;
+        line-height: 1.45;
+        white-space: normal;
+    }
 `;
 
 // Add notification styles to head
@@ -16269,9 +16290,9 @@ function closeModal(element) {
 }
 
 // Global function for notifications
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', durationMs = 3000, longForm = false) {
     if (app) {
-        app.showNotification(message, type);
+        app.showNotification(message, type, durationMs, longForm);
     }
 }
 

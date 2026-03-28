@@ -77,15 +77,15 @@
     <!-- Notification -->
     <div id="notification" class="notification"></div>
 
-    <!-- Cảnh báo chế độ ẩn danh / storage không lưu trữ -->
-    <div id="incognito-warning" style="display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 10000; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; padding: 12px 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 14px; line-height: 1.5;">
+    <!-- Dự phòng (JS mới dùng toast xanh thay vì hiện khối này). Giữ style thương hiệu, không đỏ “cảnh báo hack”. -->
+    <div id="incognito-warning" style="display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 10000; background: linear-gradient(135deg, #047857 0%, #059669 50%, #10b981 100%); color: white; padding: 12px 16px; box-shadow: 0 4px 12px rgba(5,150,105,0.35); font-size: 14px; line-height: 1.5;">
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto;">
-            <span style="font-size: 24px;">⚠️</span>
+            <span style="font-size: 22px;">ℹ️</span>
             <div style="flex: 1; min-width: 200px;" id="incognito-warning-text">
-                <strong>Chế độ ẩn danh</strong> – Dữ liệu trên máy sẽ mất khi đóng tab. Cấu hình Firebase để lưu trên đám mây (không mất khi ẩn danh/xóa cache/đổi máy).
+                <strong>Thông báo từ ứng dụng</strong> — Trình duyệt có thể chặn lưu tạm. Không phải trang lạ. Nên bật đồng bộ (Cài đặt → Firebase) để dữ liệu an toàn trên đám mây.
             </div>
-            <button type="button" onclick="if(window.app){app.manualBackup();app.hideIncognitoWarning();}" style="background: white; color: #dc2626; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap;">📥 Sao lưu file</button>
-            <button type="button" onclick="if(window.app)app.hideIncognitoWarning()" style="background: rgba(255,255,255,0.3); color: white; border: 1px solid rgba(255,255,255,0.6); padding: 10px 16px; border-radius: 8px; cursor: pointer;">Đã hiểu</button>
+            <button type="button" onclick="if(window.app){app.manualBackup();app.hideIncognitoWarning();}" style="background: white; color: #047857; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap;">📥 Sao lưu file</button>
+            <button type="button" onclick="if(window.app)app.hideIncognitoWarning()" style="background: rgba(255,255,255,0.25); color: white; border: 1px solid rgba(255,255,255,0.55); padding: 10px 16px; border-radius: 8px; cursor: pointer;">Đóng</button>
         </div>
     </div>
 
