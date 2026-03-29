@@ -8,7 +8,7 @@ import { get, ref } from "firebase/database";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { forceLogoutMissingShop, hasValidShopSlug } from "@/lib/client-auth";
+import { forceLogoutMissingShop, hasValidShopSlug, postSessionCookieWithRetries } from "@/lib/client-auth";
 import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
 
 const BANK_BIN = process.env.NEXT_PUBLIC_BANK_BIN || "970422";
@@ -79,11 +79,7 @@ function PaymentRequiredContent() {
       const u = auth.currentUser;
       if (u) {
         const token = await u.getIdToken();
-        await fetch("/api/auth/session", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ idToken: token, shopSlug: slug }),
-        }).catch(() => undefined);
+        await postSessionCookieWithRetries(token, { shopSlug: slug });
       }
       syncTrialUiSessionFlag({ shopSlug: slug, registrationTrial: reg });
       const path =

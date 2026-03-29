@@ -10,6 +10,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { auth } from "@/lib/backend/client";
+import { postSessionCookieWithRetries } from "@/lib/client-auth";
 import { validateSignupPassword } from "@/lib/password-policy";
 import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
 
@@ -156,11 +157,12 @@ export default function RegisterForm() {
 
       const finalSlug = String(bootJson.shopSlug || slug).trim() || slug;
 
-      await fetch("/api/auth/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ idToken, shopSlug: finalSlug }),
-      }).catch(() => undefined);
+      const sessionOk = await postSessionCookieWithRetries(idToken, { shopSlug: finalSlug });
+      if (!sessionOk) {
+        setError("Chưa gắn được phiên đăng nhập. Kiểm tra mạng rồi thử lại.");
+        setLoading(false);
+        return;
+      }
 
       if (isTrial) {
         router.replace(`/${finalSlug}?trial=1`);

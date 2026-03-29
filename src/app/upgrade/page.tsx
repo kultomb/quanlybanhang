@@ -7,6 +7,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { auth, rtdb } from "@/lib/backend/client";
 import RequireAuth from "@/components/RequireAuth";
+import { postSessionCookieWithRetries } from "@/lib/client-auth";
 import {
   getTrialShopPrefix,
   isEffectiveTrialAccount,
@@ -102,11 +103,11 @@ function UpgradeForm() {
         else setError("Không tạo được yêu cầu nâng cấp. Thử lại sau.");
         return;
       }
-      await fetch("/api/auth/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ idToken, shopSlug: currentShop }),
-      }).catch(() => undefined);
+      const sessionOk = await postSessionCookieWithRetries(idToken, { shopSlug: currentShop });
+      if (!sessionOk) {
+        setError("Chưa cập nhật được phiên đăng nhập. Thử lại sau vài giây.");
+        return;
+      }
       router.replace(`/payment-required?shop=${encodeURIComponent(currentShop)}`);
     } finally {
       setLoading(false);

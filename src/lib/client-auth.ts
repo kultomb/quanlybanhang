@@ -41,6 +41,40 @@ export function paymentAllowsAppAccess(paymentStatus?: string) {
   return s === "active" || s === "pending_upgrade";
 }
 
+/**
+ * Ghi cookie phiên HttpOnly cho `/api/rtdb` và `/legacy`. Mạng chập chờn hoặc race sau đăng nhập
+ * có thể làm lần POST đầu thất bại — gọi lại vài lần giảm tình trạng đổi trình duyệt/máy vẫn lỗi tải dữ liệu.
+ */
+export async function postSessionCookieWithRetries(
+  idToken: string,
+  options?: { shopSlug?: string },
+): Promise<boolean> {
+  const trimmed = String(idToken || "").trim();
+  if (!trimmed) return false;
+  const shop = String(options?.shopSlug || "").trim();
+  const body = JSON.stringify(
+    shop ? { idToken: trimmed, shopSlug: shop } : { idToken: trimmed },
+  );
+  const maxAttempts = 5;
+  const baseMs = 200;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+      if (res.ok) return true;
+    } catch {
+      // Mạng / abort — thử lại.
+    }
+    if (attempt < maxAttempts - 1) {
+      await new Promise((r) => setTimeout(r, baseMs * (attempt + 1)));
+    }
+  }
+  return false;
+}
+
 export async function forceLogoutMissingShop(redirectUrl = LOGIN_REDIRECT) {
   try {
     await signOut(auth);

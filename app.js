@@ -16,6 +16,30 @@ function haLegacyDebugLog(tag, payload) {
         console.log('[HaLegacy]', tag, payload);
     } catch (_) {}
 }
+function normalizeHostedShopSlugQuery(value) {
+    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+}
+function hostedCloudKeyMatchesShopQuery(cfg) {
+    if (!cfg || !cfg.key || !window.FirebaseStorage.usesCloudProxyApi()) return false;
+    try {
+        let shop = normalizeHostedShopSlugQuery(new URL(window.location.href).searchParams.get('shop') || '');
+        if (!shop && typeof document !== 'undefined' && document.cookie) {
+            const m = document.cookie.match(/(?:^|;\s*)ha_shop_slug=([^;]*)/);
+            if (m) shop = normalizeHostedShopSlugQuery(decodeURIComponent(m[1] || ''));
+        }
+        if (!shop) return false;
+        return String(cfg.key).trim().toLowerCase() === 'shop_' + shop;
+    } catch (_) { return false; }
+}
+function backupKeyHintForUi(cfg) {
+    if (window.FirebaseStorage.usesCloudProxyApi()) {
+        return 'Kho dữ liệu đang theo shop trên địa chỉ này (không hiển thị mã nội bộ để bảo vệ dữ liệu).';
+    }
+    const k = String((cfg && cfg.key) || '').trim();
+    if (!k) return '(chưa có)';
+    if (k.length <= 12) return '••••' + k.slice(-3);
+    return k.slice(0, 4) + '…' + k.slice(-4);
+}
 window.FirebaseStorage = {
     _cache: { data: null, company: {}, meta: {} },
     _config: null,
@@ -94,6 +118,8 @@ window.FirebaseStorage = {
                 } catch (_) {}
                 window._lastFirebaseError = this.usesCloudProxyApi() && res.status === 403
                     ? 'Không truy cập được kho dữ liệu (403). ' + (detail || 'Kiểm tra users/{uid}/shopSlug và đăng nhập lại (tab thường, cookie).')
+                    : this.usesCloudProxyApi()
+                    ? `Máy chủ đồng bộ trả về ${res.status}: ${detail || res.statusText}. Thử tải lại hoặc đăng nhập lại.`
                     : `Firebase trả về ${res.status}: ${detail || res.statusText}. Kiểm tra URL, Khóa sao lưu và Quy tắc bảo mật Firebase.`;
                 return this._logLoadTrace(null, 'http_' + res.status);
             }
@@ -415,7 +441,7 @@ class HamobileBanhang {
     
     async initAsync() {
         const content = document.getElementById('main-content');
-        if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang tải dữ liệu từ Firebase...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
+        if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang tải dữ liệu từ đám mây...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
         const localHadData = !!localStorage.getItem(FB_APP_DATA_KEY);
         const cfg = window.FirebaseStorage.getConfig();
         if (!cfg) {
@@ -437,7 +463,29 @@ class HamobileBanhang {
                     this._ready = true;
                     this.clearOldDataIfNeeded();
                     this.init();
-                    setTimeout(() => this.showNotification('✅ Đã tự động chuyển sang đúng kho dữ liệu của shop.', 'success'), 700);
+                    setTimeout(() => this.showNotification('✅ Đã đồng bộ dữ liệu từ đám mây (bản không phải mẫu mặc định).', 'success'), 700);
+                    return;
+                }
+                const cfgAligned = window.FirebaseStorage.getConfig();
+                if (window.FirebaseStorage.usesCloudProxyApi() && hostedCloudKeyMatchesShopQuery(cfgAligned)) {
+                    if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang đồng bộ dữ liệu shop...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
+                    await new Promise(function(r) { setTimeout(r, 700); });
+                    const reloadPkg = await window.FirebaseStorage.load();
+                    const pick = (reloadPkg && reloadPkg.data && reloadPkg.data.customers && reloadPkg.data.products) ? reloadPkg : loaded;
+                    this.demoData = pick.data;
+                    window.companyAssets.logo = pick.company?.logo || null;
+                    window.companyAssets.qr = pick.company?.qrCode || pick.company?.qr || null;
+                    this.migrateProductData();
+                    this._ready = true;
+                    this.clearOldDataIfNeeded();
+                    this.init();
+                    if (!localHadData && window._loadedFromCloud) {
+                        const isDemo = window.FirebaseStorage.isLikelyBundledDemoData(pick.data);
+                        const msg = isDemo
+                            ? 'Đã sẵn sàng làm việc trên thiết bị này. Tài khoản Hangho của bạn vẫn gắn với đúng shop; chỉ vào Cài đặt nếu bạn chủ động dùng mã đồng bộ riêng.'
+                            : '✅ Đã khôi phục từ đám mây. Dữ liệu an toàn khi đổi máy hoặc trình duyệt.';
+                        setTimeout(() => this.showNotification(msg, isDemo ? 'info' : 'success'), 800);
+                    }
                     return;
                 }
                 this._pendingCloudLoaded = loaded;
@@ -445,15 +493,15 @@ class HamobileBanhang {
                 if (content) {
                     const cfgNow = window.FirebaseStorage.getConfig() || {};
                     content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 680px; margin: 0 auto;">' +
-                        '<h2>⚠️ Có thể đang vào nhầm kho dữ liệu</h2>' +
-                        '<p style="margin: 12px 0; color:#6b7280; line-height:1.6;">Hệ thống vừa tải về <strong>bộ dữ liệu demo mặc định</strong>. Nếu shop của bạn đã có dữ liệu thật trên máy khác, khả năng cao là đang dùng sai <strong>Khóa sao lưu Firebase</strong>.</p>' +
-                        '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:12px;margin:14px 0;font-size:13px;line-height:1.5;">' +
-                        '<div><strong>Khóa hiện tại:</strong> ' + escapeHtml(cfgNow.key || '(trống)') + '</div>' +
-                        '<div style="margin-top:6px;color:#7c2d12;">Email/mật khẩu đăng nhập không tự map sang kho dữ liệu nếu khác khóa sao lưu.</div>' +
+                        '<h2>Mở shop trên thiết bị hoặc trình duyệt mới</h2>' +
+                        '<p style="margin: 12px 0; color:#6b7280; line-height:1.6;">Đây là <strong>bản dữ liệu mẫu</strong> đã lưu trên đám mây — thường gặp khi lần đầu mở trên máy mới, sau khi xóa cache, hoặc khi chưa có dữ liệu riêng. Dữ liệu thật của bạn <strong>không bị mất</strong> nếu vẫn đúng tài khoản và cùng mã đồng bộ như trước.</p>' +
+                        '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px;margin:14px 0;font-size:13px;line-height:1.5;">' +
+                        '<div><strong>Thông tin đồng bộ:</strong> ' + escapeHtml(backupKeyHintForUi(cfgNow)) + '</div>' +
+                        '<div style="margin-top:6px;color:#0369a1;">Đa số shop chỉ cần bấm <strong>Tiếp tục</strong>. Chỉ mở Cài đặt nếu bạn đã từng tự đặt mã kho riêng trên máy khác và muốn dùng đúng mã đó.</div>' +
                         '</div>' +
                         '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
-                        '<button type="button" onclick="app.showSettingsPage()" style="padding:10px 14px;border:none;background:#2563eb;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;">Đổi khóa sao lưu</button>' +
-                        '<button type="button" onclick="app.continueWithLoadedDemoCloudData()" style="padding:10px 14px;border:1px solid #d1d5db;background:#fff;color:#111827;border-radius:8px;cursor:pointer;">Vẫn vào dữ liệu hiện tại</button>' +
+                        '<button type="button" onclick="app.continueWithLoadedDemoCloudData()" style="padding:10px 14px;border:none;background:#2563eb;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;">Tiếp tục</button>' +
+                        '<button type="button" onclick="app.showSettingsPage()" style="padding:10px 14px;border:1px solid #d1d5db;background:#fff;color:#111827;border-radius:8px;cursor:pointer;">Mở Cài đặt đồng bộ</button>' +
                         '</div>' +
                         '</div>';
                 }
@@ -628,7 +676,10 @@ class HamobileBanhang {
         this.clearOldDataIfNeeded();
         this.init();
         if (!localHadData && window._loadedFromCloud) {
-            setTimeout(() => this.showNotification('⚠️ Đang dùng dữ liệu demo cloud. Hãy kiểm tra lại khóa sao lưu nếu không đúng shop.', 'warning'), 800);
+            const msg = window.FirebaseStorage.usesCloudProxyApi()
+                ? 'Đang dùng bản dữ liệu đồng bộ từ đám mây. Nếu không đúng shop, vào Cài đặt để kiểm tra.'
+                : '⚠️ Đang dùng dữ liệu demo từ đám mây. Kiểm tra mã kho sao lưu nếu không đúng shop.';
+            setTimeout(() => this.showNotification(msg, window.FirebaseStorage.usesCloudProxyApi() ? 'info' : 'warning'), 800);
         }
     }
 
@@ -642,7 +693,7 @@ class HamobileBanhang {
             const k = document.getElementById('firebase-key');
             if (u && cfg) u.value = cfg.url || '';
             if (k && cfg) k.value = cfg.key || '';
-            this.showNotification('Vui lòng nhập đúng URL/Khóa sao lưu của shop rồi bấm Lưu Firebase.', 'info');
+            this.showNotification('Vui lòng nhập đúng URL và mã kho sao lưu của shop rồi bấm Lưu.', 'info');
         }, 60);
     }
     applyFirebaseConfigFromForm() {

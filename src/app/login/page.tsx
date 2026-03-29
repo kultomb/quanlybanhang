@@ -8,7 +8,12 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { auth, rtdb } from "@/lib/backend/client";
-import { forceLogoutMissingShop, hasValidShopSlug, paymentAllowsAppAccess } from "@/lib/client-auth";
+import {
+  forceLogoutMissingShop,
+  hasValidShopSlug,
+  paymentAllowsAppAccess,
+  postSessionCookieWithRetries,
+} from "@/lib/client-auth";
 import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
 
 function shopAppPath(slug: string, registrationTrial: boolean | null) {
@@ -131,11 +136,14 @@ function LoginContent() {
         return;
       }
       const idToken = await cred.user.getIdToken();
-      await fetch("/api/auth/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ idToken, shopSlug: profile.shopSlug }),
-      }).catch(() => undefined);
+      const sessionOk = await postSessionCookieWithRetries(idToken, {
+        shopSlug: profile.shopSlug,
+      });
+      if (!sessionOk) {
+        setError("Chưa gắn được phiên với máy chủ (mạng hoặc cookie). Thử bấm đăng nhập lại.");
+        setLoading(false);
+        return;
+      }
       syncTrialUiSessionFlag({
         shopSlug: profile.shopSlug,
         registrationTrial: profile.registrationTrial,

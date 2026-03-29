@@ -5,7 +5,12 @@ import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { ReactNode, useEffect, useState } from "react";
 import { rtdb } from "@/lib/backend/client";
-import { forceLogoutMissingShop, hasValidShopSlug, paymentAllowsAppAccess } from "@/lib/client-auth";
+import {
+  forceLogoutMissingShop,
+  hasValidShopSlug,
+  paymentAllowsAppAccess,
+  postSessionCookieWithRetries,
+} from "@/lib/client-auth";
 import { syncTrialUiSessionFlag } from "@/lib/trial-shop";
 
 function toPaymentRequiredPath(shopSlug?: string) {
@@ -36,29 +41,30 @@ export default function RequireAuth({ children }: RequireAuthProps) {
       window.location.href = "/login";
     };
 
-    const syncIdToken = async () => {
+    const clearServerSession = async () => {
       try {
-        const user = auth.currentUser;
-        if (!user) {
-          await fetch("/api/auth/session", { method: "DELETE" });
-          return;
-        }
-        const token = await user.getIdToken();
-        await fetch("/api/auth/session", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ idToken: token }),
-        });
+        await fetch("/api/auth/session", { method: "DELETE" });
       } catch {
-        // Ignore token sync errors; auth guard still controls access.
+        // Ignore.
       }
     };
 
-    // Fast path: if Firebase already restored session in memory, render immediately.
-    const cachedUser = auth.currentUser;
-    if (cachedUser) {
-      void syncIdToken();
-    }
+    const syncIdTokenToCookie = async (shopSlug: string): Promise<boolean> => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return false;
+        const slug = String(shopSlug || "").trim();
+        let token = await user.getIdToken();
+        let ok = await postSessionCookieWithRetries(token, slug ? { shopSlug: slug } : undefined);
+        if (!ok) {
+          token = await user.getIdToken(true);
+          ok = await postSessionCookieWithRetries(token, slug ? { shopSlug: slug } : undefined);
+        }
+        return ok;
+      } catch {
+        return false;
+      }
+    };
 
     let settled = false;
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -70,7 +76,7 @@ export default function RequireAuth({ children }: RequireAuthProps) {
           if (restoredUser) return;
           setAuthed(false);
           setReady(true);
-          void syncIdToken();
+          void clearServerSession();
           redirectToLogin();
         }, 350);
         return;
@@ -115,7 +121,7 @@ export default function RequireAuth({ children }: RequireAuthProps) {
             return;
           }
 
-          await syncIdToken();
+          await syncIdTokenToCookie(shopSlug);
           setAuthed(true);
           setReady(true);
         } catch {
@@ -163,7 +169,7 @@ export default function RequireAuth({ children }: RequireAuthProps) {
             window.location.href = toPaymentRequiredPath(shopSlug);
             return;
           }
-          await syncIdToken();
+          await syncIdTokenToCookie(shopSlug);
           setAuthed(true);
           setReady(true);
         } catch {
