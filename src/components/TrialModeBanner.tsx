@@ -95,7 +95,7 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
       <span style={{ pointerEvents: "auto" }}>
         {expired ? (
           <>
-            ⏱️ <strong>Thời hạn dùng thử đã hết.</strong> Hệ thống không còn đồng bộ dữ liệu đám mây cho shop này cho đến khi bạn{" "}
+            ⏱️ <strong>Thời hạn dùng thử đã hết.</strong> Không còn đồng bộ đám mây.{" "}
             <Link
               href="/upgrade"
               style={{
@@ -105,9 +105,10 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
                 textUnderlineOffset: 2,
               }}
             >
-              nâng cấp tài khoản
+              Nâng cấp tài khoản
             </Link>
-            .
+            {" "}
+            — bước tiếp theo là <strong>thanh toán chuyển khoản</strong> (QR / mã thanh toán).
           </>
         ) : (
           <>

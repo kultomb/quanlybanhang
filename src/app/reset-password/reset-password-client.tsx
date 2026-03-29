@@ -114,8 +114,7 @@ export default function ResetPasswordClient() {
                 }}
               />
               <span style={{ fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
-                Cùng tiêu chí như đăng ký: tránh mật khẩu phổ biến; trình duyệt có thể cảnh báo nếu mật
-                khẩu đã từng bị lộ.
+                Cùng tiêu chí như đăng ký: tránh mật khẩu phổ biến.
               </span>
             </label>
 

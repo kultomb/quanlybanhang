@@ -265,9 +265,7 @@ export default function RegisterForm() {
             }}
           />
           <span style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.45 }}>
-            Ít nhất 8 ký tự, có chữ cái và số hoặc ký tự đặc biệt. Nên dùng mật khẩu riêng, chưa dùng ở
-            website khác — trình duyệt có thể cảnh báo nếu mật khẩu đã từng bị lộ (đó là tính năng bảo vệ
-            của Chrome, không phải do shop bị hack).
+            Ít nhất 8 ký tự, có chữ cái và số hoặc ký tự đặc biệt.
           </span>
         </label>
 

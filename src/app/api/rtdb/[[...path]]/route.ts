@@ -81,7 +81,7 @@ function assertTrialProductionRtdbAccess(ctx: UserShopContext): Response | null 
     return jsonError(
       403,
       "trial_expired",
-      "Thời hạn dùng thử đã hết. Gia hạn trên hồ sơ hoặc nâng cấp tài khoản.",
+      "Thời hạn dùng thử đã hết. Vui lòng nâng cấp tài khoản và thanh toán chuyển khoản (trang Nâng cấp → thanh toán).",
     );
   }
   return null;

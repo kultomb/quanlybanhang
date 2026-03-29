@@ -45,8 +45,7 @@ export function validateSignupPassword(password: string, email?: string): Passwo
   if (BLOCKED.has(lower)) {
     return {
       ok: false,
-      message:
-        "Mật khẩu này quá phổ biến hoặc dễ đoán. Hãy chọn mật khẩu khác (trình duyệt cũng có thể cảnh báo nếu mật khẩu đã từng bị lộ trên Internet).",
+      message: "Mật khẩu này quá phổ biến hoặc dễ đoán. Hãy chọn mật khẩu khác.",
     };
   }
 
