@@ -73,7 +73,7 @@ export default function TrialPage() {
           {[
             "Không qua bước thanh toán khi đăng ký dùng thử",
             "Mỗi lần đăng ký có không gian riêng cho dữ liệu thử",
-            "Thời gian dùng thử có giới hạn; phù hợp demo hoặc tập huấn",
+            "Dùng thử trong 3 ngày; phù hợp demo hoặc tập huấn",
           ].map((text) => (
             <div
               key={text}

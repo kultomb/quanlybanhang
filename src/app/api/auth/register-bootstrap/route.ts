@@ -6,7 +6,7 @@ import admin from "firebase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 
 export async function POST(request: Request) {
   try {

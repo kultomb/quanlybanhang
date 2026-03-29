@@ -58,10 +58,24 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
 
   if (!visible) return null;
 
+  const now = Date.now();
+  const expired = expiresAt != null && now > expiresAt;
   const daysLeft =
-    expiresAt != null && expiresAt > Date.now()
-      ? Math.max(0, Math.ceil((expiresAt - Date.now()) / (24 * 60 * 60 * 1000)))
+    expiresAt != null && expiresAt > now
+      ? Math.max(0, Math.ceil((expiresAt - now) / (24 * 60 * 60 * 1000)))
       : null;
+
+  const barStyle = expired
+    ? {
+        color: "#7f1d1d",
+        background: "linear-gradient(90deg, #fee2e2 0%, #fecaca 50%, #fee2e2 100%)",
+        borderBottom: "1px solid #ef4444",
+      }
+    : {
+        color: "#78350f",
+        background: "linear-gradient(90deg, #fef3c7 0%, #fde68a 50%, #fef3c7 100%)",
+        borderBottom: "1px solid #f59e0b",
+      };
 
   return (
     <div
@@ -73,28 +87,46 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
         fontSize: 13,
         fontWeight: 600,
         textAlign: "center",
-        color: "#78350f",
-        background: "linear-gradient(90deg, #fef3c7 0%, #fde68a 50%, #fef3c7 100%)",
-        borderBottom: "1px solid #f59e0b",
         boxSizing: "border-box",
         pointerEvents: "none",
+        ...barStyle,
       }}
     >
       <span style={{ pointerEvents: "auto" }}>
-        🧪 Đang ở chế độ dùng thử — dữ liệu có thể bị xóa hoặc hết hạn; không dùng cho vận hành thật.
-        {daysLeft != null ? ` · Còn khoảng ${daysLeft} ngày.` : null}
-        {" · "}
-        <Link
-          href="/upgrade"
-          style={{
-            color: "#92400e",
-            fontWeight: 800,
-            textDecoration: "underline",
-            textUnderlineOffset: 2,
-          }}
-        >
-          Nâng cấp tài khoản
-        </Link>
+        {expired ? (
+          <>
+            ⏱️ <strong>Thời hạn dùng thử đã hết.</strong> Hệ thống không còn đồng bộ dữ liệu đám mây cho shop này cho đến khi bạn{" "}
+            <Link
+              href="/upgrade"
+              style={{
+                color: "#991b1b",
+                fontWeight: 800,
+                textDecoration: "underline",
+                textUnderlineOffset: 2,
+              }}
+            >
+              nâng cấp tài khoản
+            </Link>
+            .
+          </>
+        ) : (
+          <>
+            🧪 Đang ở chế độ dùng thử — dữ liệu có thể bị xóa hoặc hết hạn; không dùng cho vận hành thật.
+            {daysLeft != null ? ` · Còn khoảng ${daysLeft} ngày.` : null}
+            {" · "}
+            <Link
+              href="/upgrade"
+              style={{
+                color: "#92400e",
+                fontWeight: 800,
+                textDecoration: "underline",
+                textUnderlineOffset: 2,
+              }}
+            >
+              Nâng cấp tài khoản
+            </Link>
+          </>
+        )}
       </span>
     </div>
   );
