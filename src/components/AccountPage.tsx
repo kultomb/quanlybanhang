@@ -44,7 +44,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
     const currentUser = auth.currentUser;
     if (!currentUser || !currentUser.email) {
       setMessageType("error");
-      setMessage("Không tìm thấy phiên đăng nhập.");
+      setMessage("Chưa đăng nhập. Vui lòng đăng nhập lại.");
       return;
     }
     if (newPassword.length < 6) {
@@ -100,7 +100,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
         lower.includes("auth/invalid-continue-uri")
       ) {
         setMessage(
-          "Domain chưa được phép cho đăng nhập. Vui lòng thêm domain website vào Authorized domains trong bảng điều khiển dự án (Authentication).",
+          "Không gửi được email do cấu hình địa chỉ trang web. Vui lòng liên hệ hỗ trợ hoặc người phụ trách kỹ thuật.",
         );
       } else {
         setMessage("Không gửi được email quên mật khẩu.");

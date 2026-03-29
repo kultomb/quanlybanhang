@@ -105,7 +105,7 @@ function UpgradeForm() {
       }
       const sessionOk = await postSessionCookieWithRetries(idToken, { shopSlug: currentShop });
       if (!sessionOk) {
-        setError("Chưa cập nhật được phiên đăng nhập. Thử lại sau vài giây.");
+        setError("Chưa lưu được phiên đăng nhập. Thử lại sau vài giây.");
         return;
       }
       router.replace(`/payment-required?shop=${encodeURIComponent(currentShop)}`);
@@ -181,7 +181,7 @@ function UpgradeForm() {
             <input
               value={customSlug}
               onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-              placeholder="vd: minhhamobile"
+              placeholder=""
               style={{
                 border: "1px solid #a7f3d0",
                 borderRadius: 10,

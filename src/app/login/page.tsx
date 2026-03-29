@@ -62,7 +62,7 @@ function LoginContent() {
     const reason = String(searchParams.get("reason") || "");
     if (reason === "missing-shop") {
       setNotice(
-        "Shop của tài khoản này không còn tồn tại hoặc đã bị xóa thủ công trên hệ thống. Bạn đã được đăng xuất để đảm bảo an toàn dữ liệu.",
+        "Cửa hàng gắn với tài khoản không còn trên hệ thống. Bạn đã được đăng xuất để bảo vệ dữ liệu.",
       );
       return;
     }
@@ -132,7 +132,7 @@ function LoginContent() {
       const profile = await resolveUserProfile(cred.user.uid);
       if (!hasValidShopSlug(profile.shopSlug)) {
         await forceLogoutMissingShop();
-        setError("Shop đã bị xóa khỏi hệ thống. Bạn đã được đăng xuất.");
+        setError("Cửa hàng không còn trên hệ thống. Bạn đã được đăng xuất.");
         return;
       }
       const idToken = await cred.user.getIdToken();
@@ -140,7 +140,7 @@ function LoginContent() {
         shopSlug: profile.shopSlug,
       });
       if (!sessionOk) {
-        setError("Chưa gắn được phiên với máy chủ (mạng hoặc cookie). Thử bấm đăng nhập lại.");
+        setError("Chưa đăng nhập xong. Kiểm tra mạng rồi thử bấm Đăng nhập lại.");
         setLoading(false);
         return;
       }

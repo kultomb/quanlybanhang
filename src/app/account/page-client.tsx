@@ -47,7 +47,7 @@ export default function AccountClient() {
     setMessage("");
     const user = auth.currentUser;
     if (!user || !user.email) {
-      setError("Không có phiên đăng nhập hợp lệ.");
+      setError("Bạn chưa đăng nhập hoặc phiên đã hết hạn. Vui lòng đăng nhập lại.");
       return;
     }
     if (newPassword.length < 6) {
@@ -93,7 +93,7 @@ export default function AccountClient() {
         lower.includes("auth/invalid-continue-uri")
       ) {
         setError(
-          "Domain chưa được phép cho đăng nhập. Vui lòng thêm domain website vào Authorized domains trong bảng điều khiển dự án (Authentication).",
+          "Không gửi được email do cấu hình địa chỉ trang web. Vui lòng liên hệ hỗ trợ hoặc người phụ trách kỹ thuật.",
         );
       } else {
         setError("Không gửi được email đặt lại mật khẩu.");

@@ -25,10 +25,10 @@ function getAuthErrorMessage(err: unknown): string {
     normalized.includes("database/permission-denied") ||
     normalized.includes("insufficient permissions")
   ) {
-    return "Đăng ký bị chặn bởi quyền dữ liệu (Rules). Vui lòng cập nhật/publish Rules mới rồi thử lại.";
+    return "Đăng ký không hoàn tất được do lỗi hệ thống. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.";
   }
   if (normalized.includes("app_check") || normalized.includes("app check")) {
-    return "Dịch vụ bảo mật App Check đang chặn yêu cầu. Vui lòng kiểm tra cấu hình App Check.";
+    return "Hệ thống từ chối kết nối tạm thời. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.";
   }
 
   switch (code) {
@@ -145,11 +145,9 @@ export default function RegisterForm() {
         } else if (bootJson.error === "invalid_shop") {
           setError("Tên shop chỉ gồm a-z, số, dấu -, độ dài 3-30 ký tự.");
         } else if (bootRes.status === 401) {
-          setError("Phiên đăng nhập không hợp lệ. Vui lòng thử lại.");
+          setError("Đăng nhập không hợp lệ. Vui lòng thử lại.");
         } else {
-          setError(
-            "Không tạo được hồ sơ shop. Kiểm tra cấu hình máy chủ (Admin SDK / biến môi trường) hoặc thử lại sau.",
-          );
+          setError("Không tạo được cửa hàng. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.");
         }
         setLoading(false);
         return;
@@ -159,7 +157,7 @@ export default function RegisterForm() {
 
       const sessionOk = await postSessionCookieWithRetries(idToken, { shopSlug: finalSlug });
       if (!sessionOk) {
-        setError("Chưa gắn được phiên đăng nhập. Kiểm tra mạng rồi thử lại.");
+        setError("Chưa đăng nhập xong. Kiểm tra mạng rồi thử lại.");
         setLoading(false);
         return;
       }
@@ -218,7 +216,7 @@ export default function RegisterForm() {
             required
             value={shopSlug}
             onChange={(e) => setShopSlug(e.target.value)}
-            placeholder={isTrial ? "" : "vd: minhhamobile"}
+            placeholder=""
             style={{
               border: "1px solid #a7f3d0",
               borderRadius: 10,

@@ -67,14 +67,14 @@ function assertTrialProductionRtdbAccess(ctx: UserShopContext): Response | null 
     return jsonError(
       403,
       "trial_slug_mismatch",
-      `Tài khoản dùng thử cần shopSlug có tiền tố "${p}-". Sửa users/{uid}/shopSlug hoặc registrationTrial.`,
+      "Tài khoản dùng thử và địa chỉ cửa hàng hiện không khớp. Hãy đăng xuất, đăng nhập lại, hoặc liên hệ hỗ trợ.",
     );
   }
   if (!isTrial && slugLooksTrial) {
     return jsonError(
       403,
       "production_trial_prefix_forbidden",
-      `Shop chính thức không được dùng tiền tố "${p}-". Đổi shopSlug hoặc registrationTrial: false.`,
+      "Tên cửa hàng không phù hợp với tài khoản đã kích hoạt. Vui lòng liên hệ hỗ trợ.",
     );
   }
   if (isTrial && trialExpiresAt != null && Date.now() > trialExpiresAt) {
@@ -118,19 +118,10 @@ async function proxy(
   const userShopSlug = userCtx.shopSlug;
   const allowedShopKey = userShopSlug ? `shop_${userShopSlug}` : "";
   if (!allowedShopKey) {
-    return new Response(
-      JSON.stringify({
-        error: "missing_shop_slug",
-        message:
-          "Tài khoản chưa có shopSlug (users/{uid}/shopSlug). Hoàn tất đăng ký shop, sửa hồ sơ trong cơ sở dữ liệu, hoặc liên hệ hỗ trợ — không thể đọc/ghi kho dữ liệu.",
-      }),
-      {
-        status: 403,
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          "cache-control": "no-store",
-        },
-      },
+    return jsonError(
+      403,
+      "missing_shop_slug",
+      "Tài khoản của bạn chưa được gắn với một cửa hàng. Hãy hoàn tất bước đăng ký hoặc liên hệ hỗ trợ. Hiện chưa thể lưu hoặc tải dữ liệu bán hàng.",
     );
   }
 
@@ -143,10 +134,18 @@ async function proxy(
   const backupRoot = segments[0];
   // Không tin client: ép kho theo hồ sơ; chặn nếu mapping không khớp loại tài khoản (phòng sửa code sai / bypass).
   if (trialUser && backupRoot !== "trial_backups") {
-    return jsonError(403, "trial_backup_required", "Tài khoản dùng thử chỉ được truy cập kho trial_backups.");
+    return jsonError(
+      403,
+      "trial_backup_required",
+      "Dữ liệu cửa hàng chưa mở được với tài khoản dùng thử này. Thử đăng nhập lại hoặc liên hệ hỗ trợ.",
+    );
   }
   if (!trialUser && backupRoot !== "backups") {
-    return jsonError(403, "production_backup_required", "Tài khoản chính thức chỉ được truy cập kho backups.");
+    return jsonError(
+      403,
+      "production_backup_required",
+      "Dữ liệu cửa hàng chưa mở được. Thử đăng nhập lại hoặc liên hệ hỗ trợ.",
+    );
   }
   const targetPath = segments.join("/");
   const db = adminDb();

@@ -70,7 +70,7 @@ function PaymentRequiredContent() {
     setPaymentRef(String(profile.paymentRef || ""));
     if (!resolvedShop && !shop) {
       setMessage(
-        "Tài khoản chưa có tên shop. Có thể dữ liệu hồ sơ đã bị sửa thủ công. Vui lòng cập nhật lại shopSlug trong users/{uid}.",
+        "Tài khoản chưa có tên cửa hàng. Nếu bạn vừa đăng ký, hãy thử đăng ký lại; nếu đã dùng lâu, vui lòng liên hệ hỗ trợ.",
       );
     }
     if (paid) {
