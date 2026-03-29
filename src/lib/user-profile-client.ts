@@ -11,8 +11,8 @@ export type UserProfileClient = {
   registrationTrial: boolean | null;
 };
 
-const FIRESTORE_PROFILE_CAP_MS = 5000;
-const RTDB_PROFILE_CAP_MS = 12000;
+const FIRESTORE_PROFILE_CAP_MS = 3500;
+const RTDB_PROFILE_CAP_MS = 8000;
 
 function raceCap<T>(p: Promise<T>, ms: number, onTimeout: T): Promise<T> {
   return Promise.race([
@@ -46,11 +46,10 @@ async function fetchShopSlugFromFirestore(uid: string): Promise<string> {
 }
 
 /**
- * Shop mapping từ Firestore (có giới hạn thời gian); payment / trial từ RTDB.
- * Firestore + RTDB chạy song song để giảm độ trễ đăng nhập.
+ * Payment / trial từ RTDB. Firestore chỉ gọi khi RTDB chưa có shopSlug (reload nhanh cho đa số user).
  */
 export async function fetchUserProfileClient(uid: string): Promise<UserProfileClient> {
-  const rtdbP = raceCap(
+  const v = await raceCap(
     get(ref(rtdb, `users/${uid}`))
       .then((snap) => (snap.val() || {}) as Record<string, unknown>)
       .catch(() => ({} as Record<string, unknown>)),
@@ -58,17 +57,19 @@ export async function fetchUserProfileClient(uid: string): Promise<UserProfileCl
     {} as Record<string, unknown>,
   );
 
-  const shopFromFsP = raceCap(fetchShopSlugFromFirestore(uid), FIRESTORE_PROFILE_CAP_MS, "");
-
-  const [v, shopFromFs] = await Promise.all([rtdbP, shopFromFsP]);
-
-  const shopSlug = String(shopFromFs || "").trim() || String(v.shopSlug || "").trim();
-
   const rt = v.registrationTrial;
   const registrationTrial =
     rt === true || rt === "true" ? true : rt === false || rt === "false" ? false : null;
 
   const ps = String(v.paymentStatus || "").trim();
+  let shopSlug = String(v.shopSlug || "").trim();
+
+  if (!shopSlug) {
+    shopSlug = String(
+      await raceCap(fetchShopSlugFromFirestore(uid), FIRESTORE_PROFILE_CAP_MS, ""),
+    ).trim();
+  }
+
   return {
     shopSlug,
     paymentStatus: ps,

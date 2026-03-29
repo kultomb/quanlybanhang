@@ -77,8 +77,8 @@ export async function postSessionCookieWithRetries(
   const body = JSON.stringify(
     shop ? { idToken: trimmed, shopSlug: shop } : { idToken: trimmed },
   );
-  const maxAttempts = 3;
-  const baseMs = 100;
+  const maxAttempts = 2;
+  const baseMs = 50;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const ctrl = new AbortController();

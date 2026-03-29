@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 
-import RequireAuth from "@/components/RequireAuth";
-import ShopLegacyFrame from "@/components/ShopLegacyFrame";
+import ShopPosClient from "./shop-pos-client";
 import { redirectIfShopUrlMismatch } from "@/lib/backend/redirect-if-shop-url-mismatch";
 import { rtdbShopSlugExists } from "@/lib/backend/shop-exists";
 
@@ -16,23 +15,5 @@ export default async function ShopPage({ params }: ShopPageProps) {
   }
   await redirectIfShopUrlMismatch(shop);
 
-  return (
-    <RequireAuth
-      pathShopFromUrl={shop}
-      renderShop={({ shopSlug }) => (
-        <main
-          style={{
-            position: "relative",
-            width: "100vw",
-            height: "100vh",
-            margin: 0,
-            overflow: "hidden",
-          }}
-        >
-          {/* shopSlug từ hồ sơ — không lấy segment URL (tránh hiển thị /iframe sai khi URL rác) */}
-          <ShopLegacyFrame shop={shopSlug} />
-        </main>
-      )}
-    />
-  );
+  return <ShopPosClient pathShopFromUrl={shop} />;
 }

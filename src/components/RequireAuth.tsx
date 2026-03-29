@@ -1,7 +1,7 @@
 "use client";
 
 import { auth } from "@/lib/backend/client";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { ReactNode, useEffect, useState } from "react";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
@@ -63,6 +63,10 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
   useEffect(() => {
     let disposed = false;
     let forcingLogout = false;
+    let unsub: (() => void) | undefined;
+    let settled = false;
+    let logoutDebounce: number | undefined;
+
     const redirectToLogin = () => {
       try {
         if (window.top && window.top !== window) {
@@ -100,71 +104,83 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
       }
     };
 
-    let settled = false;
-    const unsub = onAuthStateChanged(auth, (user) => {
-      settled = true;
-      if (!user) {
-        window.setTimeout(() => {
-          if (disposed) return;
-          const restoredUser = auth.currentUser;
-          if (restoredUser) return;
-          setAuthed(false);
-          setReady(true);
-          void clearServerSession();
-          redirectToLogin();
-        }, 350);
-        return;
-      }
-      void (async () => {
-        try {
-          const profile = await fetchUserProfileClient(user.uid);
-          const shopSlug = String(profile.shopSlug || "");
-          const reg = profile.registrationTrial;
+    const processSignedInUser = async (user: User) => {
+      try {
+        const profile = await fetchUserProfileClient(user.uid);
+        const shopSlug = String(profile.shopSlug || "");
+        const reg = profile.registrationTrial;
 
-          if (!hasValidShopSlug(shopSlug)) {
-            if (forcingLogout) return;
-            forcingLogout = true;
-            await forceLogoutMissingShop();
-            return;
-          }
-
-          syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
-
-          await syncIdTokenToCookie(shopSlug);
-
-          if (redirectIfUrlShopMismatch(pathShopFromUrl, shopSlug, reg)) {
-            return;
-          }
-
-          if (!paymentAllowsAppAccess(profile.paymentStatus)) {
-            const target = toPaymentRequiredPath(shopSlug);
-            try {
-              if (window.top && window.top !== window) {
-                window.top.location.href = target;
-                return;
-              }
-            } catch {
-              // Ignore cross-frame redirect issues.
-            }
-            window.location.href = target;
-            return;
-          }
-
-          setResolvedShopSlug(shopSlug);
-          setAuthed(true);
-          setReady(true);
-        } catch {
-          // Avoid blank screen when profile fetch fails (rules/env mismatch, transient network).
-          setAuthed(false);
-          setReady(true);
-          redirectToLogin();
+        if (!hasValidShopSlug(shopSlug)) {
+          if (forcingLogout) return;
+          forcingLogout = true;
+          await forceLogoutMissingShop();
+          return;
         }
-      })();
-    });
 
-    // Fail-safe: never keep "checking login" forever.
+        syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
+
+        await syncIdTokenToCookie(shopSlug);
+
+        if (redirectIfUrlShopMismatch(pathShopFromUrl, shopSlug, reg)) {
+          return;
+        }
+
+        if (!paymentAllowsAppAccess(profile.paymentStatus)) {
+          const target = toPaymentRequiredPath(shopSlug);
+          try {
+            if (window.top && window.top !== window) {
+              window.top.location.href = target;
+              return;
+            }
+          } catch {
+            // Ignore cross-frame redirect issues.
+          }
+          window.location.href = target;
+          return;
+        }
+
+        if (disposed) return;
+        setResolvedShopSlug(shopSlug);
+        setAuthed(true);
+        setReady(true);
+      } catch {
+        if (disposed) return;
+        setAuthed(false);
+        setReady(true);
+        redirectToLogin();
+      }
+    };
+
+    void (async () => {
+      await auth.authStateReady();
+      if (disposed) return;
+
+      unsub = onAuthStateChanged(auth, (user) => {
+        settled = true;
+        if (logoutDebounce !== undefined) {
+          window.clearTimeout(logoutDebounce);
+          logoutDebounce = undefined;
+        }
+
+        if (!user) {
+          logoutDebounce = window.setTimeout(() => {
+            logoutDebounce = undefined;
+            if (disposed) return;
+            if (auth.currentUser) return;
+            setAuthed(false);
+            setReady(true);
+            void clearServerSession();
+            redirectToLogin();
+          }, 80);
+          return;
+        }
+
+        void processSignedInUser(user);
+      });
+    })();
+
     const fallbackTimer = window.setTimeout(() => {
-      if (settled) return;
+      if (settled || disposed) return;
       const user = auth.currentUser;
       if (!user) {
         setAuthed(false);
@@ -172,41 +188,14 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         redirectToLogin();
         return;
       }
-      void (async () => {
-        try {
-          const profile = await fetchUserProfileClient(user.uid);
-          const shopSlug = String(profile.shopSlug || "");
-          const reg = profile.registrationTrial;
-          if (!hasValidShopSlug(shopSlug)) {
-            if (forcingLogout) return;
-            forcingLogout = true;
-            await forceLogoutMissingShop();
-            return;
-          }
-          syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
-          await syncIdTokenToCookie(shopSlug);
-          if (redirectIfUrlShopMismatch(pathShopFromUrl, shopSlug, reg)) {
-            return;
-          }
-          if (!paymentAllowsAppAccess(profile.paymentStatus)) {
-            window.location.href = toPaymentRequiredPath(shopSlug);
-            return;
-          }
-          setResolvedShopSlug(shopSlug);
-          setAuthed(true);
-          setReady(true);
-        } catch {
-          setAuthed(false);
-          setReady(true);
-          redirectToLogin();
-        }
-      })();
-    }, 1200);
+      void processSignedInUser(user);
+    }, 600);
 
     return () => {
       disposed = true;
+      if (logoutDebounce !== undefined) window.clearTimeout(logoutDebounce);
       window.clearTimeout(fallbackTimer);
-      unsub();
+      unsub?.();
     };
   }, [pathShopFromUrl]);
 
