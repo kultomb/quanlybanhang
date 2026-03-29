@@ -1,7 +1,14 @@
 "use client";
 
 import Script from "next/script";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 
 type TurnstileApi = {
   render: (el: HTMLElement, opts: Record<string, unknown>) => string;
@@ -20,10 +27,37 @@ type LoginTurnstileProps = {
   onToken: (token: string) => void;
 };
 
-export default function LoginTurnstile({ siteKey, onToken }: LoginTurnstileProps) {
+export type LoginTurnstileHandle = {
+  /** Lấy token mới (token Turnstile chỉ dùng được một lần sau siteverify). */
+  reset: () => void;
+};
+
+const LoginTurnstile = forwardRef<LoginTurnstileHandle, LoginTurnstileProps>(function LoginTurnstile(
+  { siteKey, onToken },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const [apiReady, setApiReady] = useState(false);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      reset: () => {
+        const api = typeof window !== "undefined" ? window.turnstile : undefined;
+        const wid = widgetIdRef.current;
+        if (api && wid) {
+          try {
+            api.reset(wid);
+          } catch {
+            // Ignore.
+          }
+        }
+        onToken("");
+      },
+    }),
+    [onToken],
+  );
 
   const mount = useCallback(() => {
     const el = containerRef.current;
@@ -75,4 +109,6 @@ export default function LoginTurnstile({ siteKey, onToken }: LoginTurnstileProps
       <div ref={containerRef} style={{ minHeight: 70, display: "grid", placeItems: "center" }} />
     </>
   );
-}
+});
+
+export default LoginTurnstile;

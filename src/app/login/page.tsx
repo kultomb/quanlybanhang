@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
+import { FormEvent, Suspense, useEffect, useRef, useState, type RefObject } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/backend/client";
 import LoginTurnstile from "@/components/LoginTurnstile";
@@ -50,10 +50,15 @@ function getAuthErrorMessage(err: unknown): string {
   }
 }
 
+function resetTurnstile(ref: RefObject<LoginTurnstileHandle | null>) {
+  ref.current?.reset();
+}
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const submittingRef = useRef(false);
+  const turnstileRef = useRef<LoginTurnstileHandle | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -138,14 +143,31 @@ function LoginContent() {
       } finally {
         window.clearTimeout(preTimer);
       }
+
+      const preJson = (await preRes.json().catch(() => ({}))) as {
+        error?: string;
+        retryAfterSec?: number;
+      };
+
       if (preRes.status === 429) {
-        const j = (await preRes.json().catch(() => ({}))) as { retryAfterSec?: number };
-        const sec = typeof j.retryAfterSec === "number" ? j.retryAfterSec : 60;
+        const sec = typeof preJson.retryAfterSec === "number" ? preJson.retryAfterSec : 60;
         setError(`Đăng nhập tạm khóa do thử quá nhiều lần. Thử lại sau khoảng ${sec} giây.`);
+        resetTurnstile(turnstileRef);
         return;
       }
       if (!preRes.ok) {
-        setError("Không thể xác minh phiên đăng nhập. Thử lại sau giây lát.");
+        resetTurnstile(turnstileRef);
+        if (preJson.error === "captcha_failed") {
+          setError(
+            "Mã xác minh đã hết hạn hoặc đã dùng. Vui lòng hoàn tất ô xác minh lại rồi đăng nhập.",
+          );
+        } else if (preJson.error === "invalid_email") {
+          setError("Email không hợp lệ.");
+        } else if (preJson.error === "server_error" || preRes.status >= 500) {
+          setError("Máy chủ tạm thời không kiểm tra được đăng nhập. Thử lại sau vài giây.");
+        } else {
+          setError("Không thể xác minh bước đăng nhập. Thử lại sau giây lát.");
+        }
         return;
       }
 
@@ -153,6 +175,7 @@ function LoginContent() {
       const profile = await resolveUserProfile(cred.user.uid);
       if (!hasValidShopSlug(profile.shopSlug)) {
         await forceLogoutMissingShop();
+        resetTurnstile(turnstileRef);
         setError("Cửa hàng không còn trên hệ thống. Bạn đã được đăng xuất.");
         return;
       }
@@ -161,6 +184,7 @@ function LoginContent() {
         shopSlug: profile.shopSlug,
       });
       if (!sessionOk) {
+        resetTurnstile(turnstileRef);
         setError("Chưa đăng nhập xong. Kiểm tra mạng rồi thử bấm Đăng nhập lại.");
         return;
       }
@@ -175,6 +199,7 @@ function LoginContent() {
       if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
       else router.replace("/account");
     } catch (err: unknown) {
+      resetTurnstile(turnstileRef);
       if (err instanceof Error && err.name === "AbortError") {
         setError("Hết thời gian chờ máy chủ. Kiểm tra mạng và thử lại.");
       } else {
@@ -274,7 +299,7 @@ function LoginContent() {
         </label>
 
         {turnstileSiteKey ? (
-          <LoginTurnstile siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+          <LoginTurnstile ref={turnstileRef} siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
         ) : null}
 
         {error ? (

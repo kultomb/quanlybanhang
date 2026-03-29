@@ -67,6 +67,7 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
 
   async function handleLogout() {
     await signOut(auth);
+    await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
     router.replace("/login");
   }
 
