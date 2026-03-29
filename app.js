@@ -102,7 +102,7 @@ window.FirebaseStorage = {
                     ? 'Không truy cập được kho dữ liệu (403). ' + (detail || 'Kiểm tra users/{uid}/shopSlug và đăng nhập lại (tab thường, cookie).')
                     : this.usesCloudProxyApi()
                     ? `Máy chủ đồng bộ trả về ${res.status}: ${detail || res.statusText}. Thử tải lại hoặc đăng nhập lại.`
-                    : `Firebase trả về ${res.status}: ${detail || res.statusText}. Kiểm tra URL, Khóa sao lưu và Quy tắc bảo mật Firebase.`;
+                    : `Máy chủ dữ liệu trả về ${res.status}: ${detail || res.statusText}. Kiểm tra URL, khóa sao lưu và quy tắc Rules (ghi/đọc).`;
                 return this._logLoadTrace(null, 'http_' + res.status);
             }
             const json = await res.json();
@@ -427,7 +427,7 @@ class HamobileBanhang {
         const localHadData = !!localStorage.getItem(FB_APP_DATA_KEY);
         const cfg = window.FirebaseStorage.getConfig();
         if (!cfg) {
-            if (content) content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;"><h2>⚙️ Cấu hình Firebase</h2><div style="background:linear-gradient(135deg,#059669 0%,#047857 100%);color:white;padding:16px;border-radius:12px;margin:16px 0;"><strong>✅ Dữ liệu lưu trên đám mây – KHÔNG MẤT khi:</strong> ẩn danh, xóa cache trình duyệt, đổi thiết bị</div><p style="margin: 16px 0;">Tạo file <code>firebase-config.js</code> hoặc nhập bên dưới:</p><pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;overflow:auto;font-size:12px;">window.FIREBASE_CONFIG = { url: \'https://XXX.firebasedatabase.app\', key: \'key_cua_ban\' };</pre><div style="display:grid;gap:12px;"><input id="fb-url" placeholder="URL Firebase Realtime Database" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;"><input id="fb-key" placeholder="Khóa sao lưu (bí mật)" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;"><button onclick="app.applyFirebaseConfigFromForm()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Áp dụng và tải</button></div></div>';
+            if (content) content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;"><h2>⚙️ Cấu hình đồng bộ đám mây</h2><div style="background:linear-gradient(135deg,#059669 0%,#047857 100%);color:white;padding:16px;border-radius:12px;margin:16px 0;"><strong>✅ Dữ liệu lưu trên đám mây – KHÔNG MẤT khi:</strong> ẩn danh, xóa cache trình duyệt, đổi thiết bị</div><p style="margin: 16px 0;">Tạo file <code>firebase-config.js</code> (self-host) hoặc nhập bên dưới:</p><pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;overflow:auto;font-size:12px;">window.FIREBASE_CONFIG = { url: \'https://XXX.firebasedatabase.app\', key: \'key_cua_ban\' };</pre><div style="display:grid;gap:12px;"><input id="fb-url" placeholder="URL máy chủ dữ liệu (Realtime Database)" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;"><input id="fb-key" placeholder="Khóa sao lưu (bí mật)" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;"><button onclick="app.applyFirebaseConfigFromForm()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Áp dụng và tải</button></div></div>';
             window.app = this;
             return;
         }
@@ -553,7 +553,7 @@ class HamobileBanhang {
                         '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
                         '<p style="margin: 8px 0; font-size: 13px;">💡 Tab ẩn danh hoặc mở file trực tiếp (file://) có thể bị chặn kết nối. Hãy chạy qua web server (localhost) hoặc dùng tab thường.</p>' +
                         '<div style="display:grid;gap:12px;margin-top:20px;">' +
-                        '<input id="fb-url" placeholder="URL Firebase" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
+                        '<input id="fb-url" placeholder="URL đồng bộ" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
                         '<input id="fb-key" placeholder="Khóa sao lưu" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
                         '<button onclick="app.applyFirebaseConfigFromForm()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                         '</div></div>';
@@ -569,7 +569,7 @@ class HamobileBanhang {
                 return;
             }
             // Firebase trả về null = đường dẫn chưa tồn tại (khóa mới, database trống)
-            if (content) content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;"><h2>Khởi tạo dữ liệu mới?</h2><p style="color:#6b7280;margin:12px 0;">Chưa có bản sao lưu hợp lệ trên Firebase cho khóa này. <strong>Chỉ bấm tiếp nếu đây là shop mới</strong> — nếu bạn đã có dữ liệu, kiểm tra URL/khóa hoặc thử lại sau khi mạng ổn định (tránh ghi dữ liệu mẫu đè lên cloud).</p><button type="button" id="btn-confirm-demo-seed" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;margin-right:8px;">Tạo dữ liệu mẫu và lưu lên Firebase</button><button type="button" id="btn-retry-load" style="padding:12px 24px;background:#e5e7eb;color:#111;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử tải lại</button></div>';
+            if (content) content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;"><h2>Khởi tạo dữ liệu mới?</h2><p style="color:#6b7280;margin:12px 0;">Chưa có bản sao lưu hợp lệ trên đám mây cho khóa này. <strong>Chỉ bấm tiếp nếu đây là shop mới</strong> — nếu bạn đã có dữ liệu, kiểm tra URL/khóa hoặc thử lại sau khi mạng ổn định (tránh ghi dữ liệu mẫu đè lên cloud).</p><button type="button" id="btn-confirm-demo-seed" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;margin-right:8px;">Tạo dữ liệu mẫu và lưu lên đám mây</button><button type="button" id="btn-retry-load" style="padding:12px 24px;background:#e5e7eb;color:#111;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử tải lại</button></div>';
             window.app = this;
             const self = this;
             const runSeed = async function() {
@@ -584,14 +584,14 @@ class HamobileBanhang {
                     self.clearOldDataIfNeeded();
                     self.init();
                 } else {
-                    window._lastFirebaseError = 'Không lưu được dữ liệu lên Firebase. Kiểm tra Quy tắc (Rules) cho phép .write: true.';
+                    window._lastFirebaseError = 'Không lưu được dữ liệu lên đám mây. Kiểm tra Rules cho phép .write: true.';
                     if (content) {
                         content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                             '<h2>⚠️ Không lưu được dữ liệu</h2>' +
                             '<p style="margin: 16px 0; color: #6b7280;">' + window._lastFirebaseError + '</p>' +
-                            '<p style="margin: 8px 0; font-size: 13px;">💡 Vào Firebase Console → Realtime Database → Rules, đảm bảo có <code>.write: true</code></p>' +
+                            '<p style="margin: 8px 0; font-size: 13px;">💡 Trong bảng điều khiển dự án → Realtime Database → Rules, đảm bảo có <code>.write: true</code></p>' +
                             '<div style="display:grid;gap:12px;margin-top:20px;">' +
-                            '<input id="fb-url" placeholder="URL Firebase" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
+                            '<input id="fb-url" placeholder="URL đồng bộ" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
                             '<input id="fb-key" placeholder="Khóa sao lưu" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
                             '<button onclick="app.applyFirebaseConfigFromForm()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                             '</div></div>';
@@ -619,7 +619,7 @@ class HamobileBanhang {
                     '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
                     '<p style="margin: 8px 0; font-size: 13px;">💡 Tab ẩn danh hoặc mở file trực tiếp (file://) có thể bị chặn kết nối. Hãy chạy qua web server (localhost) hoặc dùng tab thường.</p>' +
                     '<div style="display:grid;gap:12px;margin-top:20px;">' +
-                    '<input id="fb-url" placeholder="URL Firebase" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
+                    '<input id="fb-url" placeholder="URL đồng bộ" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
                     '<input id="fb-key" placeholder="Khóa sao lưu" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
                     '<button onclick="app.applyFirebaseConfigFromForm()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                     '</div></div>';
@@ -984,7 +984,7 @@ class HamobileBanhang {
             return;
         }
         this.hideIncognitoWarning();
-        const msg = 'Đây là thông báo từ ứng dụng quản lý bán hàng của bạn (không phải trang lạ hay mã độc). Trình duyệt đang chặn lưu tạm trên máy — dữ liệu trên đám mây vẫn an toàn nếu đã cấu hình đồng bộ. Gợi ý: Cài đặt → Firebase, hoặc dùng tab trình duyệt thường / tắt chặn cookie cho site này.';
+        const msg = 'Đây là thông báo từ ứng dụng quản lý bán hàng của bạn (không phải trang lạ hay mã độc). Trình duyệt đang chặn lưu tạm trên máy — dữ liệu trên đám mây vẫn an toàn nếu đã bật đồng bộ. Gợi ý: mở Cài đặt trong app → mục sao lưu/đồng bộ đám mây, hoặc dùng tab thường / tắt chặn cookie cho site này.';
         this.showNotification(msg, 'info', 16000, true);
     }
     hideIncognitoWarning() {
@@ -5979,7 +5979,7 @@ class HamobileBanhang {
                                 Lần cuối: <span id="backup-last-time">${lastBackupStr}</span>
                             </div>
                             <p style="font-size: 12px; color: #047857; margin-top: 12px; line-height: 1.45;">
-                                <strong>Bản lịch sử trên Firebase:</strong> mỗi lần chạy (vd. 15 phút) ghi thêm một file riêng tại
+                                <strong>Bản lịch sử trên đám mây:</strong> mỗi lần chạy (vd. 15 phút) ghi thêm một file riêng tại
                                 <code style="font-size:11px;">backups/&lt;khóa&gt;/snapshots/&lt;mốc thời gian&gt;.json</code>
                                 — <strong>không ghi đè</strong> lên nhau; giữ tối đa ${window.FirebaseStorage.MAX_ROLLING_SNAPSHOTS} bản gần nhất.
                                 File <code>app.json</code> vẫn là bản làm việc (đồng bộ thường xuyên).
@@ -5990,7 +5990,7 @@ class HamobileBanhang {
                             <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
                                 <span>💾</span> Sao lưu thủ công
                             </h3>
-                            <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Chọn "Ngay khi có thay đổi" để backup lên Firebase mỗi thao tác. Dữ liệu trên đám mây <strong>không mất</strong> khi ẩn danh / xóa cache / đổi máy.</p>
+                            <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Chọn "Ngay khi có thay đổi" để sao lưu lên đám mây mỗi thao tác. Dữ liệu trên đám mây <strong>không mất</strong> khi ẩn danh / xóa cache / đổi máy.</p>
                             <button onclick="app.manualBackup()" 
                                     style="width: 100%; background: var(--success-gradient); color: white; padding: 12px; 
                                            border: none; border-radius: 8px; cursor: pointer; margin-bottom: 12px; font-weight: 600;">
@@ -6015,17 +6015,17 @@ class HamobileBanhang {
                     
                     <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid #e5e7eb; margin-bottom: 24px;">
                         <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                            <span>☁️</span> Sao lưu đám mây (Firebase) - theo thời gian thực
+                            <span>☁️</span> Sao lưu đám mây — theo thời gian thực
                         </h3>
-                        <p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">Cấu hình Firebase để dữ liệu <strong>KHÔNG MẤT</strong> khi: ẩn danh, xóa cache, đổi thiết bị.</p>
+                        <p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">Cấu hình đồng bộ đám mây để dữ liệu <strong>KHÔNG MẤT</strong> khi: ẩn danh, xóa cache, đổi thiết bị.</p>
                         <div style="background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 13px; color: #065f46;">
                             <strong>🔄 Tự động 100%:</strong> Đồng bộ mỗi 15 giây • Khi offline lưu chờ, tự đồng bộ khi có mạng • Khi quay lại tab tự đồng bộ
                         </div>
-                        <p style="font-size: 13px; color: #6b7280; margin-bottom: 16px;"><strong>Lưu ý:</strong> Firebase Console → Realtime Database → Rules, đảm bảo cho phép đọc/ghi thư mục "backups".</p>
+                        <p style="font-size: 13px; color: #6b7280; margin-bottom: 16px;"><strong>Lưu ý (self-host):</strong> trong Realtime Database → Rules, cho phép đọc/ghi thư mục <code>backups</code>.</p>
                         <div style="display: grid; gap: 12px; margin-bottom: 12px;">
                             <div>
-                                <label style="display: block; margin-bottom: 4px; font-weight: 600; font-size: 13px;">URL Firebase Realtime Database:</label>
-                                <input type="text" id="firebase-url" placeholder="https://xxx.firebaseio.com hoặc https://xxx-default-rtdb.region.firebasedatabase.app" 
+                                <label style="display: block; margin-bottom: 4px; font-weight: 600; font-size: 13px;">URL máy chủ dữ liệu (Realtime Database):</label>
+                                <input type="text" id="firebase-url" placeholder="https://xxx.firebasedatabase.app (URL từ bảng điều khiển dự án)" 
                                        value="${(window.FirebaseStorage.getConfig()?.url || '').replace(/\/+$/, '')}" 
                                        style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
                             </div>
@@ -6057,7 +6057,7 @@ class HamobileBanhang {
                                 <span class="stat-icon">💾</span>
                             </div>
                             <div class="stat-value" id="storage-size">${this.calculateStorageSize()}</div>
-                            <div class="stat-change">Firebase</div>
+                            <div class="stat-change">Đám mây</div>
                         </div>
                         
                         <div class="stat-card success">
@@ -7743,7 +7743,7 @@ class HamobileBanhang {
             window.FirebaseStorage.setData(app.demoData);
             const ok = await window.FirebaseStorage.save({ data: app.demoData });
             if (!ok && window.app) {
-                window.app.showNotification('Lỗi lưu dữ liệu. Kiểm tra kết nối mạng và Firebase.', 'error');
+                window.app.showNotification('Lỗi lưu dữ liệu. Kiểm tra kết nối mạng và đồng bộ đám mây.', 'error');
             }
         }, app._saveDebounceMs);
     }
@@ -7786,7 +7786,7 @@ class HamobileBanhang {
                 const el = document.getElementById('firebase-sync-status');
                 if (el) el.textContent = 'Đồng bộ lúc: ' + new Date().toLocaleString('vi-VN');
             } else if (!ok && window.app) {
-                window.app.showNotification('Lỗi đồng bộ Firebase. Kiểm tra kết nối mạng.', 'error');
+                window.app.showNotification('Lỗi đồng bộ đám mây. Kiểm tra kết nối mạng.', 'error');
             }
         });
     }
@@ -7799,10 +7799,10 @@ class HamobileBanhang {
         fetch(apiUrl, String(cfg.url || '').includes('/api/rtdb') ? { method: 'GET', credentials: 'include' } : { method: 'GET' })
             .then(res => res.text().then(t => {
                 if (res.ok) {
-                    this.showNotification('Kết nối Firebase thành công. Đang đồng bộ dữ liệu...', 'success');
+                    this.showNotification('Kết nối đám mây thành công. Đang đồng bộ dữ liệu...', 'success');
                     this.syncToFirebase();
                 } else {
-                    this.showNotification('Firebase từ chối (Rules?): ' + (t || res.status), 'error');
+                    this.showNotification('Máy chủ từ chối (Rules?): ' + (t || res.status), 'error');
                 }
             }))
             .catch(err => {
@@ -7883,11 +7883,11 @@ class HamobileBanhang {
         const r = await this.performBackup({ downloadFile: true, cloudSnapshot: true });
         if (r && r.hadDownload && r.snapshotOk === false) {
             const detail = window._lastSnapshotError ? ' (' + window._lastSnapshotError + ')' : '';
-            this.showNotification('Đã tải file về máy. Chưa ghi snapshot lên Firebase' + detail + '. Nếu là 403: mở Rules, cho phép ghi cả nhánh snapshots (vd. .write true dưới backups/$key).', 'warning');
+            this.showNotification('Đã tải file về máy. Chưa ghi snapshot lên đám mây' + detail + '. Nếu là 403: mở Rules, cho phép ghi cả nhánh snapshots (vd. .write true dưới backups/$key).', 'warning');
         } else if (r && r.hadDownload && r.snapshotOk === true) {
-            this.showNotification('Đã tải file và lưu bản lịch sử lên Firebase (thư mục snapshots).', 'success');
+            this.showNotification('Đã tải file và lưu bản lịch sử lên đám mây (thư mục snapshots).', 'success');
         } else if (r && r.hadDownload) {
-            this.showNotification('Đã tải xuống file sao lưu (chưa cấu hình Firebase thì không có snapshot trên cloud).', 'success');
+            this.showNotification('Đã tải xuống file sao lưu (chưa cấu hình đồng bộ thì không có snapshot trên cloud).', 'success');
         }
     }
 
@@ -7903,7 +7903,7 @@ class HamobileBanhang {
                 const el = document.getElementById('backup-last-time');
                 if (el) el.textContent = new Date(backupTime).toLocaleString('vi-VN');
             }
-            if (!ok) console.warn('scheduledCloudSnapshot: không ghi được lên Firebase (mạng / Rules).');
+            if (!ok) console.warn('scheduledCloudSnapshot: không ghi được lên đám mây (mạng / Rules).');
         });
     }
 
@@ -7980,13 +7980,13 @@ class HamobileBanhang {
                     window.FirebaseStorage.setCompany(backupData.company);
                 }
                 
-                this.showNotification('Đang lưu lên Firebase...', 'info');
+                this.showNotification('Đang lưu lên đám mây...', 'info');
                 const ok = await this.saveToFirebaseImmediate();
                 if (ok) {
                     this.showNotification('Đã khôi phục và lưu lên đám mây. Load lại trang vẫn giữ dữ liệu.', 'success');
                     this.loadPage(this.currentPage);
                 } else {
-                    this.showNotification('Khôi phục OK nhưng LƯU LÊN FIREBASE THẤT BẠI. Load lại trang sẽ mất dữ liệu. Kiểm tra kết nối Firebase.', 'error');
+                    this.showNotification('Khôi phục OK nhưng LƯU LÊN ĐÁM MÂY THẤT BẠI. Tải lại trang có thể mất dữ liệu. Kiểm tra kết nối.', 'error');
                 }
             } catch (error) {
                 console.error('Error restoring backup:', error);
@@ -8089,7 +8089,7 @@ class HamobileBanhang {
                 console.error('JSON Parse Error:', error);
             }
         }
-        alert('Kiểm tra console để xem chi tiết Firebase storage');
+        alert('Kiểm tra console để xem chi tiết lưu trữ đồng bộ');
     }
 
     getLocalStorageSize() {
@@ -8166,7 +8166,7 @@ class HamobileBanhang {
             window.FirebaseStorage.setCompany(company);
             window.FirebaseStorage.save({ company });
             updateCompanyAssets();
-            alert('✅ Upload logo thành công! Logo đã lưu lên Firebase.');
+            alert('✅ Upload logo thành công! Logo đã lưu lên đám mây.');
         };
         reader.readAsDataURL(file);
     }
@@ -8191,7 +8191,7 @@ class HamobileBanhang {
             window.FirebaseStorage.setCompany(company);
             window.FirebaseStorage.save({ company });
             updateCompanyAssets();
-            alert('✅ Upload QR code thành công! QR đã lưu lên Firebase.');
+            alert('✅ Upload QR code thành công! QR đã lưu lên đám mây.');
         };
         reader.readAsDataURL(file);
     }

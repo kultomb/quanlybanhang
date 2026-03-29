@@ -1,5 +1,9 @@
 /** Client-side policy before Firebase Auth; reduces weak / breached-style passwords. */
 
+/** Một dòng gợi ý duy nhất cho ô mật khẩu (đăng ký / đặt lại). */
+export const SIGNUP_PASSWORD_HINT =
+  "Ít nhất 8 ký tự, có chữ cái và số hoặc ký tự đặc biệt.";
+
 const BLOCKED = new Set(
   [
     "password",

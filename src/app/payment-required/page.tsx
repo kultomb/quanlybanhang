@@ -70,7 +70,7 @@ function PaymentRequiredContent() {
     setPaymentRef(String(profile.paymentRef || ""));
     if (!resolvedShop && !shop) {
       setMessage(
-        "Tài khoản chưa có tên shop. Có thể dữ liệu đã bị sửa thủ công trên Firebase. Vui lòng cập nhật lại shopSlug trong users/{uid}.",
+        "Tài khoản chưa có tên shop. Có thể dữ liệu hồ sơ đã bị sửa thủ công. Vui lòng cập nhật lại shopSlug trong users/{uid}.",
       );
     }
     if (paid) {

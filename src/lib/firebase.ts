@@ -28,8 +28,8 @@ function readFirebaseWebConfig() {
   if (!appId) missing.push("NEXT_PUBLIC_FIREBASE_APP_ID");
   if (missing.length > 0) {
     throw new Error(
-      `[Hangho] Thiếu biến môi trường Firebase: ${missing.join(", ")}. ` +
-        "Tạo .env.local ở thư mục gốc, điền đủ NEXT_PUBLIC_FIREBASE_* (Firebase Console → Project settings → Web app). " +
+      `[Hangho] Thiếu biến môi trường cho đăng nhập / đồng bộ: ${missing.join(", ")}. ` +
+        "Tạo .env.local ở thư mục gốc, điền đủ NEXT_PUBLIC_FIREBASE_* (bảng điều khiển dự án → Project settings → Web app). " +
         "Sau đó dừng dev server, xóa thư mục .next nếu cần, rồi chạy lại npm run dev.",
     );
   }

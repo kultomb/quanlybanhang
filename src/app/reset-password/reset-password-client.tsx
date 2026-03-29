@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { auth } from "@/lib/backend/client";
-import { validateSignupPassword } from "@/lib/password-policy";
+import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
 
 export default function ResetPasswordClient() {
@@ -105,7 +105,7 @@ export default function ResetPasswordClient() {
                 maxLength={128}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Ít nhất 8 ký tự, chữ + số hoặc ký tự đặc biệt"
+                placeholder="Mật khẩu mới"
                 style={{
                   border: "1px solid #cbd5e1",
                   borderRadius: 8,
@@ -113,9 +113,7 @@ export default function ResetPasswordClient() {
                   fontSize: 14,
                 }}
               />
-              <span style={{ fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
-                Cùng tiêu chí như đăng ký: tránh mật khẩu phổ biến.
-              </span>
+              <span style={{ fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>{SIGNUP_PASSWORD_HINT}</span>
             </label>
 
             <label style={{ display: "grid", gap: 6 }}>

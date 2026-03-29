@@ -11,7 +11,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/backend/client";
 import { postSessionCookieWithRetries } from "@/lib/client-auth";
-import { validateSignupPassword } from "@/lib/password-policy";
+import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
 
 function getAuthErrorMessage(err: unknown): string {
@@ -148,7 +148,7 @@ export default function RegisterForm() {
           setError("Phiên đăng nhập không hợp lệ. Vui lòng thử lại.");
         } else {
           setError(
-            "Không tạo được hồ sơ shop. Kiểm tra cấu hình máy chủ (Firebase Admin) hoặc thử lại sau.",
+            "Không tạo được hồ sơ shop. Kiểm tra cấu hình máy chủ (Admin SDK / biến môi trường) hoặc thử lại sau.",
           );
         }
         setLoading(false);
@@ -266,9 +266,7 @@ export default function RegisterForm() {
               outline: "none",
             }}
           />
-          <span style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.45 }}>
-            Ít nhất 8 ký tự, có chữ cái và số hoặc ký tự đặc biệt.
-          </span>
+          <span style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.45 }}>{SIGNUP_PASSWORD_HINT}</span>
         </label>
 
         <label style={{ display: "grid", gap: 6 }}>

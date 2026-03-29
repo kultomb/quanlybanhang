@@ -952,7 +952,7 @@ class HamobileBanhang {
             return;
         }
         this.hideIncognitoWarning();
-        const msg = 'Đây là thông báo từ ứng dụng quản lý bán hàng của bạn (không phải trang lạ hay mã độc). Trình duyệt đang chặn lưu tạm trên máy — dữ liệu trên đám mây vẫn an toàn nếu đã cấu hình đồng bộ. Gợi ý: Cài đặt → Firebase, hoặc dùng tab trình duyệt thường / tắt chặn cookie cho site này.';
+        const msg = 'Đây là thông báo từ ứng dụng quản lý bán hàng của bạn (không phải trang lạ hay mã độc). Trình duyệt đang chặn lưu tạm trên máy — dữ liệu trên đám mây vẫn an toàn nếu đã bật đồng bộ. Gợi ý: mở Cài đặt trong app → mục sao lưu/đồng bộ đám mây, hoặc dùng tab thường / tắt chặn cookie cho site này.';
         this.showNotification(msg, 'info', 16000, true);
     }
     hideIncognitoWarning() {
@@ -5947,7 +5947,7 @@ class HamobileBanhang {
                                 Lần cuối: <span id="backup-last-time">${lastBackupStr}</span>
                             </div>
                             <p style="font-size: 12px; color: #047857; margin-top: 12px; line-height: 1.45;">
-                                <strong>Bản lịch sử trên Firebase:</strong> mỗi lần chạy (vd. 15 phút) ghi thêm một file riêng tại
+                                <strong>Bản lịch sử trên đám mây:</strong> mỗi lần chạy (vd. 15 phút) ghi thêm một file riêng tại
                                 <code style="font-size:11px;">backups/&lt;khóa&gt;/snapshots/&lt;mốc thời gian&gt;.json</code>
                                 — <strong>không ghi đè</strong> lên nhau; giữ tối đa ${window.FirebaseStorage.MAX_ROLLING_SNAPSHOTS} bản gần nhất.
                                 File <code>app.json</code> vẫn là bản làm việc (đồng bộ thường xuyên).
@@ -5958,7 +5958,7 @@ class HamobileBanhang {
                             <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
                                 <span>💾</span> Sao lưu thủ công
                             </h3>
-                            <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Chọn "Ngay khi có thay đổi" để backup lên Firebase mỗi thao tác. Dữ liệu trên đám mây <strong>không mất</strong> khi ẩn danh / xóa cache / đổi máy.</p>
+                            <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Chọn "Ngay khi có thay đổi" để sao lưu lên đám mây mỗi thao tác. Dữ liệu trên đám mây <strong>không mất</strong> khi ẩn danh / xóa cache / đổi máy.</p>
                             <button onclick="app.manualBackup()" 
                                     style="width: 100%; background: var(--success-gradient); color: white; padding: 12px; 
                                            border: none; border-radius: 8px; cursor: pointer; margin-bottom: 12px; font-weight: 600;">
@@ -5995,7 +5995,7 @@ class HamobileBanhang {
                                 <span class="stat-icon">💾</span>
                             </div>
                             <div class="stat-value" id="storage-size">${this.calculateStorageSize()}</div>
-                            <div class="stat-change">Firebase</div>
+                            <div class="stat-change">Đám mây</div>
                         </div>
                         
                         <div class="stat-card success">
@@ -7841,7 +7841,7 @@ class HamobileBanhang {
                 const el = document.getElementById('backup-last-time');
                 if (el) el.textContent = new Date(backupTime).toLocaleString('vi-VN');
             }
-            if (!ok) console.warn('scheduledCloudSnapshot: không ghi được lên Firebase (mạng / Rules).');
+            if (!ok) console.warn('scheduledCloudSnapshot: không ghi được lên đám mây (mạng / Rules).');
         });
     }
 
@@ -8027,7 +8027,7 @@ class HamobileBanhang {
                 console.error('JSON Parse Error:', error);
             }
         }
-        alert('Kiểm tra console để xem chi tiết Firebase storage');
+        alert('Kiểm tra console để xem chi tiết lưu trữ đồng bộ');
     }
 
     getLocalStorageSize() {
@@ -8104,7 +8104,7 @@ class HamobileBanhang {
             window.FirebaseStorage.setCompany(company);
             window.FirebaseStorage.save({ company });
             updateCompanyAssets();
-            alert('✅ Upload logo thành công! Logo đã lưu lên Firebase.');
+            alert('✅ Upload logo thành công! Logo đã lưu lên đám mây.');
         };
         reader.readAsDataURL(file);
     }
@@ -8129,7 +8129,7 @@ class HamobileBanhang {
             window.FirebaseStorage.setCompany(company);
             window.FirebaseStorage.save({ company });
             updateCompanyAssets();
-            alert('✅ Upload QR code thành công! QR đã lưu lên Firebase.');
+            alert('✅ Upload QR code thành công! QR đã lưu lên đám mây.');
         };
         reader.readAsDataURL(file);
     }

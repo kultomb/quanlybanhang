@@ -93,7 +93,7 @@ export default function AccountClient() {
         lower.includes("auth/invalid-continue-uri")
       ) {
         setError(
-          "Domain chưa được phép trong Firebase Authentication. Vui lòng thêm domain website vào Authorized domains.",
+          "Domain chưa được phép cho đăng nhập. Vui lòng thêm domain website vào Authorized domains trong bảng điều khiển dự án (Authentication).",
         );
       } else {
         setError("Không gửi được email đặt lại mật khẩu.");

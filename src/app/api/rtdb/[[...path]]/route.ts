@@ -122,7 +122,7 @@ async function proxy(
       JSON.stringify({
         error: "missing_shop_slug",
         message:
-          "Tài khoản chưa có shopSlug (users/{uid}/shopSlug). Hoàn tất đăng ký shop, sửa hồ sơ trên Firebase, hoặc liên hệ hỗ trợ — không thể đọc/ghi kho dữ liệu.",
+          "Tài khoản chưa có shopSlug (users/{uid}/shopSlug). Hoàn tất đăng ký shop, sửa hồ sơ trong cơ sở dữ liệu, hoặc liên hệ hỗ trợ — không thể đọc/ghi kho dữ liệu.",
       }),
       {
         status: 403,
