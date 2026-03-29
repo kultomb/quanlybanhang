@@ -14,26 +14,32 @@ export async function redirectIfShopUrlMismatch(pathShopFromUrl: string): Promis
   const raw = String(pathShopFromUrl || "").trim();
   if (!raw) return;
 
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value?.trim();
-  if (!token) return;
-
-  const decoded = await adminAuth().verifyIdToken(token).catch(() => null);
-  if (!decoded?.uid) return;
-
-  const ctx = await resolveUserShopContext(decoded.uid);
-  const canonical = ctx.shopSlug;
-  if (!canonical) return;
-
-  let decodedSeg = raw;
   try {
-    decodedSeg = decodeURIComponent(raw);
-  } catch {
-    // giữ raw
+    const jar = await cookies();
+    const token = jar.get(SESSION_COOKIE)?.value?.trim();
+    if (!token) return;
+
+    const decoded = await adminAuth().verifyIdToken(token).catch(() => null);
+    if (!decoded?.uid) return;
+
+    const ctx = await resolveUserShopContext(decoded.uid);
+    const canonical = ctx.shopSlug;
+    if (!canonical) return;
+
+    let decodedSeg = raw;
+    try {
+      decodedSeg = decodeURIComponent(raw);
+    } catch {
+      // giữ raw
+    }
+
+    if (normalizeShopSlug(decodedSeg) === normalizeShopSlug(canonical)) return;
+
+    const trialQs = isEffectiveTrialAccount(ctx.registrationTrial, canonical) ? "?trial=1" : "";
+    redirect(`/${encodeURIComponent(canonical)}${trialQs}`);
+  } catch (e) {
+    const digest = typeof e === "object" && e !== null && "digest" in e ? String((e as { digest?: unknown }).digest) : "";
+    if (digest.startsWith("NEXT_REDIRECT")) throw e;
+    console.error("[redirectIfShopUrlMismatch]", e);
   }
-
-  if (normalizeShopSlug(decodedSeg) === normalizeShopSlug(canonical)) return;
-
-  const trialQs = isEffectiveTrialAccount(ctx.registrationTrial, canonical) ? "?trial=1" : "";
-  redirect(`/${encodeURIComponent(canonical)}${trialQs}`);
 }
