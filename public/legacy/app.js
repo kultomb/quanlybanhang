@@ -462,11 +462,12 @@ class HamobileBanhang {
                 }
             }
             if (window._lastFirebaseError) {
-                const errMsg = 'Không tải được dữ liệu. Vui lòng thử lại.';
+                const errMsg = escapeHtml(window._lastFirebaseError || 'Không tải được dữ liệu. Vui lòng thử lại.');
                 if (content) {
                     content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                         '<h2>⚠️ Không tải được dữ liệu</h2>' +
                         '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
+                        '<p style="margin: 8px 0; font-size: 13px; color: #64748b;">💡 Nếu thấy 401/403: đăng nhập lại bằng tab thường, cho phép cookie cho site này (Edge/Chrome). Mật khẩu đúng nhưng thiếu phiên đồng bộ máy chủ vẫn không tải được dữ liệu.</p>' +
                         '<div style="display:grid;gap:12px;margin-top:20px;">' +
                         '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                         '</div></div>';
@@ -508,11 +509,12 @@ class HamobileBanhang {
             if (btnRetry) btnRetry.onclick = function() { self.initAsync(); };
             return;
         } else {
-            const errMsg = 'Không tải được dữ liệu. Vui lòng thử lại.';
+            const errMsg = escapeHtml(window._lastFirebaseError || 'Không tải được dữ liệu. Vui lòng thử lại.');
             if (content) {
                 content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                     '<h2>⚠️ Không tải được dữ liệu</h2>' +
                     '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
+                    '<p style="margin: 8px 0; font-size: 13px; color: #64748b;">💡 Nếu thấy 401/403: đăng nhập lại bằng tab thường, cho phép cookie cho site này (Edge/Chrome). Mật khẩu đúng nhưng thiếu phiên đồng bộ máy chủ vẫn không tải được dữ liệu.</p>' +
                     '<div style="display:grid;gap:12px;margin-top:20px;">' +
                     '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                     '</div></div>';
