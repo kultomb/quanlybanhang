@@ -7,13 +7,11 @@ import {
   EmailAuthProvider,
   onAuthStateChanged,
   reauthenticateWithCredential,
-  sendPasswordResetEmail,
   updatePassword,
 } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { auth, rtdb } from "@/lib/backend/client";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
-import { buildPasswordResetActionCodeSettings } from "@/lib/password-reset-email";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 
 export default function AccountClient() {
@@ -84,39 +82,6 @@ export default function AccountClient() {
     }
   }
 
-  async function handleForgotPassword() {
-    setError("");
-    setMessage("");
-    if (!email) {
-      setError("Không tìm thấy email tài khoản.");
-      return;
-    }
-    try {
-      const actionSettings = buildPasswordResetActionCodeSettings();
-      if (actionSettings) {
-        await sendPasswordResetEmail(auth, email, actionSettings);
-      } else {
-        await sendPasswordResetEmail(auth, email);
-      }
-      setMessage(
-        "Đã gửi email đặt lại mật khẩu. Nếu không thấy, hãy mở mục Thư rác / Spam.",
-      );
-    } catch (error: unknown) {
-      const raw = error instanceof Error ? error.message : String(error || "");
-      const lower = raw.toLowerCase();
-      if (
-        lower.includes("auth/unauthorized-continue-uri") ||
-        lower.includes("auth/invalid-continue-uri")
-      ) {
-        setError(
-          "Không gửi được email do cấu hình địa chỉ trang web. Vui lòng liên hệ hỗ trợ hoặc người phụ trách kỹ thuật.",
-        );
-      } else {
-        setError("Không gửi được email đặt lại mật khẩu.");
-      }
-    }
-  }
-
   return (
     <main
       style={{
@@ -153,6 +118,13 @@ export default function AccountClient() {
 
         <form onSubmit={handleChangePassword} style={{ display: "grid", gap: 10 }}>
           <h3 style={{ margin: "6px 0 0 0", color: "#0f172a" }}>Đổi mật khẩu</h3>
+          <p style={{ margin: 0, fontSize: 13, color: "#64748b", lineHeight: 1.45 }}>
+            Quên mật khẩu khi chưa đăng nhập? Dùng trang{" "}
+            <Link href="/login" style={{ color: "#047857", fontWeight: 700 }}>
+              Đăng nhập
+            </Link>
+            .
+          </p>
           <input
             type="password"
             value={currentPassword}
@@ -213,23 +185,6 @@ export default function AccountClient() {
             {savingPassword ? "Đang xử lý…" : "Lưu mật khẩu mới"}
           </button>
         </form>
-
-        <button
-          type="button"
-          onClick={handleForgotPassword}
-          style={{
-            justifySelf: "start",
-            border: "none",
-            background: "transparent",
-            color: "#047857",
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            padding: 0,
-          }}
-        >
-          Quên mật khẩu? Gửi email đặt lại
-        </button>
 
         {error ? (
           <div

@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useRef, useState, type RefObject } from "react";
-import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
+import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/backend/client";
 import LoginTurnstile, { type LoginTurnstileHandle } from "@/components/LoginTurnstile";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
@@ -16,6 +16,7 @@ import {
   postSessionCookieWithRetries,
 } from "@/lib/client-auth";
 import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
+import { buildPasswordResetActionCodeSettings } from "@/lib/password-reset-email";
 
 function shopAppPath(slug: string, registrationTrial: boolean | null) {
   const trial = isEffectiveTrialAccount(registrationTrial, slug);
@@ -65,6 +66,10 @@ function LoginContent() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [resetSending, setResetSending] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState("");
+  const [resetError, setResetError] = useState("");
   const turnstileSiteKey = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
   const isPasswordChangedNotice = String(searchParams.get("reason") || "") === "password-changed";
 
@@ -216,6 +221,43 @@ function LoginContent() {
     }
   }
 
+  async function handleSendPasswordReset() {
+    setResetSuccess("");
+    setResetError("");
+    const target = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+      setResetError("Vui lòng nhập email đúng định dạng (ví dụ: ten@domain.com).");
+      return;
+    }
+    setResetSending(true);
+    try {
+      const actionSettings = buildPasswordResetActionCodeSettings();
+      if (actionSettings) {
+        await sendPasswordResetEmail(auth, target, actionSettings);
+      } else {
+        await sendPasswordResetEmail(auth, target);
+      }
+      setResetSuccess(
+        "Đã gửi email đặt lại mật khẩu. Nếu không thấy, hãy mở mục Thư rác / Spam.",
+      );
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : String(err || "");
+      const lower = raw.toLowerCase();
+      if (
+        lower.includes("auth/unauthorized-continue-uri") ||
+        lower.includes("auth/invalid-continue-uri")
+      ) {
+        setResetError(
+          "Không gửi được email do cấu hình địa chỉ trang web. Vui lòng liên hệ hỗ trợ hoặc người phụ trách kỹ thuật.",
+        );
+      } else {
+        setResetError("Không gửi được email đặt lại mật khẩu. Thử lại sau giây lát.");
+      }
+    } finally {
+      setResetSending(false);
+    }
+  }
+
   return (
     <main
       style={{
@@ -227,8 +269,7 @@ function LoginContent() {
         padding: 16,
       }}
     >
-      <form
-        onSubmit={handleLogin}
+      <div
         style={{
           width: "100%",
           maxWidth: 420,
@@ -242,11 +283,16 @@ function LoginContent() {
           gap: 14,
         }}
       >
+      <div style={{ display: "grid", gap: 14 }}>
         <div style={{ display: "grid", gap: 6, justifyItems: "center", textAlign: "center" }}>
-          <h1 style={{ margin: 0, fontSize: 26, color: "#065f46" }}>Đăng nhập</h1>
+          <h1 style={{ margin: 0, fontSize: 26, color: "#065f46" }}>
+            {forgotPasswordMode ? "Đặt lại mật khẩu" : "Đăng nhập"}
+          </h1>
         </div>
         <p style={{ margin: 0, color: "#4b5563", fontSize: 14, textAlign: "center" }}>
-          Đăng nhập để vào hệ thống bán hàng.
+          {forgotPasswordMode
+            ? "Nhập email đã đăng ký. Chúng tôi gửi link đặt lại mật khẩu qua email."
+            : "Đăng nhập để vào hệ thống bán hàng."}
         </p>
 
         {notice ? (
@@ -278,7 +324,8 @@ function LoginContent() {
           <input
             type="text"
             inputMode="email"
-            required
+            autoComplete="email"
+            required={!forgotPasswordMode}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={{
@@ -291,60 +338,164 @@ function LoginContent() {
           />
         </label>
 
-        <label style={{ display: "grid", gap: 6 }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Mật khẩu</span>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+        {forgotPasswordMode ? (
+          <>
+            {resetError ? (
+              <div
+                style={{
+                  background: "#fef2f2",
+                  color: "#b91c1c",
+                  border: "1px solid #fecaca",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                }}
+              >
+                {resetError}
+              </div>
+            ) : null}
+            {resetSuccess ? (
+              <div
+                style={{
+                  background: "#ecfdf5",
+                  color: "#166534",
+                  border: "1px solid #86efac",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                }}
+              >
+                {resetSuccess}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              disabled={resetSending}
+              onClick={handleSendPasswordReset}
+              style={{
+                border: "1px solid #93c5fd",
+                borderRadius: 10,
+                background: resetSending ? "#e5e7eb" : "#eff6ff",
+                color: "#1d4ed8",
+                fontWeight: 700,
+                padding: "11px 14px",
+                cursor: resetSending ? "not-allowed" : "pointer",
+                fontSize: 14,
+              }}
+            >
+              {resetSending ? "Đang gửi…" : "Gửi link đặt lại mật khẩu"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setForgotPasswordMode(false);
+                setResetError("");
+                setResetSuccess("");
+                resetTurnstile(turnstileRef);
+              }}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "#047857",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                padding: "4px 0",
+                justifySelf: "center",
+              }}
+            >
+              ← Quay lại đăng nhập
+            </button>
+          </>
+        ) : (
+          <form
+            onSubmit={handleLogin}
             style={{
-              border: "1px solid #a7f3d0",
-              borderRadius: 10,
-              padding: "11px 12px",
-              fontSize: 14,
-              outline: "none",
-            }}
-          />
-        </label>
-
-        {turnstileSiteKey ? (
-          <LoginTurnstile ref={turnstileRef} siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
-        ) : null}
-
-        {error ? (
-          <div
-            style={{
-              background: "#fef2f2",
-              color: "#b91c1c",
-              border: "1px solid #fecaca",
-              borderRadius: 8,
-              padding: "10px 12px",
-              fontSize: 13,
+              display: "grid",
+              gap: 14,
             }}
           >
-            {error}
-          </div>
-        ) : null}
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Mật khẩu</span>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{
+                  border: "1px solid #a7f3d0",
+                  borderRadius: 10,
+                  padding: "11px 12px",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+            </label>
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            border: "none",
-            borderRadius: 10,
-            background: loading
-              ? "#6b7280"
-              : "linear-gradient(135deg, #047857 0%, #059669 50%, #10b981 100%)",
-            color: "#fff",
-            fontWeight: 700,
-            padding: "12px 14px",
-            cursor: loading ? "not-allowed" : "pointer",
-            boxShadow: loading ? "none" : "0 10px 22px rgba(5,150,105,0.28)",
-          }}
-        >
-          {loading ? "Đang đăng nhập..." : "Đăng nhập"}
-        </button>
+            {turnstileSiteKey ? (
+              <LoginTurnstile ref={turnstileRef} siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+            ) : null}
+
+            {error ? (
+              <div
+                style={{
+                  background: "#fef2f2",
+                  color: "#b91c1c",
+                  border: "1px solid #fecaca",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                }}
+              >
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                border: "none",
+                borderRadius: 10,
+                background: loading
+                  ? "#6b7280"
+                  : "linear-gradient(135deg, #047857 0%, #059669 50%, #10b981 100%)",
+                color: "#fff",
+                fontWeight: 700,
+                padding: "12px 14px",
+                cursor: loading ? "not-allowed" : "pointer",
+                boxShadow: loading ? "none" : "0 10px 22px rgba(5,150,105,0.28)",
+              }}
+            >
+              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setResetError("");
+                setResetSuccess("");
+                resetTurnstile(turnstileRef);
+                setForgotPasswordMode(true);
+              }}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "#047857",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                padding: "2px 0 0 0",
+                justifySelf: "center",
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+              }}
+            >
+              Quên mật khẩu?
+            </button>
+          </form>
+        )}
+      </div>
 
         <div style={{ textAlign: "center", fontSize: 14, color: "#4b5563", display: "grid", gap: 10 }}>
           <div>
@@ -375,7 +526,7 @@ function LoginContent() {
             </Link>
           </div>
         </div>
-      </form>
+      </div>
     </main>
   );
 }

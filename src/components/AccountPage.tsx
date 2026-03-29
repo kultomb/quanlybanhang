@@ -5,7 +5,6 @@ import {
   EmailAuthProvider,
   onAuthStateChanged,
   reauthenticateWithCredential,
-  sendPasswordResetEmail,
   signOut,
   updatePassword,
 } from "firebase/auth";
@@ -13,7 +12,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
-import { buildPasswordResetActionCodeSettings } from "@/lib/password-reset-email";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 
 type AccountPageProps = {
@@ -29,7 +27,6 @@ export default function AccountPage({ shop }: AccountPageProps) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sendingReset, setSendingReset] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "info">("info");
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -81,46 +78,6 @@ export default function AccountPage({ shop }: AccountPageProps) {
       setMessage("Mật khẩu cũ không đúng hoặc không thể đổi mật khẩu.");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleForgotPassword() {
-    if (sendingReset) return;
-    if (!email) {
-      setMessageType("error");
-      setMessage("Bạn chưa đăng nhập để dùng chức năng này.");
-      return;
-    }
-    setSendingReset(true);
-    setMessageType("info");
-    setMessage("Đang gửi email khôi phục...");
-    try {
-      const actionSettings = buildPasswordResetActionCodeSettings();
-      if (actionSettings) {
-        await sendPasswordResetEmail(auth, email, actionSettings);
-      } else {
-        await sendPasswordResetEmail(auth, email);
-      }
-      setMessageType("success");
-      setMessage(
-        "Đã gửi email đặt lại mật khẩu. Nếu không thấy, hãy mở mục Thư rác / Spam.",
-      );
-    } catch (error: unknown) {
-      const raw = error instanceof Error ? error.message : String(error || "");
-      const lower = raw.toLowerCase();
-      setMessageType("error");
-      if (
-        lower.includes("auth/unauthorized-continue-uri") ||
-        lower.includes("auth/invalid-continue-uri")
-      ) {
-        setMessage(
-          "Không gửi được email do cấu hình địa chỉ trang web. Vui lòng liên hệ hỗ trợ hoặc người phụ trách kỹ thuật.",
-        );
-      } else {
-        setMessage("Không gửi được email quên mật khẩu.");
-      }
-    } finally {
-      setSendingReset(false);
     }
   }
 
@@ -236,6 +193,13 @@ export default function AccountPage({ shop }: AccountPageProps) {
               }}
             >
               <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>Đổi mật khẩu</div>
+              <p style={{ margin: 0, fontSize: 13, color: "#64748b", lineHeight: 1.45 }}>
+                Quên mật khẩu khi chưa đăng nhập? Dùng mục tương ứng trên trang{" "}
+                <Link href="/login" style={{ color: "#047857", fontWeight: 700 }}>
+                  Đăng nhập
+                </Link>
+                .
+              </p>
               <button
                 type="button"
                 onClick={() => {
@@ -255,37 +219,6 @@ export default function AccountPage({ shop }: AccountPageProps) {
                 }}
               >
                 Đổi mật khẩu ngay
-              </button>
-            </div>
-            <div
-              style={{
-                background: "#ffffff",
-                borderRadius: 12,
-                border: "1px solid #dbe5ee",
-                padding: 16,
-                boxShadow: "0 4px 14px rgba(15,23,42,0.04)",
-                display: "grid",
-                gap: 10,
-              }}
-            >
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>Quên mật khẩu</div>
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                disabled={sendingReset}
-                style={{
-                  border: "1px solid #bfdbfe",
-                  background: sendingReset ? "#dbeafe" : "#eff6ff",
-                  color: "#1d4ed8",
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  fontWeight: 600,
-                  cursor: sendingReset ? "not-allowed" : "pointer",
-                  justifySelf: "start",
-                  opacity: sendingReset ? 0.75 : 1,
-                }}
-              >
-                {sendingReset ? "Đang gửi..." : "Gửi email khôi phục"}
               </button>
             </div>
           </div>
