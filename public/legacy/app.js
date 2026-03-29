@@ -475,6 +475,7 @@ class HamobileBanhang {
         this._posScannerCameraIds = [];
         this._posScannerCameraIndex = 0;
         this._posScannerRotateTimerId = null;
+        this._productsFabVVListener = null;
         this.productsSearchQuery = '';
         this.suppliersSearchQuery = '';
         this.ordersSearchQuery = '';
@@ -1385,6 +1386,19 @@ class HamobileBanhang {
     }
     
     loadPage(pageName) {
+        if (this._productsFabVVListener) {
+            const fn = this._productsFabVVListener;
+            window.removeEventListener('resize', fn);
+            try { window.removeEventListener('orientationchange', fn); } catch (_) {}
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', fn);
+                window.visualViewport.removeEventListener('scroll', fn);
+            }
+            this._productsFabVVListener = null;
+        }
+        try {
+            document.querySelectorAll('body > .products-fab-add').forEach((el) => el.remove());
+        } catch (_) {}
         this.currentPage = pageName;
         this.initializeData();
         // Khi mở trang Khách hàng hoặc Công nợ: đồng bộ công nợ từ đơn hàng + sửa chữa (để hiển thị đúng)
@@ -1432,6 +1446,7 @@ class HamobileBanhang {
         if (pageName === 'customers') this.searchCustomers(this.customersSearchQuery || '');
         if (pageName === 'orders') this.searchOrders(this.ordersSearchQuery || '');
         if (pageName === 'repairs') this.searchRepairs(this.repairsSearchQuery || '');
+        if (pageName === 'products') this.ensureProductsFabMobile();
         
         // Add fade in animation
         document.getElementById('main-content').classList.add('fade-in');
@@ -1445,9 +1460,64 @@ class HamobileBanhang {
 
             // Trang Bán hàng POS
             if (pageName === 'sales') { /* POS đã sẵn sàng */ }
+            if (pageName === 'products') this.ensureProductsFabMobile();
         }, 500);
         }
     
+    /** FAB thêm SP: Safari iOS đôi khi không áp dụng đúng @media / fixed trong .content — gắn body + viewport. */
+    ensureProductsFabMobile() {
+        if (this._productsFabVVListener) {
+            const fn = this._productsFabVVListener;
+            window.removeEventListener('resize', fn);
+            try { window.removeEventListener('orientationchange', fn); } catch (_) {}
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', fn);
+                window.visualViewport.removeEventListener('scroll', fn);
+            }
+            this._productsFabVVListener = null;
+        }
+        const isMobileFabViewport = () => {
+            const w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+            if (w <= 1024) return true;
+            try {
+                if (window.matchMedia('(max-device-width: 1024px)').matches) return true;
+            } catch (_) {}
+            return false;
+        };
+        const apply = () => {
+            if (this.currentPage !== 'products') return;
+            const el = document.querySelector('.products-fab-add');
+            if (!el) return;
+            const slot = document.querySelector('.products-page-compact');
+            if (!isMobileFabViewport()) {
+                ['display', 'align-items', 'justify-content', 'position', 'right', 'bottom', 'z-index', 'left', 'top'].forEach((p) => { try { el.style.removeProperty(p); } catch (_) {} });
+                if (slot && el.parentElement === document.body) slot.insertBefore(el, slot.firstChild);
+                return;
+            }
+            if (el.parentElement !== document.body) document.body.appendChild(el);
+            el.style.setProperty('display', 'flex', 'important');
+            el.style.setProperty('align-items', 'center', 'important');
+            el.style.setProperty('justify-content', 'center', 'important');
+            el.style.setProperty('position', 'fixed', 'important');
+            el.style.setProperty('left', 'auto', 'important');
+            el.style.setProperty('top', 'auto', 'important');
+            el.style.setProperty('right', 'max(16px, env(safe-area-inset-right, 0px))', 'important');
+            el.style.setProperty('bottom', 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 12px))', 'important');
+            el.style.setProperty('z-index', '10050', 'important');
+        };
+        this._productsFabVVListener = apply;
+        apply();
+        requestAnimationFrame(apply);
+        setTimeout(apply, 50);
+        setTimeout(apply, 400);
+        window.addEventListener('resize', apply);
+        try { window.addEventListener('orientationchange', apply); } catch (_) {}
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', apply);
+            window.visualViewport.addEventListener('scroll', apply);
+        }
+    }
+
     getPageTitles(pageName) {
         const titles = {
             dashboard: { title: 'Tổng quan', subtitle: 'Hệ thống quản lý bán hàng' },
@@ -2244,6 +2314,10 @@ class HamobileBanhang {
             ${filtered.length > 0 ? `<span class="products-table-total">Tổng tồn kho (${filtered.length} SP): <strong>${totalStock.toLocaleString('vi-VN')}</strong></span>` : ''}`;
         }
         this.updateProductsSelectionUI();
+        if (this.currentPage === 'products') {
+            if (this._productsFabVVListener) this._productsFabVVListener();
+            else this.ensureProductsFabMobile();
+        }
     }
     toggleProductsSelectAll(checked) {
         const q = (this.productsSearchQuery || '').trim().toLowerCase();
