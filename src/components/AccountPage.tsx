@@ -15,7 +15,6 @@ import { FormEvent, useEffect, useState } from "react";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 import { buildPasswordResetActionCodeSettings } from "@/lib/password-reset-email";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
-import { getSiteBrandName, getSiteDomainHint } from "@/lib/site-brand";
 
 type AccountPageProps = {
   shop?: string;
@@ -104,7 +103,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
       }
       setMessageType("success");
       setMessage(
-        `Đã gửi email đặt lại mật khẩu từ ${getSiteBrandName()} (${getSiteDomainHint()}). Kiểm tra hộp thư; nếu không thấy, mở cả mục Thư rác / Spam.`,
+        "Đã gửi email đặt lại mật khẩu. Nếu không thấy, hãy mở mục Thư rác / Spam.",
       );
     } catch (error: unknown) {
       const raw = error instanceof Error ? error.message : String(error || "");

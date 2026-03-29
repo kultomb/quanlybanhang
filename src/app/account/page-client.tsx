@@ -15,7 +15,6 @@ import { auth, rtdb } from "@/lib/backend/client";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 import { buildPasswordResetActionCodeSettings } from "@/lib/password-reset-email";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
-import { getSiteBrandName, getSiteDomainHint } from "@/lib/site-brand";
 
 export default function AccountClient() {
   const router = useRouter();
@@ -100,7 +99,7 @@ export default function AccountClient() {
         await sendPasswordResetEmail(auth, email);
       }
       setMessage(
-        `Đã gửi email đặt lại mật khẩu từ ${getSiteBrandName()} (${getSiteDomainHint()}). Kiểm tra hộp thư; nếu không thấy, mở cả mục Thư rác / Spam.`,
+        "Đã gửi email đặt lại mật khẩu. Nếu không thấy, hãy mở mục Thư rác / Spam.",
       );
     } catch (error: unknown) {
       const raw = error instanceof Error ? error.message : String(error || "");
