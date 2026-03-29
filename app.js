@@ -39,6 +39,10 @@ window.FirebaseStorage = {
         } catch (_) {}
         return this._config;
     },
+    usesCloudProxyApi() {
+        const c = this.getConfig();
+        return !!(c && String(c.url || '').includes('/api/rtdb'));
+    },
     _api(path) {
         const c = this.getConfig();
         if (!c) return null;
@@ -46,15 +50,19 @@ window.FirebaseStorage = {
     },
     async load() {
         window._lastFirebaseError = null;
+        this._hadAuthoritativeEmptyAppJson = false;
         const api = this._api('app.json');
         if (!api) return null;
         try {
-            const res = await fetch(api);
+            const res = await fetch(api, { credentials: 'include' });
             if (!res.ok) {
                 window._lastFirebaseError = `Firebase trả về ${res.status}: ${res.statusText}. Kiểm tra URL, Khóa sao lưu và Quy tắc bảo mật Firebase.`;
                 return null;
             }
             const json = await res.json();
+            if (json === null && res.ok) {
+                this._hadAuthoritativeEmptyAppJson = true;
+            }
             if (json && typeof json === 'object') {
                 if (json.data && json.data.customers && json.data.products) {
                     this._cache.data = json.data;
@@ -79,9 +87,13 @@ window.FirebaseStorage = {
             window._lastFirebaseError = `Lỗi kết nối: ${msg}. Có thể do CORS, tab ẩn danh mở file local (file://), hoặc mạng.`;
             console.warn('Firebase load:', e);
         }
+        if (this._hadAuthoritativeEmptyAppJson && this.usesCloudProxyApi()) {
+            window._loadedFromCloud = false;
+            return null;
+        }
         try {
             const legacyApi = this._api('data.json');
-            const legRes = await fetch(legacyApi);
+            const legRes = await fetch(legacyApi, { credentials: 'include' });
             if (!legRes.ok) return null;
             const legJson = await legRes.json();
             if (legJson && legJson.customers && legJson.products) {
@@ -110,7 +122,7 @@ window.FirebaseStorage = {
         const api = this._api('app.json');
         if (!api) return { ok: false, status: 0, json: null };
         try {
-            const res = await fetch(api);
+            const res = await fetch(api, { credentials: 'include' });
             const text = await res.text();
             let json = null;
             if (text && text !== 'null') {
@@ -177,7 +189,7 @@ window.FirebaseStorage = {
         const api = this._api('app.json');
         if (!api) return false;
         try {
-            const res = await fetch(api, { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+            const res = await fetch(api, { method: 'PUT', credentials: 'include', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
             if (res.ok) {
                 this._cache.data = body.data;
                 this._cache.company = body.company;
@@ -186,7 +198,7 @@ window.FirebaseStorage = {
                 const backupsApi = this._api('backups.json');
                 if (backupsApi) {
                     const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: body.meta };
-                    fetch(backupsApi, { method: 'PUT', body: JSON.stringify(backupPayload), headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+                    fetch(backupsApi, { method: 'PUT', credentials: 'include', body: JSON.stringify(backupPayload), headers: { 'Content-Type': 'application/json' } }).catch(() => {});
                 }
                 return true;
             }
@@ -200,7 +212,7 @@ window.FirebaseStorage = {
         const shallowUrl = this._api('snapshots.json');
         if (!shallowUrl) return false;
         try {
-            const r = await fetch(shallowUrl + '?shallow=true');
+            const r = await fetch(shallowUrl + '?shallow=true', { credentials: 'include' });
             let keys = [];
             if (r.ok) {
                 const t = await r.text();
@@ -215,12 +227,13 @@ window.FirebaseStorage = {
             while (keys.length >= this.MAX_ROLLING_SNAPSHOTS) {
                 const old = keys.shift();
                 const delUrl = this._api('snapshots/' + old + '.json');
-                if (delUrl) await fetch(delUrl, { method: 'DELETE' }).catch(function() {});
+                if (delUrl) await fetch(delUrl, { method: 'DELETE', credentials: 'include' }).catch(function() {});
             }
             const id = Date.now();
             const putUrl = this._api('snapshots/' + id + '.json');
             const res = await fetch(putUrl, {
                 method: 'PUT',
+                credentials: 'include',
                 body: JSON.stringify(backupObj),
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -256,7 +269,7 @@ window.FirebaseStorage = {
                     }
                 }
             }
-            const res = await fetch(this._api('app.json'), { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+            const res = await fetch(this._api('app.json'), { method: 'PUT', credentials: 'include', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
             if (res.ok) {
                 localStorage.removeItem(FB_PENDING_SYNC_KEY);
                 this._cache.data = body.data;
@@ -437,6 +450,23 @@ class HamobileBanhang {
                 }
                 return;
             }
+            if (window.FirebaseStorage.usesCloudProxyApi()) {
+                await new Promise(function(r) { setTimeout(r, 900); });
+                const loadedThird = await window.FirebaseStorage.load();
+                if (loadedThird && loadedThird.data && loadedThird.data.customers && loadedThird.data.products) {
+                    this.demoData = loadedThird.data;
+                    window.companyAssets.logo = loadedThird.company?.logo || null;
+                    window.companyAssets.qr = loadedThird.company?.qrCode || loadedThird.company?.qr || null;
+                    this.migrateProductData();
+                    this._ready = true;
+                    this.clearOldDataIfNeeded();
+                    this.init();
+                    if (!localHadData && window._loadedFromCloud) {
+                        setTimeout(() => this.showNotification('✅ Đã khôi phục từ đám mây. Dữ liệu an toàn (ẩn danh, xóa cache, đổi máy đều không mất).', 'success'), 800);
+                    }
+                    return;
+                }
+            }
             if (window._lastFirebaseError) {
                 const errMsg = window._lastFirebaseError || 'Không tải được dữ liệu.';
                 if (content) {
@@ -465,6 +495,8 @@ class HamobileBanhang {
             window.app = this;
             const self = this;
             const runSeed = async function() {
+                const w = window.confirm('CẢNH BÁO: Bạn sắp ghi DỮ LIỆU MẪU (demo) lên đám mây cho tài khoản / kho hiện tại.\n\nChỉ bấm OK nếu đây là shop mới và bạn CHẮC CHẮN không có dữ liệu thật trên máy khác hoặc bản sao lưu.\n\nNếu shop đã bán hàng thật: bấm Hủy, rồi dùng «Thử tải lại» hoặc đăng nhập lại (tab thường, không chặn cookie).');
+                if (!w) return;
                 if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Khởi tạo dữ liệu mới cho khóa sao lưu này...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
                 self.demoData = self.generateDemoData();
                 window.FirebaseStorage.setData(self.demoData);
@@ -607,12 +639,22 @@ class HamobileBanhang {
     
     initializeData() {
         this.demoData = window.FirebaseStorage.getData() || this.demoData;
+        const hostedProxy = window.FirebaseStorage.usesCloudProxyApi();
         if (!this.demoData.customers || !this.demoData.products) {
-            this.demoData = this.generateDemoData();
-            window.FirebaseStorage.setData(this.demoData);
-        } else {
-            this.migrateProductData();
+            if (hostedProxy || window._loadedFromCloud) {
+                if (!this.demoData) this.demoData = {};
+                if (!Array.isArray(this.demoData.customers)) this.demoData.customers = [];
+                if (!Array.isArray(this.demoData.products)) this.demoData.products = [];
+                if (!Array.isArray(this.demoData.orders)) this.demoData.orders = [];
+                if (!Array.isArray(this.demoData.suppliers)) this.demoData.suppliers = [];
+                if (!Array.isArray(this.demoData.categories)) this.demoData.categories = [];
+                window.FirebaseStorage.setData(this.demoData);
+            } else {
+                this.demoData = this.generateDemoData();
+                window.FirebaseStorage.setData(this.demoData);
+            }
         }
+        this.migrateProductData();
     }
 
     // Migrate data để thêm minStock cho sản phẩm cũ
@@ -755,14 +797,11 @@ class HamobileBanhang {
     clearOldDataIfNeeded() {
         const data = window.FirebaseStorage.getData();
         if (!data) return false;
-        try {
-            if (!data.customers || !data.products) throw new Error('invalid');
+        if (!data.customers || !data.products) {
+            console.warn('clearOldDataIfNeeded: bỏ qua — cache thiếu customers/products (không thay bằng demo để tránh ghi đè cloud).');
             return false;
-        } catch (e) {
-            this.demoData = this.generateDemoData();
-            window.FirebaseStorage.setData(this.demoData);
-            return true;
         }
+        return false;
     }
     
     init() {

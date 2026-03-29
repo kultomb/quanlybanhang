@@ -1,3 +1,16 @@
+/**
+ * Proxy RTDB cho legacy app (HamobileBanhang / FirebaseStorage).
+ *
+ * Mô hình dữ liệu (tương đương tinh thần “Auth riêng, data trên server”):
+ * - Firebase Auth: đăng nhập; session cookie `ha_session_token` xác thực request tới đây.
+ * - `users/{uid}`: hồ sơ tài khoản (shopSlug, paymentStatus, …) — không lưu toàn bộ products/orders tại đây.
+ * - Dữ liệu nghiệp vụ shop: RTDB path `backups/shop_{shopSlug}/app.json` (một JSON lớn: customers, products, orders…).
+ * - Client legacy gửi URL có thể kèm key cũ; server luôn ép `segments[1] = shop_{slug}` theo `users/{uid}/shopSlug`
+ *   để không đọc/ghi nhầm kho — tránh kiểu “mỗi máy một localStorage” khi dùng qua Next.
+ *
+ * Khác ví dụ Firestore (doc users/{uid} với field products[]): đây là RTDB + một file JSON backup; hành vi đúng
+ * vẫn là: chỉ seed demo khi cloud thật sự trống và user xác nhận (xem initAsync trong app.js).
+ */
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/backend/server";
 export const runtime = "nodejs";
