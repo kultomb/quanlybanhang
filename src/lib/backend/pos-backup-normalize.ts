@@ -1,6 +1,6 @@
 /**
  * Gói backup POS (app.json / data.json trên RTDB): gộp chuỗi lồng `data` → `data` (double-wrap),
- * luôn có customers/products (mảng) để legacy không báo "thiếu customers/products".
+ * luôn ép các mảng nghiệp vụ (customers, products, …) để POS nhận schema ổn định.
  */
 
 export const POS_ARRAY_KEYS = [

@@ -600,12 +600,11 @@ class HamobileBanhang {
                 }
             }
             if (window._lastFirebaseError) {
-                const errMsg = escapeHtml(window._lastFirebaseError || 'Không tải được dữ liệu. Vui lòng thử lại.');
+                const errMsg = escapeHtml('Không tải được dữ liệu. Vui lòng thử lại.');
                 if (content) {
                     content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                         '<h2>⚠️ Không tải được dữ liệu</h2>' +
                         '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
-                        '<p style="margin: 8px 0; font-size: 13px; color: #64748b;">💡 401/403: tải lại trang, bật cookie, dùng đúng URL chuẩn (www hoặc non-www).</p>' +
                         '<div style="display:grid;gap:12px;margin-top:20px;">' +
                         '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                         '</div></div>';
@@ -647,12 +646,11 @@ class HamobileBanhang {
             if (btnRetry) btnRetry.onclick = function() { self.initAsync(); };
             return;
         } else {
-            const errMsg = escapeHtml(window._lastFirebaseError || 'Không tải được dữ liệu. Vui lòng thử lại.');
+            const errMsg = escapeHtml('Không tải được dữ liệu. Vui lòng thử lại.');
             if (content) {
                 content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                     '<h2>⚠️ Không tải được dữ liệu</h2>' +
                     '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
-                    '<p style="margin: 8px 0; font-size: 13px; color: #64748b;">💡 401/403: tải lại trang, bật cookie, dùng đúng URL chuẩn (www hoặc non-www).</p>' +
                     '<div style="display:grid;gap:12px;margin-top:20px;">' +
                     '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                     '</div></div>';
@@ -6155,11 +6153,27 @@ class HamobileBanhang {
         }
     }
     
+    sanitizeLegacyVendorNameInText(s) {
+        if (s == null || typeof s !== 'string') return s;
+        return s.replace(/Phuoc\s*I\s*T/gi, 'Hangho.com');
+    }
     getSystemActivityHistory() {
         try {
             let activities = window.FirebaseStorage.getMeta('system_activity_history') || [];
             if (!Array.isArray(activities)) activities = [];
-        
+        var metaDirty = false;
+        for (var ai = 0; ai < activities.length; ai++) {
+            var act = activities[ai];
+            if (!act || typeof act !== 'object') continue;
+            var nt = this.sanitizeLegacyVendorNameInText(act.title);
+            var nd = this.sanitizeLegacyVendorNameInText(act.description);
+            if (nt !== act.title) { act.title = nt; metaDirty = true; }
+            if (nd !== act.description) { act.description = nd; metaDirty = true; }
+        }
+        if (metaDirty) {
+            window.FirebaseStorage.setMeta('system_activity_history', activities);
+            window.FirebaseStorage.save({ meta: { system_activity_history: activities } }).catch(function() {});
+        }
         if (activities.length === 0) {
             activities = this.generateInitialActivityHistory();
             if (Array.isArray(activities)) {
@@ -6302,8 +6316,8 @@ class HamobileBanhang {
             id: 'activity_' + Date.now(),
             type: type,
             icon: icon,
-            title: title,
-            description: description,
+            title: this.sanitizeLegacyVendorNameInText(title),
+            description: this.sanitizeLegacyVendorNameInText(description),
             time: this.getVietnamTime().toISOString(),
             category: category
         };

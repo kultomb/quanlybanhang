@@ -585,12 +585,11 @@ class HamobileBanhang {
                 }
             }
             if (window._lastFirebaseError) {
-                const errMsg = window._lastFirebaseError || 'Không tải được dữ liệu.';
+                const errMsg = escapeHtml('Không tải được dữ liệu. Vui lòng thử lại.');
                 if (content) {
                     content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                         '<h2>⚠️ Không tải được dữ liệu</h2>' +
                         '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
-                        '<p style="margin: 8px 0; font-size: 13px;">💡 Tab ẩn danh hoặc mở file trực tiếp (file://) có thể bị chặn kết nối. Hãy chạy qua web server (localhost) hoặc dùng tab thường.</p>' +
                         '<div style="display:grid;gap:12px;margin-top:20px;">' +
                         '<input id="fb-url" placeholder="URL đồng bộ" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
                         '<input id="fb-key" placeholder="Khóa sao lưu" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
@@ -651,12 +650,11 @@ class HamobileBanhang {
             if (btnRetry) btnRetry.onclick = function() { self.initAsync(); };
             return;
         } else {
-            const errMsg = window._lastFirebaseError || 'Không tải được dữ liệu.';
+            const errMsg = escapeHtml('Không tải được dữ liệu. Vui lòng thử lại.');
             if (content) {
                 content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                     '<h2>⚠️ Không tải được dữ liệu</h2>' +
                     '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
-                    '<p style="margin: 8px 0; font-size: 13px;">💡 Tab ẩn danh hoặc mở file trực tiếp (file://) có thể bị chặn kết nối. Hãy chạy qua web server (localhost) hoặc dùng tab thường.</p>' +
                     '<div style="display:grid;gap:12px;margin-top:20px;">' +
                     '<input id="fb-url" placeholder="URL đồng bộ" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
                     '<input id="fb-key" placeholder="Khóa sao lưu" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;">' +
@@ -6209,11 +6207,26 @@ class HamobileBanhang {
         }
     }
     
+    sanitizeLegacyVendorNameInText(s) {
+        if (s == null || typeof s !== 'string') return s;
+        return s.replace(/Phuoc\s*I\s*T/gi, 'Hangho.com');
+    }
     getSystemActivityHistory() {
         try {
             let activities = window.FirebaseStorage.getMeta('system_activity_history') || [];
             if (!Array.isArray(activities)) activities = [];
-        
+        let metaDirty = false;
+        for (const act of activities) {
+            if (!act || typeof act !== 'object') continue;
+            const nt = this.sanitizeLegacyVendorNameInText(act.title);
+            const nd = this.sanitizeLegacyVendorNameInText(act.description);
+            if (nt !== act.title) { act.title = nt; metaDirty = true; }
+            if (nd !== act.description) { act.description = nd; metaDirty = true; }
+        }
+        if (metaDirty) {
+            window.FirebaseStorage.setMeta('system_activity_history', activities);
+            window.FirebaseStorage.save({ meta: { system_activity_history: activities } }).catch(() => undefined);
+        }
         if (activities.length === 0) {
             activities = this.generateInitialActivityHistory();
             if (Array.isArray(activities)) {
@@ -6356,8 +6369,8 @@ class HamobileBanhang {
             id: 'activity_' + Date.now(),
             type: type,
             icon: icon,
-            title: title,
-            description: description,
+            title: this.sanitizeLegacyVendorNameInText(title),
+            description: this.sanitizeLegacyVendorNameInText(description),
             time: this.getVietnamTime().toISOString(),
             category: category
         };
