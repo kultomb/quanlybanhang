@@ -5,7 +5,7 @@ import { auth } from "@/lib/backend/client";
 
 const LOGIN_REDIRECT = "/login?reason=missing-shop";
 
-/** Cache POS legacy (public/legacy/app.js): `ha_mobile_firebase_config`, `ha_mobile_app_data`, … — không phải token đăng nhập. */
+/** Cache POS legacy — không phải token; trên Hangho (/api/rtdb) app.js không còn dùng key chung cho dữ liệu (tránh lộ user khác). */
 const LEGACY_POS_LOCAL_PREFIX = "ha_mobile_";
 
 type ClearClientStateOptions = {
@@ -26,7 +26,10 @@ function clearClientUserState(options?: ClearClientStateOptions) {
   try {
     const keys = Object.keys(localStorage);
     for (const key of keys) {
-      if (preservePos && key.startsWith(LEGACY_POS_LOCAL_PREFIX)) continue;
+      if (key.startsWith(LEGACY_POS_LOCAL_PREFIX)) {
+        if (!preservePos) localStorage.removeItem(key);
+        continue;
+      }
       const normalized = key.toLowerCase();
       if (
         normalized.includes("firebase") ||

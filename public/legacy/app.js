@@ -80,6 +80,18 @@ window.FirebaseStorage = {
         const c = this.getConfig();
         return !!(c && String(c.url || '').includes('/api/rtdb'));
     },
+    /**
+     * Hangho đa tenant: cache localStorage trước đây dùng một key chung → user B có thể thấy dữ liệu user A
+     * trên cùng máy/trình duyệt. Với /api/rtdb chỉ dùng cloud + cookie; không đọc/ghi payload chung.
+     */
+    clearSharedLocalCachesIfProxy() {
+        if (!this.usesCloudProxyApi()) return;
+        try {
+            localStorage.removeItem(FB_APP_DATA_KEY);
+            localStorage.removeItem(FB_PENDING_SYNC_KEY);
+            localStorage.removeItem(FB_CONFIG_KEY);
+        } catch (_) {}
+    },
     _logLoadTrace(result, hint) {
         try {
             const c = this.getConfig();
@@ -100,6 +112,7 @@ window.FirebaseStorage = {
         return '/api/rtdb/backups/' + encodeURIComponent(c.key) + '/' + path;
     },
     async load() {
+        this.clearSharedLocalCachesIfProxy();
         window._lastFirebaseError = null;
         this._hadAuthoritativeEmptyAppJson = false;
         const api = this._api('app.json');
@@ -168,8 +181,7 @@ window.FirebaseStorage = {
             }
         } catch (e) { console.warn('Firebase legacy load:', e); }
         window._loadedFromCloud = false;
-        // Fallback: load từ localStorage nếu Firebase không có dữ liệu
-        const local = this._loadFromLocalStorage();
+        const local = this.usesCloudProxyApi() ? null : this._loadFromLocalStorage();
         if (local) {
             this._cache.data = local.data;
             this._cache.company = local.company || {};
@@ -227,11 +239,13 @@ window.FirebaseStorage = {
         } catch (_) { return false; }
     },
     _saveToLocalStorage(body) {
+        if (this.usesCloudProxyApi()) return;
         try {
             localStorage.setItem(FB_APP_DATA_KEY, JSON.stringify(body));
         } catch (e) { console.warn('LocalStorage save:', e); }
     },
     _loadFromLocalStorage() {
+        if (this.usesCloudProxyApi()) return null;
         try {
             const raw = localStorage.getItem(FB_APP_DATA_KEY);
             if (raw) {
@@ -278,7 +292,9 @@ window.FirebaseStorage = {
                 return true;
             }
         } catch (e) { console.warn('Firebase save:', e); }
-        try { localStorage.setItem(FB_PENDING_SYNC_KEY, JSON.stringify({ body, ts: Date.now() })); } catch (_) {}
+        if (!this.usesCloudProxyApi()) {
+            try { localStorage.setItem(FB_PENDING_SYNC_KEY, JSON.stringify({ body, ts: Date.now() })); } catch (_) {}
+        }
         return false;
     },
     async pushRollingSnapshot(backupObj) {
@@ -325,6 +341,10 @@ window.FirebaseStorage = {
         }
     },
     async retryPendingSync() {
+        if (this.usesCloudProxyApi()) {
+            try { localStorage.removeItem(FB_PENDING_SYNC_KEY); } catch (_) {}
+            return true;
+        }
         if (!this._api('app.json')) return false;
         try {
             const raw = localStorage.getItem(FB_PENDING_SYNC_KEY);
@@ -356,6 +376,7 @@ window.FirebaseStorage = {
         return false;
     },
     hasPendingSync() {
+        if (this.usesCloudProxyApi()) return false;
         try { return !!localStorage.getItem(FB_PENDING_SYNC_KEY); } catch (_) { return false; }
     },
     getData() { return this._cache.data; },
@@ -442,8 +463,11 @@ class HamobileBanhang {
     async initAsync() {
         const content = document.getElementById('main-content');
         if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang tải dữ liệu...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
-        const localHadData = !!localStorage.getItem(FB_APP_DATA_KEY);
         const cfg = window.FirebaseStorage.getConfig();
+        window.FirebaseStorage.clearSharedLocalCachesIfProxy();
+        const localHadData = window.FirebaseStorage.usesCloudProxyApi()
+            ? false
+            : !!localStorage.getItem(FB_APP_DATA_KEY);
         if (!cfg) {
             if (content) content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;"><h2>⚠️ Đang khởi tạo dữ liệu</h2><p style="margin: 16px 0; color: #6b7280;">Hệ thống chưa sẵn sàng đồng bộ dữ liệu. Vui lòng thử lại sau vài giây.</p><button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button></div>';
             window.app = this;
