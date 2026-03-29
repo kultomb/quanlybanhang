@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { adminAuth, adminDb } from "@/lib/backend/server";
+import { adminAuth } from "@/lib/backend/server";
+import { normalizeShopSlug, resolveUserShopSlugWithHeal } from "@/lib/backend/userShopSlug";
 
 const LEGACY_ROOT = path.resolve(process.cwd(), "public", "legacy");
 const DEFAULT_RTDB_URL = "/api/rtdb";
@@ -36,33 +37,12 @@ function getCookieValue(request: Request, name: string) {
   return "";
 }
 
-function normalizeShopSlug(value: string) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "");
-}
-
-async function resolveUserShopSlug(uid: string) {
-  const direct = String((await adminDb().ref(`users/${uid}/shopSlug`).get()).val() || "").trim();
-  if (direct) return normalizeShopSlug(direct);
-
-  const shopsSnap = await adminDb().ref("shops").get();
-  const shops = (shopsSnap.val() || {}) as Record<string, { ownerUid?: string; slug?: string }>;
-  for (const [slug, value] of Object.entries(shops)) {
-    if (String(value?.ownerUid || "").trim() === uid) {
-      return normalizeShopSlug(String(value?.slug || slug));
-    }
-  }
-  return "";
-}
-
 async function resolveShopSlugFromSession(request: Request) {
   const token = String(getCookieValue(request, SESSION_COOKIE_NAME) || "").trim();
   if (!token) return "";
   const decoded = await adminAuth().verifyIdToken(token).catch(() => null);
   if (!decoded?.uid) return "";
-  return resolveUserShopSlug(decoded.uid);
+  return resolveUserShopSlugWithHeal(decoded.uid);
 }
 
 export async function GET(

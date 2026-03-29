@@ -1,8 +1,6 @@
 import admin from "firebase-admin";
 
-const databaseURL =
-  process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL ||
-  "https://banhangnew-134a6-default-rtdb.asia-southeast1.firebasedatabase.app";
+const databaseURL = (process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "").trim();
 
 function getServiceAccount() {
   const raw = process.env.FIREBASE_ADMIN_CREDENTIALS || "";
@@ -41,6 +39,11 @@ function getAdminApp() {
   if (!svc) {
     throw new Error(
       "Missing Firebase Admin credentials. Set FIREBASE_ADMIN_CREDENTIALS (JSON) or FIREBASE_ADMIN_PROJECT_ID/FIREBASE_ADMIN_CLIENT_EMAIL/FIREBASE_ADMIN_PRIVATE_KEY in env.",
+    );
+  }
+  if (!databaseURL) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_FIREBASE_DATABASE_URL for Admin RTDB. Set it in env (no hardcoded default).",
     );
   }
   return admin.initializeApp({

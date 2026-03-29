@@ -46,7 +46,11 @@ function parseAcceptedApiKeys() {
 function webhookSecretOk(request: Request) {
   const expectedApiKeys = parseAcceptedApiKeys();
   const expectedSecret = String(process.env.PAYMENT_WEBHOOK_SECRET || "").trim();
-  if (!expectedApiKeys.length && !expectedSecret) return true;
+  const hasAuth = expectedApiKeys.length > 0 || !!expectedSecret;
+  if (!hasAuth) {
+    // Dev convenience only — production must set PAYMENT_WEBHOOK_API_KEY and/or PAYMENT_WEBHOOK_SECRET
+    return process.env.NODE_ENV !== "production";
+  }
 
   const authHeader = String(request.headers.get("authorization") || "").trim();
   const apikeyPrefix = "apikey ";
@@ -169,6 +173,11 @@ export async function POST(request: Request) {
     return Response.json({ success: true, matched: true, uid: matchedUid });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return Response.json({ success: false, reason: "server_error", message }, { status: 500 });
+    console.error("[payment/webhook]", message);
+    const body =
+      process.env.NODE_ENV === "production"
+        ? { success: false, reason: "server_error" }
+        : { success: false, reason: "server_error", message };
+    return Response.json(body, { status: 500 });
   }
 }

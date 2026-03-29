@@ -6,13 +6,15 @@
  * - `users/{uid}`: hồ sơ tài khoản (shopSlug, paymentStatus, …) — không lưu toàn bộ products/orders tại đây.
  * - Dữ liệu nghiệp vụ shop: RTDB path `backups/shop_{shopSlug}/app.json` (một JSON lớn: customers, products, orders…).
  * - Client legacy gửi URL có thể kèm key cũ; server luôn ép `segments[1] = shop_{slug}` theo `users/{uid}/shopSlug`
- *   để không đọc/ghi nhầm kho — tránh kiểu “mỗi máy một localStorage” khi dùng qua Next.
+ *   (resolve + tự ghi lại nếu chỉ tìm thấy qua `shops/`) để không đọc/ghi nhầm kho.
+ * - 403 `missing_shop_slug`: JSON `{ error, message }` khi hồ sơ user không có slug hợp lệ.
  *
  * Khác ví dụ Firestore (doc users/{uid} với field products[]): đây là RTDB + một file JSON backup; hành vi đúng
  * vẫn là: chỉ seed demo khi cloud thật sự trống và user xác nhận (xem initAsync trong app.js).
  */
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/backend/server";
+import { resolveUserShopSlugWithHeal } from "@/lib/backend/userShopSlug";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -32,21 +34,6 @@ function toShallowObject(value: unknown) {
     acc[key] = true;
     return acc;
   }, {});
-}
-
-async function resolveUserShopSlug(uid: string) {
-  const direct = String((await adminDb().ref(`users/${uid}/shopSlug`).get()).val() || "").trim();
-  if (direct) return direct;
-
-  // Fallback for legacy records where users/{uid}/shopSlug was not written correctly.
-  const shopsSnap = await adminDb().ref("shops").get();
-  const shops = (shopsSnap.val() || {}) as Record<string, { ownerUid?: string; slug?: string }>;
-  for (const [slug, value] of Object.entries(shops)) {
-    if (String(value?.ownerUid || "").trim() === uid) {
-      return String(value?.slug || slug).trim();
-    }
-  }
-  return "";
 }
 
 async function proxy(
@@ -74,10 +61,23 @@ async function proxy(
     return new Response("Forbidden path", { status: 403 });
   }
   const requestedShopKey = segments[1];
-  const userShopSlug = await resolveUserShopSlug(decoded.uid);
+  const userShopSlug = await resolveUserShopSlugWithHeal(decoded.uid);
   const allowedShopKey = userShopSlug ? `shop_${userShopSlug}` : "";
   if (!allowedShopKey) {
-    return new Response("Forbidden path", { status: 403 });
+    return new Response(
+      JSON.stringify({
+        error: "missing_shop_slug",
+        message:
+          "Tài khoản chưa có shopSlug (users/{uid}/shopSlug). Hoàn tất đăng ký shop, sửa hồ sơ trên Firebase, hoặc liên hệ hỗ trợ — không thể đọc/ghi kho dữ liệu.",
+      }),
+      {
+        status: 403,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      },
+    );
   }
 
   // Force per-user storage namespace even if old client sends stale keys like "12345".

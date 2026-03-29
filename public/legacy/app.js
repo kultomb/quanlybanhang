@@ -6,6 +6,15 @@
 const FB_CONFIG_KEY = 'ha_mobile_firebase_config';
 const FB_APP_DATA_KEY = 'ha_mobile_app_data';
 const FB_PENDING_SYNC_KEY = 'ha_mobile_pending_sync';
+function haLegacyDebugLog(tag, payload) {
+    try {
+        var on = false;
+        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('ha_legacy_debug') === '1') on = true;
+        if (!on && typeof window !== 'undefined' && /(?:^|[?&])ha_debug=1(?:&|$)/.test(String(window.location.search || ''))) on = true;
+        if (!on) return;
+        console.log('[HaLegacy]', tag, payload);
+    } catch (_) {}
+}
 window.FirebaseStorage = {
     _cache: { data: null, company: {}, meta: {} },
     _config: null,
@@ -56,6 +65,20 @@ window.FirebaseStorage = {
         const c = this.getConfig();
         return !!(c && String(c.url || '').includes('/api/rtdb'));
     },
+    _logLoadTrace(result, hint) {
+        try {
+            const c = this.getConfig();
+            haLegacyDebugLog('LOAD_SOURCE', {
+                hint: hint || '',
+                hasData: !!(result && result.data && result.data.customers && result.data.products),
+                fromCloud: !!window._loadedFromCloud,
+                lastError: window._lastFirebaseError || null,
+                usesProxy: this.usesCloudProxyApi(),
+                backupKeyTail: c ? String(c.key || '').slice(-8) : '',
+            });
+        } catch (_) {}
+        return result;
+    },
     _api(path) {
         const c = this.getConfig();
         if (!c) return null;
@@ -65,12 +88,26 @@ window.FirebaseStorage = {
         window._lastFirebaseError = null;
         this._hadAuthoritativeEmptyAppJson = false;
         const api = this._api('app.json');
-        if (!api) return null;
+        if (!api) return this._logLoadTrace(null, 'no_api');
         try {
             const res = await fetch(api, { credentials: 'include' });
             if (!res.ok) {
-                window._lastFirebaseError = 'Không thể kết nối dữ liệu đám mây. Vui lòng thử lại.';
-                return null;
+                let detail = res.statusText || '';
+                try {
+                    const t = await res.text();
+                    if (t) {
+                        try {
+                            const j = JSON.parse(t);
+                            if (j && typeof j.message === 'string' && j.message.trim()) detail = j.message.trim();
+                        } catch (_) {
+                            if (t.length < 420) detail = t;
+                        }
+                    }
+                } catch (_) {}
+                window._lastFirebaseError = res.status === 403
+                    ? 'Không truy cập được kho dữ liệu (403). ' + (detail || 'Kiểm tra users/{uid}/shopSlug và đăng nhập lại (tab thường, cookie).')
+                    : 'Không thể kết nối dữ liệu đám mây (' + res.status + '). ' + (detail || 'Vui lòng thử lại.');
+                return this._logLoadTrace(null, 'http_' + res.status);
             }
             const json = await res.json();
             if (json === null && res.ok) {
@@ -83,7 +120,7 @@ window.FirebaseStorage = {
                     this._cache.meta = json.meta || {};
                     window._lastFirebaseError = null;
                     window._loadedFromCloud = true;
-                    return this._cache;
+                    return this._logLoadTrace(this._cache, 'cloud_wrapped');
                 }
                 if (json.customers && json.products) {
                     this._cache.data = json;
@@ -91,7 +128,7 @@ window.FirebaseStorage = {
                     this._cache.meta = json.meta || {};
                     window._lastFirebaseError = null;
                     window._loadedFromCloud = true;
-                    return this._cache;
+                    return this._logLoadTrace(this._cache, 'cloud_flat');
                 }
                 window._lastFirebaseError = 'Dữ liệu không đúng định dạng (thiếu customers/products).';
             }
@@ -101,18 +138,18 @@ window.FirebaseStorage = {
         }
         if (this._hadAuthoritativeEmptyAppJson && this.usesCloudProxyApi()) {
             window._loadedFromCloud = false;
-            return null;
+            return this._logLoadTrace(null, 'proxy_empty_skip_local');
         }
         try {
             const legacyApi = this._api('data.json');
             const legRes = await fetch(legacyApi, { credentials: 'include' });
-            if (!legRes.ok) return null;
+            if (!legRes.ok) return this._logLoadTrace(null, 'legacy_http_fail');
             const legJson = await legRes.json();
             if (legJson && legJson.customers && legJson.products) {
                 this._cache.data = legJson;
                 window._lastFirebaseError = null;
                 window._loadedFromCloud = true;
-                return this._cache;
+                return this._logLoadTrace(this._cache, 'legacy_data_json');
             }
         } catch (e) { console.warn('Firebase legacy load:', e); }
         window._loadedFromCloud = false;
@@ -124,10 +161,10 @@ window.FirebaseStorage = {
             this._cache.meta = local.meta || {};
             window._lastFirebaseError = null;
             window._loadedFromCloud = false;
-            return this._cache;
+            return this._logLoadTrace(this._cache, 'local_storage');
         }
         window._loadedFromCloud = false;
-        return null;
+        return this._logLoadTrace(null, 'empty');
     },
     /** GET app.json thô — dùng để xác minh trước khi ghi demo, tránh ghi đè do lỗi tạm thời */
     async peekAppJson() {
@@ -197,12 +234,23 @@ window.FirebaseStorage = {
             company: payload.company !== undefined ? payload.company : this._cache.company,
             meta: Object.assign({}, this._cache.meta, payload.meta || {})
         };
+        if (body.meta && body.meta.schemaVersion == null) body.meta.schemaVersion = 1;
         this._saveToLocalStorage(body);
         const api = this._api('app.json');
         if (!api) return false;
         try {
             const res = await fetch(api, { method: 'PUT', credentials: 'include', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
             if (res.ok) {
+                const d = body.data;
+                const hasBiz = d && (
+                    (Array.isArray(d.customers) && d.customers.length > 0) ||
+                    (Array.isArray(d.products) && d.products.length > 0) ||
+                    (Array.isArray(d.orders) && d.orders.length > 0)
+                );
+                if (hasBiz) {
+                    body.meta = Object.assign({}, body.meta, { cloud_initialized: 'true' });
+                    try { this._saveToLocalStorage(body); } catch (_) {}
+                }
                 this._cache.data = body.data;
                 this._cache.company = body.company;
                 this._cache.meta = body.meta;
@@ -7656,7 +7704,7 @@ class HamobileBanhang {
         if (!cfg) { this.showNotification('Hệ thống chưa sẵn sàng. Vui lòng thử lại.', 'error'); return; }
         const apiUrl = '/api/rtdb/backups/' + encodeURIComponent(cfg.key) + '/app.json';
         this.showNotification('Đang kiểm tra dữ liệu...', 'info');
-        fetch(apiUrl, { method: 'GET' })
+        fetch(apiUrl, { method: 'GET', credentials: 'include' })
             .then(res => res.text().then(t => {
                 if (res.ok) {
                     this.showNotification('Kết nối thành công. Đang đồng bộ dữ liệu...', 'success');
@@ -13000,7 +13048,7 @@ class HamobileBanhang {
         if (statusCell) {
             const statusColor = order.status === 'Hoàn thành' ? '#16a34a' : 
                               order.status === 'Hủy' ? '#dc2626' : '#f59e0b';
-            statusCell.innerHTML = `<span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">${order.status}</span>`;
+            statusCell.innerHTML = `<span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">${escapeHtml(String(order.status || ''))}</span>`;
         }
         
         // Cập nhật cell trạng thái thanh toán với nút đúp click

@@ -1,31 +1,11 @@
 import { cookies } from "next/headers";
-import { adminAuth, adminDb } from "@/lib/backend/server";
+import { adminAuth } from "@/lib/backend/server";
+import { normalizeShopSlug, resolveUserShopSlugWithHeal } from "@/lib/backend/userShopSlug";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "ha_session_token";
 const SHOP_COOKIE_NAME = "ha_shop_slug";
-
-function normalizeShopSlug(value: string) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "");
-}
-
-async function resolveUserShopSlug(uid: string) {
-  const direct = String((await adminDb().ref(`users/${uid}/shopSlug`).get()).val() || "").trim();
-  if (direct) return normalizeShopSlug(direct);
-
-  const shopsSnap = await adminDb().ref("shops").get();
-  const shops = (shopsSnap.val() || {}) as Record<string, { ownerUid?: string; slug?: string }>;
-  for (const [slug, value] of Object.entries(shops)) {
-    if (String(value?.ownerUid || "").trim() === uid) {
-      return normalizeShopSlug(String(value?.slug || slug));
-    }
-  }
-  return "";
-}
 
 export async function POST(request: Request) {
   try {
@@ -38,7 +18,7 @@ export async function POST(request: Request) {
     if (!decoded?.uid) {
       return new Response("Invalid token", { status: 401 });
     }
-    const profileShopSlug = await resolveUserShopSlug(decoded.uid);
+    const profileShopSlug = await resolveUserShopSlugWithHeal(decoded.uid);
     const requestShopSlug = normalizeShopSlug(String(body?.shopSlug || ""));
     const shopSlug = profileShopSlug || requestShopSlug;
 
