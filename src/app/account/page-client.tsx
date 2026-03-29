@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import {
   EmailAuthProvider,
@@ -12,8 +12,10 @@ import {
 } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { auth, rtdb } from "@/lib/backend/client";
+import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 
 export default function AccountClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [shop, setShop] = useState(searchParams.get("shop") || "");
@@ -63,10 +65,11 @@ export default function AccountClient() {
       const credential = EmailAuthProvider.credential(user.email, currentPassword);
       await reauthenticateWithCredential(user, credential);
       await updatePassword(user, newPassword);
-      setMessage("Đổi mật khẩu thành công. Vui lòng đăng nhập lại.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      await revokeAllFirebaseSessionsThenSignOut();
+      router.replace("/login?reason=password-changed");
     } catch {
       setError("Mật khẩu cũ không đúng hoặc không thể đổi mật khẩu.");
     } finally {

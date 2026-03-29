@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 
 type AccountPageProps = {
   shop?: string;
@@ -63,11 +64,11 @@ export default function AccountPage({ shop }: AccountPageProps) {
       const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
       await reauthenticateWithCredential(currentUser, credential);
       await updatePassword(currentUser, newPassword);
-      setMessageType("success");
-      setMessage("Đổi mật khẩu thành công.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      await revokeAllFirebaseSessionsThenSignOut();
+      router.replace("/login?reason=password-changed");
     } catch {
       setMessageType("error");
       setMessage("Mật khẩu cũ không đúng hoặc không thể đổi mật khẩu.");

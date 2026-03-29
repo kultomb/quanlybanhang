@@ -75,6 +75,12 @@ function LoginContent() {
       );
       return;
     }
+    if (reason === "password-changed") {
+      setNotice(
+        "Mật khẩu đã được đổi. Toàn bộ phiên đăng nhập trên mọi thiết bị đã kết thúc — vui lòng đăng nhập lại bằng mật khẩu mới.",
+      );
+      return;
+    }
     setNotice("");
   }, [searchParams]);
 

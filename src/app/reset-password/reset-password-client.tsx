@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { auth } from "@/lib/backend/client";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
+import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 
 export default function ResetPasswordClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
   const oobCode = searchParams.get("oobCode");
@@ -46,9 +48,10 @@ export default function ResetPasswordClient() {
     try {
       await verifyPasswordResetCode(auth, oobCode);
       await confirmPasswordReset(auth, oobCode, password);
-      setMessage("Đổi mật khẩu thành công. Bạn có thể đăng nhập lại.");
       setPassword("");
       setConfirmPassword("");
+      await revokeAllFirebaseSessionsThenSignOut();
+      router.replace("/login?reason=password-changed");
     } catch {
       setError("Link đổi mật khẩu không hợp lệ hoặc đã hết hạn.");
     } finally {

@@ -5,7 +5,18 @@ import { auth } from "@/lib/backend/client";
 
 const LOGIN_REDIRECT = "/login?reason=missing-shop";
 
-function clearClientUserState() {
+/** Cache POS legacy (public/legacy/app.js): `ha_mobile_firebase_config`, `ha_mobile_app_data`, … — không phải token đăng nhập. */
+const LEGACY_POS_LOCAL_PREFIX = "ha_mobile_";
+
+type ClearClientStateOptions = {
+  /**
+   * Giữ localStorage `ha_mobile_*` sau đổi mật khẩu: key có chứa `firebase` nên trước đây bị xóa nhầm → POS tưởng kho trống / nhảy demo.
+   */
+  preserveLegacyHostedPosCache?: boolean;
+};
+
+function clearClientUserState(options?: ClearClientStateOptions) {
+  const preservePos = options?.preserveLegacyHostedPosCache === true;
   try {
     sessionStorage.clear();
   } catch {
@@ -15,6 +26,7 @@ function clearClientUserState() {
   try {
     const keys = Object.keys(localStorage);
     for (const key of keys) {
+      if (preservePos && key.startsWith(LEGACY_POS_LOCAL_PREFIX)) continue;
       const normalized = key.toLowerCase();
       if (
         normalized.includes("firebase") ||
@@ -102,6 +114,34 @@ export async function postSessionCookieWithRetries(
     }
   }
   return false;
+}
+
+/**
+ * Thu hồi mọi refresh token Firebase (mọi thiết bị), rồi đăng xuất client + xóa cookie phiên app.
+ * Gọi ngay sau `updatePassword` / `confirmPasswordReset` khi `auth.currentUser` còn hợp lệ.
+ */
+export async function revokeAllFirebaseSessionsThenSignOut(): Promise<{ revokeServerOk: boolean }> {
+  let revokeServerOk = false;
+  const user = auth.currentUser;
+  if (user) {
+    try {
+      const idToken = await user.getIdToken(true);
+      const res = await fetch("/api/auth/revoke-sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      revokeServerOk = res.ok;
+    } catch {
+      revokeServerOk = false;
+    }
+    await signOut(auth).catch(() => undefined);
+  } else {
+    await signOut(auth).catch(() => undefined);
+  }
+  await fetch("/api/auth/session", { method: "DELETE" }).catch(() => undefined);
+  clearClientUserState({ preserveLegacyHostedPosCache: true });
+  return { revokeServerOk };
 }
 
 export async function forceLogoutMissingShop(redirectUrl = LOGIN_REDIRECT) {

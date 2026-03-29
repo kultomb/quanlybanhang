@@ -35,8 +35,11 @@ export async function POST(request: Request) {
           { status: 429, headers: { "retry-after": String(retryAfterSec) } },
         );
       }
-      console.error("[login-precheck] rate_limit", e);
-      if (process.env.NODE_ENV !== "production") {
+      console.error("[login-precheck] rate_limit_firestore", e);
+      const ignoreRateLimitBackend =
+        process.env.NODE_ENV !== "production" ||
+        process.env.LOGIN_PRECHECK_IGNORE_RATE_LIMIT_ERROR === "1";
+      if (ignoreRateLimitBackend) {
         return Response.json({ ok: true });
       }
       return Response.json({ ok: false, error: "server_error" }, { status: 503 });
