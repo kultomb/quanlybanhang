@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { HanghoLogoLink } from "@/components/HanghoBrand";
+import styles from "./page.module.css";
 
 export const metadata = {
-  title: "Quản lý bán hàng — POS, kho, khách hàng",
+  title: "Hangho.com — POS, kho, khách hàng",
   description: "Hệ thống quản lý bán hàng cho cửa hàng điện thoại & linh kiện.",
 };
 
@@ -16,59 +18,18 @@ export default function LandingPage() {
           "radial-gradient(1000px 520px at 15% -5%, rgba(16,185,129,0.4), transparent 50%), radial-gradient(800px 480px at 95% 105%, rgba(5,150,105,0.25), transparent 50%), linear-gradient(168deg, #ecfdf5 0%, #d1fae5 40%, #a7f3d0 100%)",
       }}
     >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "18px 24px",
-          maxWidth: 1120,
-          margin: "0 auto",
-          width: "100%",
-          boxSizing: "border-box",
-        }}
-      >
-        <span style={{ fontWeight: 800, fontSize: 18, color: "#065f46", letterSpacing: "-0.02em" }}>
-          Ha Mobile POS
-        </span>
-        <nav style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <Link
-            href="/trial"
-            style={{
-              padding: "8px 14px",
-              fontSize: 14,
-              fontWeight: 600,
-              color: "#047857",
-              textDecoration: "none",
-            }}
-          >
+      <header className={styles.landingHeader}>
+        <div className={styles.landingBrand}>
+          <HanghoLogoLink variant="landing" />
+        </div>
+        <nav className={styles.landingNav}>
+          <Link href="/trial" className={styles.landingNavLink}>
             Dùng thử
           </Link>
-          <Link
-            href="/login"
-            style={{
-              padding: "8px 14px",
-              fontSize: 14,
-              fontWeight: 600,
-              color: "#374151",
-              textDecoration: "none",
-            }}
-          >
+          <Link href="/login" className={`${styles.landingNavLink} ${styles.landingNavLinkMuted}`}>
             Đăng nhập
           </Link>
-          <Link
-            href="/register"
-            style={{
-              padding: "9px 16px",
-              fontSize: 14,
-              fontWeight: 700,
-              color: "#fff",
-              background: "linear-gradient(135deg, #047857, #10b981)",
-              borderRadius: 999,
-              textDecoration: "none",
-              boxShadow: "0 4px 14px rgba(5,150,105,0.35)",
-            }}
-          >
+          <Link href="/register" className={`${styles.landingNavLink} ${styles.landingNavCta}`}>
             Đăng ký
           </Link>
         </nav>
@@ -172,9 +133,18 @@ export default function LandingPage() {
             }}
           >
             {[
-              { t: "POS & quét mã", d: "Bán nhanh, hỗ trợ IMEI và nhiều chế độ tồn kho." },
-              { t: "Đồng bộ cloud", d: "Dữ liệu shop gắn với tài khoản, tránh lệch máy." },
-              { t: "Dùng thử an toàn", d: "Slug tiền tố try- hoặc Firebase project riêng cho dev." },
+              {
+                t: "Bán hàng thần tốc",
+                d: "Tối ưu hóa quy trình thanh toán với tính năng quét mã vạch/IMEI hiện đại, giúp hoàn tất đơn hàng chỉ trong tích tắc.",
+              },
+              {
+                t: "Kiểm soát kho thông minh",
+                d: "Nắm bắt chính xác số lượng tồn kho theo thời gian thực tế, quản lý nhập - xuất chặt chẽ, loại bỏ hoàn toàn sai sót.",
+              },
+              {
+                t: "Quản lý công nợ triệt để",
+                d: "Hệ thống tự động lưu trữ và nhắc nhở công nợ, giúp bạn theo dõi chi tiết từng khách hàng, đảm bảo dòng tiền luôn minh bạch.",
+              },
             ].map((x) => (
               <div
                 key={x.t}
@@ -203,9 +173,9 @@ export default function LandingPage() {
           background: "rgba(255,255,255,0.5)",
         }}
       >
-        © {new Date().getFullYear()} Ha Mobile POS ·{" "}
+        © {new Date().getFullYear()} Hangho.com ·{" "}
         <Link href="/login" style={{ color: "#059669", fontWeight: 600 }}>
-          Đăng nhập quản trị
+          Đăng nhập
         </Link>
       </footer>
     </main>

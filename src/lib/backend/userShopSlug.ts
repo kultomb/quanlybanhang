@@ -1,4 +1,5 @@
 import { adminDb } from "@/lib/backend/server";
+import { getShopTableRoot } from "@/lib/backend/shop-paths";
 
 export function normalizeShopSlug(value: string) {
   return String(value || "")
@@ -31,7 +32,8 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
   const n = typeof te === "number" ? te : Number(te);
   const trialExpiresAt = Number.isFinite(n) && n > 0 ? n : null;
 
-  async function healSlugFromTable(table: "shops" | "trialShops") {
+  async function healSlugFromTable(isTrial: boolean) {
+    const table = getShopTableRoot(isTrial);
     const tableSnap = await adminDb().ref(table).get();
     const rows = (tableSnap.val() || {}) as Record<string, { ownerUid?: string; slug?: string }>;
     for (const [key, value] of Object.entries(rows)) {
@@ -47,8 +49,8 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
   }
 
   if (!slug) {
-    slug = await healSlugFromTable("shops");
-    if (!slug) slug = await healSlugFromTable("trialShops");
+    slug = await healSlugFromTable(false);
+    if (!slug) slug = await healSlugFromTable(true);
   }
 
   return { shopSlug: slug, registrationTrial, trialExpiresAt };

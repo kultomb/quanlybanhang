@@ -1,4 +1,5 @@
 import { adminAuth, adminDb } from "@/lib/backend/server";
+import { getShopPaths } from "@/lib/backend/shop-paths";
 import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
 import admin from "firebase-admin";
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const shopPath = isTrial ? `trialShops/${slug}` : `shops/${slug}`;
+    const shopPath = getShopPaths(slug, isTrial).shop;
     const db = adminDb();
     const shopSnap = await db.ref(shopPath).get();
     if (shopSnap.exists()) {
@@ -61,6 +62,8 @@ export async function POST(request: Request) {
     const paymentRef = isTrial
       ? `DEMO-${slug.toUpperCase()}-${Date.now().toString().slice(-6)}`
       : `PAY-${slug.toUpperCase()}-${Date.now().toString().slice(-6)}`;
+
+    const trialExpiresAt = Date.now() + TRIAL_DURATION_MS;
 
     const userPayload: Record<string, unknown> = {
       uid,
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
     };
     if (isTrial) {
       userPayload.registrationTrial = true;
-      userPayload.trialExpiresAt = Date.now() + TRIAL_DURATION_MS;
+      userPayload.trialExpiresAt = trialExpiresAt;
     }
 
     const shopPayload: Record<string, unknown> = {
@@ -81,7 +84,13 @@ export async function POST(request: Request) {
       ownerEmail: emailTrimmed,
       createdAt: admin.database.ServerValue.TIMESTAMP,
     };
-    if (isTrial) shopPayload.trialShop = true;
+    if (isTrial) {
+      const createdMs = Date.now();
+      shopPayload.trial = true;
+      shopPayload.trialShop = true;
+      shopPayload.createdAt = createdMs;
+      shopPayload.expiresAt = trialExpiresAt;
+    }
 
     await db.ref(`users/${uid}`).set(userPayload);
     await db.ref(shopPath).set(shopPayload);

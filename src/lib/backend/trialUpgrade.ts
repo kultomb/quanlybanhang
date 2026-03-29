@@ -1,12 +1,13 @@
 import admin from "firebase-admin";
 import type { Database } from "firebase-admin/database";
+import { getBackupTreePathForShopKey, getShopPaths } from "@/lib/backend/shop-paths";
 
 /**
  * Shop thử từng nằm dưới backups/ — chuyển một lần sang trial_backups/ (idempotent).
  */
 export async function liftLegacyTrialBackupToTrialBackups(db: Database, shopKey: string) {
-  const trialRoot = `trial_backups/${shopKey}`;
-  const legacyRoot = `backups/${shopKey}`;
+  const trialRoot = getBackupTreePathForShopKey(shopKey, true);
+  const legacyRoot = getBackupTreePathForShopKey(shopKey, false);
   if ((await db.ref(trialRoot).get()).exists()) return;
   const legacy = await db.ref(legacyRoot).get();
   if (!legacy.exists()) return;
@@ -16,7 +17,7 @@ export async function liftLegacyTrialBackupToTrialBackups(db: Database, shopKey:
 
 /**
  * Copy toàn bộ cây POS (app.json, snapshots/…) từ trial_backups → backups, tạo shops/{toSlug}, xóa trialShops/{fromSlug}.
- * Đọc trial_backups trước; nếu không có (dữ liệu cũ) fallback backups/{fromKey}.
+ * Đọc kho trial (getShopPaths(from, true).backup) trước; nếu không có (dữ liệu cũ) fallback kho pro cùng slug.
  */
 export async function migrateTrialShopToProduction(
   db: Database,
@@ -28,12 +29,9 @@ export async function migrateTrialShopToProduction(
   },
 ) {
   const { uid, fromSlug, toSlug, ownerEmail } = params;
-  const fromKey = `shop_${fromSlug}`;
-  const toKey = `shop_${toSlug}`;
-
-  const trialRoot = `trial_backups/${fromKey}`;
-  const legacyRoot = `backups/${fromKey}`;
-  const destRoot = `backups/${toKey}`;
+  const trialRoot = getShopPaths(fromSlug, true).backup;
+  const legacyRoot = getShopPaths(fromSlug, false).backup;
+  const destRoot = getShopPaths(toSlug, false).backup;
 
   let tree = await db.ref(trialRoot).get();
   if (!tree.exists()) {
@@ -46,8 +44,8 @@ export async function migrateTrialShopToProduction(
   await db.ref(trialRoot).remove().catch(() => undefined);
   await db.ref(legacyRoot).remove().catch(() => undefined);
 
-  await db.ref(`trialShops/${fromSlug}`).remove().catch(() => undefined);
-  await db.ref(`shops/${toSlug}`).set({
+  await db.ref(getShopPaths(fromSlug, true).shop).remove().catch(() => undefined);
+  await db.ref(getShopPaths(toSlug, false).shop).set({
     slug: toSlug,
     ownerUid: uid,
     ownerEmail: String(ownerEmail || "").trim(),

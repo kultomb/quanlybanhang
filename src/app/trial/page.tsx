@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HanghoLogoLink } from "@/components/HanghoBrand";
+import styles from "../page.module.css";
 
 export const metadata: Metadata = {
-  title: "Dùng thử — Quản lý bán hàng",
+  title: "Dùng thử — Hangho.com",
   description: "Trải nghiệm POS miễn phí, không cần chuyển khoản.",
   robots: { index: false, follow: false },
 };
@@ -18,41 +20,15 @@ export default function TrialPage() {
           "radial-gradient(900px 480px at 12% -8%, rgba(16,185,129,0.38), transparent 52%), radial-gradient(720px 420px at 92% 102%, rgba(5,150,105,0.2), transparent 50%), linear-gradient(168deg, #ecfdf5 0%, #d1fae5 42%, #bbf7d0 100%)",
       }}
     >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "16px 22px",
-          maxWidth: 960,
-          margin: "0 auto",
-          width: "100%",
-          boxSizing: "border-box",
-        }}
-      >
-        <Link
-          href="/"
-          style={{
-            fontWeight: 800,
-            fontSize: 17,
-            color: "#065f46",
-            letterSpacing: "-0.02em",
-            textDecoration: "none",
-          }}
-        >
-          Ha Mobile POS
-        </Link>
-        <nav style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <Link
-            href="/"
-            style={{ padding: "8px 12px", fontSize: 14, fontWeight: 600, color: "#047857", textDecoration: "none" }}
-          >
+      <header className={`${styles.landingHeader} ${styles.landingHeaderNarrow}`}>
+        <div className={styles.landingBrand}>
+          <HanghoLogoLink href="/" variant="compact" />
+        </div>
+        <nav className={styles.landingNav}>
+          <Link href="/" className={styles.landingNavLink}>
             Trang chủ
           </Link>
-          <Link
-            href="/login"
-            style={{ padding: "8px 12px", fontSize: 14, fontWeight: 600, color: "#475569", textDecoration: "none" }}
-          >
+          <Link href="/login" className={`${styles.landingNavLink} ${styles.landingNavLinkMuted}`}>
             Đăng nhập
           </Link>
         </nav>

@@ -1,4 +1,5 @@
 import { adminAuth, adminDb } from "@/lib/backend/server";
+import { getShopPaths } from "@/lib/backend/shop-paths";
 import { normalizeShopSlug, resolveUserShopContext } from "@/lib/backend/userShopSlug";
 import {
   getTrialShopPrefix,
@@ -52,8 +53,8 @@ export async function POST(request: Request) {
 
     const db = adminDb();
     const [shopSnap, trialSnap] = await Promise.all([
-      db.ref(`shops/${targetSlug}`).get(),
-      db.ref(`trialShops/${targetSlug}`).get(),
+      db.ref(getShopPaths(targetSlug, false).shop).get(),
+      db.ref(getShopPaths(targetSlug, true).shop).get(),
     ]);
     if (shopSnap.exists() || trialSnap.exists()) {
       return Response.json({ error: "slug_taken" }, { status: 409 });

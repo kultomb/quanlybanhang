@@ -132,9 +132,10 @@ export async function POST(request: Request) {
     }
 
     const db = adminDb();
-    const eventRef = db.ref(`paymentEvents/${txnId}`);
-    const already = await eventRef.get();
-    if (already.exists()) {
+    const ingestRef = db.ref(`paymentWebhookIngest/${txnId}`);
+    const legacyEventRef = db.ref(`paymentEvents/${txnId}`);
+    const [ingestSnap, legacySnap] = await Promise.all([ingestRef.get(), legacyEventRef.get()]);
+    if (ingestSnap.exists() || legacySnap.exists()) {
       return Response.json({ success: true, duplicated: true });
     }
 
@@ -173,8 +174,10 @@ export async function POST(request: Request) {
     if (!match) {
       const statusNote =
         !pendingSnap.exists() && !upgradeSnap.exists() ? "no_pending_user" : "unmatched";
-      await eventRef.set({
+      // Không ghi paymentEvents cho giao dịch không khớp thanh toán thật (dùng thử không tính tiền; tránh nhiễu audit).
+      await ingestRef.set({
         receivedAt: Date.now(),
+        outcome: "unmatched",
         amount,
         paymentCode,
         transferContent,
@@ -235,7 +238,7 @@ export async function POST(request: Request) {
         paymentAmount: amount,
       });
     }
-    await eventRef.set({
+    await legacyEventRef.set({
       receivedAt: Date.now(),
       uid: matchedUid,
       paymentRef: matchedRef,
@@ -243,6 +246,15 @@ export async function POST(request: Request) {
       amount,
       paymentCode,
       transferContent,
+      status: "matched",
+    });
+    await ingestRef.set({
+      receivedAt: Date.now(),
+      outcome: "matched",
+      uid: matchedUid,
+      paymentRef: matchedRef,
+      upgrade: isUpgrade,
+      amount,
       status: "matched",
     });
 

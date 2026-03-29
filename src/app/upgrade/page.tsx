@@ -222,12 +222,6 @@ function UpgradeForm() {
           {loading ? "Đang xử lý..." : "Tiếp tục — thanh toán nâng cấp"}
         </button>
 
-        <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
-          Lưu ý: bước “đã thanh toán” cần webhook ngân hàng gọi vào server (localhost thường không nhận được). Khi
-          test local, có thể tạm bật <code style={{ fontSize: 11 }}>paymentStatus: active</code> và slug mới trên
-          Firebase Console sau khi giả lập CK.
-        </p>
-
         <div style={{ textAlign: "center" }}>
           <Link href={currentShop ? `/${currentShop}?trial=1` : "/"} style={{ color: "#047857", fontSize: 14 }}>
             ← Quay lại POS

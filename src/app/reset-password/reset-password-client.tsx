@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { auth } from "@/lib/backend/client";
+import { validateSignupPassword } from "@/lib/password-policy";
 import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
 
 export default function ResetPasswordClient() {
@@ -31,8 +32,9 @@ export default function ResetPasswordClient() {
       setError("Thiếu mã xác thực đặt lại mật khẩu.");
       return;
     }
-    if (password.length < 6) {
-      setError("Mật khẩu phải từ 6 ký tự.");
+    const pwCheck = validateSignupPassword(password);
+    if (!pwCheck.ok) {
+      setError(pwCheck.message);
       return;
     }
     if (password !== confirmPassword) {
@@ -97,10 +99,13 @@ export default function ResetPasswordClient() {
               <span style={{ fontSize: 14, fontWeight: 600 }}>Mật khẩu mới</span>
               <input
                 type="password"
+                autoComplete="new-password"
                 required
+                minLength={8}
+                maxLength={128}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Tối thiểu 6 ký tự"
+                placeholder="Ít nhất 8 ký tự, chữ + số hoặc ký tự đặc biệt"
                 style={{
                   border: "1px solid #cbd5e1",
                   borderRadius: 8,
@@ -108,13 +113,20 @@ export default function ResetPasswordClient() {
                   fontSize: 14,
                 }}
               />
+              <span style={{ fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+                Cùng tiêu chí như đăng ký: tránh mật khẩu phổ biến; trình duyệt có thể cảnh báo nếu mật
+                khẩu đã từng bị lộ.
+              </span>
             </label>
 
             <label style={{ display: "grid", gap: 6 }}>
               <span style={{ fontSize: 14, fontWeight: 600 }}>Xác nhận mật khẩu</span>
               <input
                 type="password"
+                autoComplete="new-password"
                 required
+                minLength={8}
+                maxLength={128}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Nhập lại mật khẩu mới"

@@ -1,5 +1,5 @@
 /**
- * Ha Mobile — bundle chính (quản lý bán hàng).
+ * Hangho.com — bundle chính (quản lý bán hàng).
  * Thứ tự trong HTML: firebase-config.js (window.FIREBASE_CONFIG) → script này (defer không dùng; đặt cuối <body>).
  */
 // Firebase Storage - lưu song song Firebase + localStorage
@@ -7845,7 +7845,7 @@ class HamobileBanhang {
             const link = document.createElement('a');
             link.href = url;
             const vietnamTime = this.getVietnamTime();
-            link.download = 'HaMobile_backup_' + vietnamTime.toISOString().split('T')[0] + '_' + vietnamTime.toTimeString().split(' ')[0].replace(/:/g, '') + '.json';
+            link.download = 'Hangho_com_backup_' + vietnamTime.toISOString().split('T')[0] + '_' + vietnamTime.toTimeString().split(' ')[0].replace(/:/g, '') + '.json';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -10020,7 +10020,7 @@ class HamobileBanhang {
                     </div>
                     
                     <div style="overflow-y: auto; flex: 1; border: 1px solid #e5e7eb; border-radius: 8px;">
-                        <table style="width: 100%; border-collapse: collapse; font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                        <table style="width: 100%; border-collapse: collapse; font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
                             <thead>
                                 <tr>${tableHeaders}</tr>
                             </thead>

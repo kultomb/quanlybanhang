@@ -28,8 +28,17 @@
       "$shopSlug": {
         ".read": "auth != null",
         ".write": "auth != null && ( (!data.exists() && newData.child('ownerUid').val() === auth.uid) || (data.exists() && data.child('ownerUid').val() === auth.uid) )",
+        "trial": {
+          ".validate": "!newData.exists() || newData.val() === true"
+        },
         "trialShop": {
           ".validate": "!newData.exists() || newData.isBoolean()"
+        },
+        "createdAt": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() > 0)"
+        },
+        "expiresAt": {
+          ".validate": "!newData.exists() || (newData.isNumber() && newData.val() > 0)"
         }
       }
     },

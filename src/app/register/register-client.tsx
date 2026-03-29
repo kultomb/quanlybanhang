@@ -10,6 +10,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { auth } from "@/lib/backend/client";
+import { validateSignupPassword } from "@/lib/password-policy";
 import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
 
 function getAuthErrorMessage(err: unknown): string {
@@ -41,7 +42,7 @@ function getAuthErrorMessage(err: unknown): string {
     case "auth/too-many-requests":
       return "Thao tác quá nhanh hoặc quá nhiều lần. Vui lòng thử lại sau.";
     default:
-      return raw ? `Đăng ký thất bại: ${raw}` : "Đăng ký thất bại. Vui lòng thử lại.";
+      return "Đăng ký thất bại. Vui lòng kiểm tra thông tin và thử lại.";
   }
 }
 
@@ -69,8 +70,9 @@ export default function RegisterForm() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Mật khẩu phải từ 6 ký tự.");
+    const pwCheck = validateSignupPassword(password, emailTrimmed);
+    if (!pwCheck.ok) {
+      setError(pwCheck.message);
       return;
     }
     if (password !== confirmPassword) {
@@ -230,6 +232,7 @@ export default function RegisterForm() {
           <input
             type="text"
             inputMode="email"
+            autoComplete="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -247,7 +250,10 @@ export default function RegisterForm() {
           <span style={{ fontSize: 14, fontWeight: 600 }}>Mật khẩu</span>
           <input
             type="password"
+            autoComplete="new-password"
             required
+            minLength={8}
+            maxLength={128}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={{
@@ -258,13 +264,21 @@ export default function RegisterForm() {
               outline: "none",
             }}
           />
+          <span style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.45 }}>
+            Ít nhất 8 ký tự, có chữ cái và số hoặc ký tự đặc biệt. Nên dùng mật khẩu riêng, chưa dùng ở
+            website khác — trình duyệt có thể cảnh báo nếu mật khẩu đã từng bị lộ (đó là tính năng bảo vệ
+            của Chrome, không phải do shop bị hack).
+          </span>
         </label>
 
         <label style={{ display: "grid", gap: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 600 }}>Xác nhận mật khẩu</span>
           <input
             type="password"
+            autoComplete="new-password"
             required
+            minLength={8}
+            maxLength={128}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             style={{

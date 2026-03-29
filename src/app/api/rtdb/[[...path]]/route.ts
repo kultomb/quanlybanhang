@@ -1,5 +1,5 @@
 /**
- * Proxy RTDB cho legacy app (HamobileBanhang / FirebaseStorage).
+ * Proxy RTDB cho legacy app Hangho.com (bundle POS / FirebaseStorage).
  *
  * Mô hình dữ liệu (tương đương tinh thần “Auth riêng, data trên server”):
  * - Firebase Auth: đăng nhập; session cookie `ha_session_token` xác thực request tới đây.
@@ -8,13 +8,15 @@
  *   Client legacy vẫn gọi `/api/rtdb/backups/…`; server map trial → `trial_backups` theo hồ sơ user.
  * - Client legacy gửi URL có thể kèm key cũ; server luôn ép `segments[1] = shop_{slug}` theo `users/{uid}/shopSlug`
  *   (resolve + tự ghi lại nếu chỉ tìm thấy qua `shops/` hoặc `trialShops/`) để không đọc/ghi nhầm kho.
- * - 403 JSON: `missing_shop_slug`, `trial_slug_mismatch`, `production_trial_prefix_forbidden`, `trial_expired`.
+ * - 403 JSON: `missing_shop_slug`, `trial_slug_mismatch`, `production_trial_prefix_forbidden`, `trial_expired`,
+ *   `trial_backup_required`, `production_backup_required`.
  *
  * Khác ví dụ Firestore (doc users/{uid} với field products[]): đây là RTDB + một file JSON backup; hành vi đúng
  * vẫn là: chỉ seed demo khi cloud thật sự trống và user xác nhận (xem initAsync trong app.js).
  */
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/backend/server";
+import { getBackupDbRoot } from "@/lib/backend/shop-paths";
 import { liftLegacyTrialBackupToTrialBackups } from "@/lib/backend/trialUpgrade";
 import { resolveUserShopContext, type UserShopContext } from "@/lib/backend/userShopSlug";
 import { getTrialShopPrefix, isEffectiveTrialAccount } from "@/lib/trial-shop";
@@ -137,7 +139,15 @@ async function proxy(
   const pfx = getTrialShopPrefix();
   const trialUser = isEffectiveTrialAccount(userCtx.registrationTrial, userShopSlug, pfx);
   // Trial → trial_backups; pro → backups (URL client luôn backups/…)
-  segments[0] = trialUser ? "trial_backups" : "backups";
+  segments[0] = getBackupDbRoot(trialUser);
+  const backupRoot = segments[0];
+  // Không tin client: ép kho theo hồ sơ; chặn nếu mapping không khớp loại tài khoản (phòng sửa code sai / bypass).
+  if (trialUser && backupRoot !== "trial_backups") {
+    return jsonError(403, "trial_backup_required", "Tài khoản dùng thử chỉ được truy cập kho trial_backups.");
+  }
+  if (!trialUser && backupRoot !== "backups") {
+    return jsonError(403, "production_backup_required", "Tài khoản chính thức chỉ được truy cập kho backups.");
+  }
   const targetPath = segments.join("/");
   const db = adminDb();
   if (trialUser) {

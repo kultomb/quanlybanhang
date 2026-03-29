@@ -180,7 +180,7 @@ function LoginContent() {
         }}
       >
         <div style={{ display: "grid", gap: 6, justifyItems: "center", textAlign: "center" }}>
-          <h1 style={{ margin: 0, fontSize: 26, color: "#065f46" }}>Đăng nhập quản trị</h1>
+          <h1 style={{ margin: 0, fontSize: 26, color: "#065f46" }}>Đăng nhập</h1>
         </div>
         <p style={{ margin: 0, color: "#4b5563", fontSize: 14, textAlign: "center" }}>
           Đăng nhập để vào hệ thống bán hàng.
