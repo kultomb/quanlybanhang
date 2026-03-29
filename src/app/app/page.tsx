@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { get, ref } from "firebase/database";
 import { useEffect } from "react";
-import { auth, rtdb } from "@/lib/backend/client";
+import { auth } from "@/lib/backend/client";
+import { fetchUserProfileClient } from "@/lib/user-profile-client";
 
 export default function AppPage() {
   const router = useRouter();
@@ -15,8 +15,8 @@ export default function AppPage() {
         router.replace("/login");
         return;
       }
-      const snap = await get(ref(rtdb, `users/${user.uid}/shopSlug`));
-      const shopSlug = String(snap.val() || "").trim();
+      const profile = await fetchUserProfileClient(user.uid);
+      const shopSlug = String(profile.shopSlug || "").trim();
       if (shopSlug) {
         router.replace(`/${shopSlug}`);
         return;

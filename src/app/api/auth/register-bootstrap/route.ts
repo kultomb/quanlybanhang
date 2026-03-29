@@ -2,6 +2,9 @@ import { adminAuth, adminDb } from "@/lib/backend/server";
 import { getShopPaths } from "@/lib/backend/shop-paths";
 import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
 import admin from "firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
+
+import { adminFirestore } from "@/lib/firebase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,6 +97,34 @@ export async function POST(request: Request) {
 
     await db.ref(`users/${uid}`).set(userPayload);
     await db.ref(shopPath).set(shopPayload);
+
+    try {
+      const fs = adminFirestore();
+      const shopRef = fs.collection("shops").doc();
+      const shopId = shopRef.id;
+      const batch = fs.batch();
+      batch.set(shopRef, {
+        ownerId: uid,
+        slug,
+        ownerEmail: emailTrimmed,
+        trial: isTrial ? true : false,
+        ...(isTrial ? { trialExpiresAt, trialShop: true } : {}),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      batch.set(
+        fs.collection("users").doc(uid),
+        {
+          shopId,
+          shopSlug: slug,
+          ownerId: uid,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      await batch.commit();
+    } catch (fe) {
+      console.error("[register-bootstrap] firestore", fe);
+    }
 
     return Response.json({ ok: true, shopSlug: slug });
   } catch (e) {

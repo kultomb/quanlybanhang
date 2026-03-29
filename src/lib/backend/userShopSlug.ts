@@ -1,5 +1,8 @@
+import { FieldValue } from "firebase-admin/firestore";
+
 import { adminDb } from "@/lib/backend/server";
 import { getShopTableRoot } from "@/lib/backend/shop-paths";
+import { adminFirestore } from "@/lib/firebase-admin";
 
 export function normalizeShopSlug(value: string) {
   return String(value || "")
@@ -15,13 +18,45 @@ export type UserShopContext = {
   trialExpiresAt: number | null;
 };
 
+async function lazySyncFirestoreFromRtdb(uid: string, slug: string, ownerEmail: string) {
+  if (!slug) return;
+  try {
+    const fs = adminFirestore();
+    const uref = fs.collection("users").doc(uid);
+    const existing = await uref.get();
+    if (existing.exists) return;
+    const shopRef = fs.collection("shops").doc();
+    const batch = fs.batch();
+    batch.set(shopRef, {
+      ownerId: uid,
+      slug,
+      ownerEmail: ownerEmail || null,
+      migratedFromRtdb: true,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    batch.set(
+      uref,
+      {
+        shopId: shopRef.id,
+        shopSlug: slug,
+        ownerId: uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    await batch.commit();
+  } catch (e) {
+    console.warn("[lazySyncFirestoreFromRtdb]", e);
+  }
+}
+
 /**
- * Đọc users/{uid} + shopSlug (heal từ shops/ hoặc trialShops/ nếu thiếu).
+ * Ưu tiên mapping Firestore (users → shopId → shops.slug), sau đó RTDB + heal bảng shops.
  */
 export async function resolveUserShopContext(uid: string): Promise<UserShopContext> {
   const snap = await adminDb().ref(`users/${uid}`).get();
   const v = (snap.val() || {}) as Record<string, unknown>;
-  let slug = normalizeShopSlug(String(v.shopSlug || ""));
+  const rtdbSlug = normalizeShopSlug(String(v.shopSlug || ""));
 
   const rt = v.registrationTrial;
   let registrationTrial: boolean | null = null;
@@ -31,6 +66,31 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
   const te = v.trialExpiresAt;
   const n = typeof te === "number" ? te : Number(te);
   const trialExpiresAt = Number.isFinite(n) && n > 0 ? n : null;
+
+  let slug = "";
+  let firestoreUserDocExists = false;
+
+  try {
+    const fs = adminFirestore();
+    const udoc = await fs.collection("users").doc(uid).get();
+    firestoreUserDocExists = udoc.exists;
+    const ud = udoc.data();
+    if (ud) {
+      slug = normalizeShopSlug(String(ud.shopSlug || ""));
+      const shopId = String(ud.shopId || "").trim();
+      if (!slug && shopId) {
+        const sdoc = await fs.collection("shops").doc(shopId).get();
+        const sd = sdoc.data();
+        if (String(sd?.ownerId || "") === uid) {
+          slug = normalizeShopSlug(String(sd?.slug || ""));
+        }
+      }
+    }
+  } catch {
+    // Firestore chưa kích hoạt hoặc lỗi — dùng RTDB.
+  }
+
+  if (!slug) slug = rtdbSlug;
 
   async function healSlugFromTable(isTrial: boolean) {
     const table = getShopTableRoot(isTrial);
@@ -51,6 +111,10 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
   if (!slug) {
     slug = await healSlugFromTable(false);
     if (!slug) slug = await healSlugFromTable(true);
+  }
+
+  if (slug && !firestoreUserDocExists) {
+    void lazySyncFirestoreFromRtdb(uid, slug, String(v.email || ""));
   }
 
   return { shopSlug: slug, registrationTrial, trialExpiresAt };

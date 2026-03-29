@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
-import { get, ref } from "firebase/database";
-import { auth, rtdb } from "@/lib/backend/client";
+import { auth } from "@/lib/backend/client";
+import LoginTurnstile from "@/components/LoginTurnstile";
+import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
   forceLogoutMissingShop,
   hasValidShopSlug,
@@ -57,6 +58,8 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileSiteKey = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
 
   useEffect(() => {
     const reason = String(searchParams.get("reason") || "");
@@ -70,24 +73,7 @@ function LoginContent() {
   }, [searchParams]);
 
   async function resolveUserProfile(uid: string) {
-    const snap = await get(ref(rtdb, `users/${uid}`));
-    if (!snap.exists()) {
-      return { shopSlug: "", paymentStatus: "pending" as const, registrationTrial: null as boolean | null };
-    }
-    const value = (snap.val() || {}) as {
-      shopSlug?: string;
-      paymentStatus?: string;
-      registrationTrial?: unknown;
-    };
-    const rt = value.registrationTrial;
-    const registrationTrial =
-      rt === true || rt === "true" ? true : rt === false || rt === "false" ? false : null;
-    const ps = String(value.paymentStatus || "").trim();
-    return {
-      shopSlug: String(value.shopSlug || ""),
-      paymentStatus: ps,
-      registrationTrial,
-    };
+    return fetchUserProfileClient(uid);
   }
 
   useEffect(() => {
@@ -127,7 +113,34 @@ function LoginContent() {
       return;
     }
 
+    if (turnstileSiteKey && !turnstileToken.trim()) {
+      setError("Vui lòng hoàn tất xác minh bảo vệ đăng nhập.");
+      setLoading(false);
+      return;
+    }
+
     try {
+      const preRes = await fetch("/api/auth/login-precheck", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: emailTrimmed,
+          turnstileToken: turnstileSiteKey ? turnstileToken : "",
+        }),
+      });
+      if (preRes.status === 429) {
+        const j = (await preRes.json().catch(() => ({}))) as { retryAfterSec?: number };
+        const sec = typeof j.retryAfterSec === "number" ? j.retryAfterSec : 60;
+        setError(`Đăng nhập tạm khóa do thử quá nhiều lần. Thử lại sau khoảng ${sec} giây.`);
+        setLoading(false);
+        return;
+      }
+      if (!preRes.ok) {
+        setError("Không thể xác minh phiên đăng nhập. Thử lại sau giây lát.");
+        setLoading(false);
+        return;
+      }
+
       const cred = await signInWithEmailAndPassword(auth, emailTrimmed, password);
       const profile = await resolveUserProfile(cred.user.uid);
       if (!hasValidShopSlug(profile.shopSlug)) {
@@ -247,6 +260,10 @@ function LoginContent() {
             }}
           />
         </label>
+
+        {turnstileSiteKey ? (
+          <LoginTurnstile siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+        ) : null}
 
         {error ? (
           <div

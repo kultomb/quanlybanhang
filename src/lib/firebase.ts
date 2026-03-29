@@ -1,6 +1,7 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getDatabase } from "firebase/database";
+import { getFirestore } from "firebase/firestore";
 
 function trimEnv(v: string | undefined) {
   return typeof v === "string" ? v.trim() : "";
@@ -75,3 +76,4 @@ if (typeof window !== "undefined") {
 
 export const auth = getAuth(app);
 export const rtdb = getDatabase(app);
+export const db = getFirestore(app);

@@ -2,9 +2,8 @@
 
 import { auth } from "@/lib/backend/client";
 import { onAuthStateChanged } from "firebase/auth";
-import { get, ref } from "firebase/database";
 import { ReactNode, useEffect, useState } from "react";
-import { rtdb } from "@/lib/backend/client";
+import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
   forceLogoutMissingShop,
   hasValidShopSlug,
@@ -112,20 +111,9 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
       }
       void (async () => {
         try {
-          const profileSnap = await get(ref(rtdb, `users/${user.uid}`));
-          const profile = (profileSnap.val() || {}) as {
-            shopSlug?: string;
-            paymentStatus?: string;
-            registrationTrial?: unknown;
-          };
+          const profile = await fetchUserProfileClient(user.uid);
           const shopSlug = String(profile.shopSlug || "");
-          const paymentStatus = profile.paymentStatus === "active" ? "active" : "pending";
-          const reg =
-            profile.registrationTrial === true || profile.registrationTrial === "true"
-              ? true
-              : profile.registrationTrial === false || profile.registrationTrial === "false"
-                ? false
-                : null;
+          const reg = profile.registrationTrial;
 
           if (!hasValidShopSlug(shopSlug)) {
             if (forcingLogout) return;
@@ -140,7 +128,7 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
             return;
           }
 
-          if (paymentStatus !== "active") {
+          if (!paymentAllowsAppAccess(profile.paymentStatus)) {
             const target = toPaymentRequiredPath(shopSlug);
             try {
               if (window.top && window.top !== window) {
@@ -178,19 +166,9 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
       }
       void (async () => {
         try {
-          const profileSnap = await get(ref(rtdb, `users/${user.uid}`));
-          const profile = (profileSnap.val() || {}) as {
-            shopSlug?: string;
-            paymentStatus?: string;
-            registrationTrial?: unknown;
-          };
+          const profile = await fetchUserProfileClient(user.uid);
           const shopSlug = String(profile.shopSlug || "");
-          const reg =
-            profile.registrationTrial === true || profile.registrationTrial === "true"
-              ? true
-              : profile.registrationTrial === false || profile.registrationTrial === "false"
-                ? false
-                : null;
+          const reg = profile.registrationTrial;
           if (!hasValidShopSlug(shopSlug)) {
             if (forcingLogout) return;
             forcingLogout = true;

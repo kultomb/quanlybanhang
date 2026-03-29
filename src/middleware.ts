@@ -1,7 +1,29 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { verifyFirebaseIdToken } from "@/lib/edge-firebase-jwt";
+
 const SHOP_COOKIE = "ha_shop_slug";
+const SESSION_COOKIE = "ha_session_token";
+
+/** UID Firebase được coi là admin (CSV). Có thể bổ sung custom claim `admin: true` trên token. */
+function adminUidSet() {
+  const raw = process.env.ADMIN_UIDS || "";
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+}
+
+function protectedRouteKind(pathname: string): "auth" | "admin" | null {
+  const p = pathname.split("?")[0].toLowerCase();
+  if (p === "/dashboard" || p.startsWith("/dashboard/")) return "auth";
+  if (p === "/src" || p.startsWith("/src/")) return "auth";
+  if (p === "/admin" || p.startsWith("/admin/")) return "admin";
+  return null;
+}
 
 /** Giống normalizeShopSlug (server) — không import userShopSlug vì middleware Edge không được kéo admin SDK. */
 function normSlug(value: string): string {
@@ -24,14 +46,46 @@ const RESERVED_TOP = new Set([
   "payment-required",
   "reset-password",
   "legacy",
+  "dashboard",
+  "admin",
+  "src",
 ]);
 
 /**
  * Chặn /abc, /src… khi đã có cookie shop: redirect ngay trên Edge (trước cache HTML/RSC),
  * không phụ thuộc bundle JS trong trình duyệt chính.
  */
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const kind = protectedRouteKind(pathname);
+  if (kind) {
+    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() || "";
+    const token = request.cookies.get(SESSION_COOKIE)?.value;
+    if (!token || !projectId) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    const payload = await verifyFirebaseIdToken(token, projectId);
+    if (!payload?.sub) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    if (kind === "admin") {
+      const admins = adminUidSet();
+      if (payload.admin !== true && !admins.has(payload.sub)) {
+        return new NextResponse(null, { status: 404 });
+      }
+    }
+    const res = NextResponse.next();
+    res.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+    return res;
+  }
+
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) {
     return NextResponse.next();
@@ -42,7 +96,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Chỉ xử lý segment giống slug shop (tránh .well-known, file có dấu chấm, v.v.)
   if (!/^[a-z0-9-]{1,64}$/i.test(parts[0])) {
     return NextResponse.next();
   }

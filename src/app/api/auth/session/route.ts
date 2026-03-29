@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { resetLoginRateForEmail } from "@/lib/backend/login-rate-limit";
 import { adminAuth } from "@/lib/backend/server";
 import { normalizeShopSlug, resolveUserShopSlugWithHeal } from "@/lib/backend/userShopSlug";
 export const runtime = "nodejs";
@@ -17,6 +18,10 @@ export async function POST(request: Request) {
     const decoded = await adminAuth().verifyIdToken(idToken).catch(() => null);
     if (!decoded?.uid) {
       return new Response("Invalid token", { status: 401 });
+    }
+    const email = String(decoded.email || "").trim().toLowerCase();
+    if (email) {
+      void resetLoginRateForEmail(request, email);
     }
     const profileShopSlug = await resolveUserShopSlugWithHeal(decoded.uid);
     const requestShopSlug = normalizeShopSlug(String(body?.shopSlug || ""));

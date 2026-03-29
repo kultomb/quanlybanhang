@@ -59,3 +59,7 @@ export function adminDb() {
 export function adminAuth() {
   return admin.auth(getAdminApp());
 }
+
+export function adminFirestore() {
+  return admin.firestore(getAdminApp());
+}
