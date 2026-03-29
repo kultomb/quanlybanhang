@@ -2,10 +2,8 @@
  * Hangho.com — bundle chính (quản lý bán hàng).
  * Thứ tự trong HTML: firebase-config.js (window.FIREBASE_CONFIG) → script này (defer không dùng; đặt cuối <body>).
  */
-// Firebase Storage - lưu song song Firebase + localStorage
-const FB_CONFIG_KEY = 'ha_mobile_firebase_config';
-const FB_APP_DATA_KEY = 'ha_mobile_app_data';
-const FB_PENDING_SYNC_KEY = 'ha_mobile_pending_sync';
+// Firebase Storage — chỉ cloud (fetch/PUT); không còn localStorage (tránh lộ dữ liệu giữa tài khoản trên cùng máy).
+const LEGACY_PURGE_LS_KEYS = ['ha_mobile_firebase_config', 'ha_mobile_app_data', 'ha_mobile_pending_sync'];
 /** Debug legacy: thêm ?ha_debug=1 hoặc sessionStorage.setItem('ha_legacy_debug','1') */
 function haLegacyDebugLog(tag, payload) {
     try {
@@ -38,18 +36,8 @@ window.FirebaseStorage = {
                 return this._config;
             }
         }
-        let url = String(cfg.url || '').trim().replace(/\/+$/, '');
-        let key = String(cfg.key || '').trim();
-        if (!url || !key) {
-            try {
-                const saved = localStorage.getItem(FB_CONFIG_KEY);
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    url = (parsed.url || '').trim().replace(/\/+$/, '');
-                    key = (parsed.key || '').trim();
-                }
-            } catch (_) {}
-        }
+        const url = String(cfg.url || '').trim().replace(/\/+$/, '');
+        const key = String(cfg.key || '').trim();
         if (url && key) {
             this._config = { url, key };
             return this._config;
@@ -58,25 +46,18 @@ window.FirebaseStorage = {
     },
     setConfig(url, key) {
         this._config = { url: (url||'').trim().replace(/\/+$/, ''), key: (key||'').trim() };
-        try {
-            localStorage.setItem(FB_CONFIG_KEY, JSON.stringify({ url: this._config.url, key: this._config.key }));
-        } catch (_) {}
         return this._config;
     },
     usesCloudProxyApi() {
         const c = this.getConfig();
         return !!(c && String(c.url || '').includes('/api/rtdb'));
     },
-    /**
-     * Hangho đa tenant: cache localStorage trước đây dùng một key chung → user B có thể thấy dữ liệu user A
-     * trên cùng máy/trình duyệt. Với /api/rtdb chỉ dùng cloud + cookie; không đọc/ghi payload chung.
-     */
-    clearSharedLocalCachesIfProxy() {
-        if (!this.usesCloudProxyApi()) return;
+    /** Xóa key cũ từ bản build trước (một lần mỗi load) — không còn đọc/ghi localStorage cho dữ liệu POS. */
+    purgeLegacyLocalStorageKeys() {
         try {
-            localStorage.removeItem(FB_APP_DATA_KEY);
-            localStorage.removeItem(FB_PENDING_SYNC_KEY);
-            localStorage.removeItem(FB_CONFIG_KEY);
+            for (let i = 0; i < LEGACY_PURGE_LS_KEYS.length; i++) {
+                localStorage.removeItem(LEGACY_PURGE_LS_KEYS[i]);
+            }
         } catch (_) {}
     },
     _logLoadTrace(result, hint) {
@@ -99,7 +80,7 @@ window.FirebaseStorage = {
         return c.url + '/backups/' + encodeURIComponent(c.key) + '/' + path;
     },
     async load() {
-        this.clearSharedLocalCachesIfProxy();
+        this.purgeLegacyLocalStorageKeys();
         window._lastFirebaseError = null;
         this._hadAuthoritativeEmptyAppJson = false;
         const api = this._api('app.json');
@@ -171,17 +152,6 @@ window.FirebaseStorage = {
             }
         } catch (e) { console.warn('Firebase legacy load:', e); }
         window._loadedFromCloud = false;
-        // Fallback localStorage chỉ khi self-host RTDB; không dùng khi /api/rtdb (tránh lộ dữ liệu user khác).
-        const local = this.usesCloudProxyApi() ? null : this._loadFromLocalStorage();
-        if (local) {
-            this._cache.data = local.data;
-            this._cache.company = local.company || {};
-            this._cache.meta = local.meta || {};
-            window._lastFirebaseError = null;
-            window._loadedFromCloud = false;
-            return this._logLoadTrace(this._cache, 'local_storage');
-        }
-        window._loadedFromCloud = false;
         return this._logLoadTrace(null, 'empty');
     },
     /** GET app.json thô — dùng để xác minh trước khi ghi demo, tránh ghi đè do lỗi tạm thời */
@@ -229,25 +199,6 @@ window.FirebaseStorage = {
                 && p[0] && p[0].id === 'SP001' && String(p[0].name || '').includes('iPhone 15 Pro');
         } catch (_) { return false; }
     },
-    _saveToLocalStorage(body) {
-        if (this.usesCloudProxyApi()) return;
-        try {
-            localStorage.setItem(FB_APP_DATA_KEY, JSON.stringify(body));
-        } catch (e) { console.warn('LocalStorage save:', e); }
-    },
-    _loadFromLocalStorage() {
-        if (this.usesCloudProxyApi()) return null;
-        try {
-            const raw = localStorage.getItem(FB_APP_DATA_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (parsed && parsed.data && parsed.data.customers && parsed.data.products) {
-                    return parsed;
-                }
-            }
-        } catch (e) { console.warn('LocalStorage load:', e); }
-        return null;
-    },
     async save(payload) {
         const body = {
             data: payload.data !== undefined ? payload.data : this._cache.data,
@@ -255,7 +206,6 @@ window.FirebaseStorage = {
             meta: Object.assign({}, this._cache.meta, payload.meta || {})
         };
         if (body.meta && body.meta.schemaVersion == null) body.meta.schemaVersion = 1;
-        this._saveToLocalStorage(body);
         const api = this._api('app.json');
         if (!api) return false;
         try {
@@ -269,12 +219,10 @@ window.FirebaseStorage = {
                 );
                 if (hasBiz) {
                     body.meta = Object.assign({}, body.meta, { cloud_initialized: 'true' });
-                    try { this._saveToLocalStorage(body); } catch (_) {}
                 }
                 this._cache.data = body.data;
                 this._cache.company = body.company;
                 this._cache.meta = body.meta;
-                try { localStorage.removeItem(FB_PENDING_SYNC_KEY); } catch (_) {}
                 const backupsApi = this._api('backups.json');
                 if (backupsApi) {
                     const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: body.meta };
@@ -283,9 +231,6 @@ window.FirebaseStorage = {
                 return true;
             }
         } catch (e) { console.warn('Firebase save:', e); }
-        if (!this.usesCloudProxyApi()) {
-            try { localStorage.setItem(FB_PENDING_SYNC_KEY, JSON.stringify({ body, ts: Date.now() })); } catch (_) {}
-        }
         return false;
     },
     async pushRollingSnapshot(backupObj) {
@@ -332,43 +277,10 @@ window.FirebaseStorage = {
         }
     },
     async retryPendingSync() {
-        if (this.usesCloudProxyApi()) {
-            try { localStorage.removeItem(FB_PENDING_SYNC_KEY); } catch (_) {}
-            return true;
-        }
-        if (!this._api('app.json')) return false;
-        try {
-            const raw = localStorage.getItem(FB_PENDING_SYNC_KEY);
-            if (!raw) return true;
-            const { body } = JSON.parse(raw);
-            if (!body) return true;
-            const peek = await this.peekAppJson();
-            if (peek.ok && peek.json != null) {
-                const remoteData = peek.json.data && peek.json.data.customers ? peek.json.data : peek.json;
-                const pendingData = body.data;
-                if (remoteData && remoteData.customers && remoteData.products && this.isLikelyBundledDemoData(pendingData)) {
-                    const rc = remoteData.customers.length;
-                    const pc = (pendingData.customers || []).length;
-                    if (rc > pc) {
-                        try { localStorage.removeItem(FB_PENDING_SYNC_KEY); } catch (_) {}
-                        return true;
-                    }
-                }
-            }
-            const res = await fetch(this._api('app.json'), { method: 'PUT', credentials: 'include', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
-            if (res.ok) {
-                localStorage.removeItem(FB_PENDING_SYNC_KEY);
-                this._cache.data = body.data;
-                this._cache.company = body.company || {};
-                this._cache.meta = body.meta || {};
-                return true;
-            }
-        } catch (e) { return false; }
-        return false;
+        return true;
     },
     hasPendingSync() {
-        if (this.usesCloudProxyApi()) return false;
-        try { return !!localStorage.getItem(FB_PENDING_SYNC_KEY); } catch (_) { return false; }
+        return false;
     },
     getData() { return this._cache.data; },
     setData(v) { this._cache.data = v; },
@@ -416,7 +328,7 @@ function updateCompanyAssets() {
 window.companyAssets = { logo: null, qr: null };
 setInterval(function() { updateCompanyAssets(); }, 30000);
 
-// Vietnamese PhuocIT - Dữ liệu lưu trên Firebase, không dùng localStorage
+// Vietnamese PhuocIT - Dữ liệu trên đám mây qua fetch; không cache POS trong localStorage
 class HamobileBanhang {
     constructor() {
         this.currentPage = 'dashboard';
@@ -455,10 +367,7 @@ class HamobileBanhang {
         const content = document.getElementById('main-content');
         if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang tải dữ liệu từ đám mây...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
         const cfg = window.FirebaseStorage.getConfig();
-        window.FirebaseStorage.clearSharedLocalCachesIfProxy();
-        const localHadData = window.FirebaseStorage.usesCloudProxyApi()
-            ? false
-            : !!localStorage.getItem(FB_APP_DATA_KEY);
+        const localHadData = false;
         if (!cfg) {
             if (content) content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;"><h2>⚙️ Cấu hình đồng bộ đám mây</h2><div style="background:linear-gradient(135deg,#059669 0%,#047857 100%);color:white;padding:16px;border-radius:12px;margin:16px 0;"><strong>✅ Dữ liệu lưu trên đám mây – KHÔNG MẤT khi:</strong> ẩn danh, xóa cache trình duyệt, đổi thiết bị</div><p style="margin: 16px 0;">Tạo file <code>firebase-config.js</code> (self-host) hoặc nhập bên dưới:</p><pre style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;overflow:auto;font-size:12px;">window.FIREBASE_CONFIG = { url: \'https://XXX.firebasedatabase.app\', key: \'key_cua_ban\' };</pre><div style="display:grid;gap:12px;"><input id="fb-url" placeholder="URL máy chủ dữ liệu (Realtime Database)" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;"><input id="fb-key" placeholder="Khóa sao lưu (bí mật)" style="padding:12px;border:2px solid #e5e7eb;border-radius:8px;"><button onclick="app.applyFirebaseConfigFromForm()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Áp dụng và tải</button></div></div>';
             window.app = this;
@@ -901,7 +810,7 @@ class HamobileBanhang {
     init() {
         this.setupNavigation();
         this.setupEventListeners();
-        this.checkStorageRisk(); // chỉ toast nhẹ nếu localStorage thật sự lỗi — không còn thanh đỏ / chặn thoát trang
+        this.checkStorageRisk(); // kiểm tra sessionStorage (không dùng localStorage cho POS)
         this.startAutoSync();
         this.retryPendingSyncAndNotify();
         const hashPage = (window.location.hash || '#dashboard').replace('#', '') || 'dashboard';
@@ -971,8 +880,8 @@ class HamobileBanhang {
         } catch (_) {}
         try {
             const k = '__ha_storage_probe__';
-            localStorage.setItem(k, '1');
-            localStorage.removeItem(k);
+            sessionStorage.setItem(k, '1');
+            sessionStorage.removeItem(k);
         } catch (_) {
             this.showIncognitoWarning();
             this._storageRiskMode = true;

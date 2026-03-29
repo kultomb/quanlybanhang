@@ -5,7 +5,7 @@ import { auth } from "@/lib/backend/client";
 
 const LOGIN_REDIRECT = "/login?reason=missing-shop";
 
-/** Cache POS legacy — không phải token; trên Hangho (/api/rtdb) app.js không còn dùng key chung cho dữ liệu (tránh lộ user khác). */
+/** Tiền tố key cũ của POS legacy; build mới không ghi localStorage nhưng vẫn xóa khi đăng xuất để dọn trình duyệt. */
 const LEGACY_POS_LOCAL_PREFIX = "ha_mobile_";
 
 type ClearClientStateOptions = {
