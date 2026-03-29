@@ -45,6 +45,22 @@ window.FirebaseStorage = {
         const c = this.getConfig();
         return !!(c && String(c.url || '').includes('/api/rtdb'));
     },
+    async _proxyFetchInit(extra) {
+        const init = Object.assign({ credentials: 'include' }, extra || {});
+        if (!this.usesCloudProxyApi()) return init;
+        const headers = Object.assign({}, init.headers || {});
+        try {
+            var p = window.parent;
+            if (p && p !== window && typeof p.__hanghoGetIdToken === 'function') {
+                var tok = await p.__hanghoGetIdToken();
+                if (tok && typeof tok === 'string' && tok.length > 20) {
+                    headers['Authorization'] = 'Bearer ' + tok;
+                }
+            }
+        } catch (e) {}
+        init.headers = headers;
+        return init;
+    },
     purgeLegacyLocalStorageKeys() {
         try {
             for (let i = 0; i < LEGACY_PURGE_LS_KEYS.length; i++) {
@@ -77,7 +93,7 @@ window.FirebaseStorage = {
         const api = this._api('app.json');
         if (!api) return this._logLoadTrace(null, 'no_api');
         try {
-            const res = await fetch(api, { credentials: 'include' });
+            const res = await fetch(api, await this._proxyFetchInit());
             if (!res.ok) {
                 let detail = res.statusText || '';
                 try {
@@ -125,7 +141,7 @@ window.FirebaseStorage = {
         }
         try {
             const legacyApi = this._api('data.json');
-            const legRes = await fetch(legacyApi, { credentials: 'include' });
+            const legRes = await fetch(legacyApi, await this._proxyFetchInit());
             if (!legRes.ok) {
                 let detail = legRes.statusText || '';
                 try {
@@ -163,7 +179,7 @@ window.FirebaseStorage = {
         const api = this._api('app.json');
         if (!api) return { ok: false, status: 0, json: null };
         try {
-            const res = await fetch(api, { credentials: 'include' });
+            const res = await fetch(api, await this._proxyFetchInit());
             const text = await res.text();
             let json = null;
             if (text && text !== 'null') {
@@ -213,7 +229,11 @@ window.FirebaseStorage = {
         const api = this._api('app.json');
         if (!api) return false;
         try {
-            const res = await fetch(api, { method: 'PUT', credentials: 'include', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+            const res = await fetch(api, await this._proxyFetchInit({
+                method: 'PUT',
+                body: JSON.stringify(body),
+                headers: { 'Content-Type': 'application/json' },
+            }));
             if (res.ok) {
                 const d = body.data;
                 const hasBiz = d && (
@@ -230,7 +250,11 @@ window.FirebaseStorage = {
                 const backupsApi = this._api('backups.json');
                 if (backupsApi) {
                     const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: body.meta };
-                    fetch(backupsApi, { method: 'PUT', credentials: 'include', body: JSON.stringify(backupPayload), headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+                    fetch(backupsApi, await this._proxyFetchInit({
+                        method: 'PUT',
+                        body: JSON.stringify(backupPayload),
+                        headers: { 'Content-Type': 'application/json' },
+                    })).catch(() => {});
                 }
                 return true;
             }
@@ -243,7 +267,7 @@ window.FirebaseStorage = {
         const shallowUrl = this._api('snapshots.json');
         if (!shallowUrl) return false;
         try {
-            const r = await fetch(shallowUrl + '?shallow=true', { credentials: 'include' });
+            const r = await fetch(shallowUrl + '?shallow=true', await this._proxyFetchInit());
             let keys = [];
             if (r.ok) {
                 const t = await r.text();
@@ -258,16 +282,15 @@ window.FirebaseStorage = {
             while (keys.length >= this.MAX_ROLLING_SNAPSHOTS) {
                 const old = keys.shift();
                 const delUrl = this._api('snapshots/' + old + '.json');
-                if (delUrl) await fetch(delUrl, { method: 'DELETE', credentials: 'include' }).catch(function() {});
+                if (delUrl) await fetch(delUrl, await this._proxyFetchInit({ method: 'DELETE' })).catch(function() {});
             }
             const id = Date.now();
             const putUrl = this._api('snapshots/' + id + '.json');
-            const res = await fetch(putUrl, {
+            const res = await fetch(putUrl, await this._proxyFetchInit({
                 method: 'PUT',
-                credentials: 'include',
                 body: JSON.stringify(backupObj),
-                headers: { 'Content-Type': 'application/json' }
-            });
+                headers: { 'Content-Type': 'application/json' },
+            }));
             if (!res.ok) {
                 const errText = await res.text().catch(function() { return ''; });
                 window._lastSnapshotError = 'HTTP ' + res.status + (errText ? ': ' + errText.slice(0, 200) : '');
@@ -7739,12 +7762,14 @@ class HamobileBanhang {
         });
     }
     
-    testFirebaseConnection() {
+    async testFirebaseConnection() {
         const cfg = this.getFirebaseConfig();
         if (!cfg) { this.showNotification('Chưa nhập URL và Khóa sao lưu.', 'error'); return; }
         const apiUrl = cfg.url + '/backups/' + encodeURIComponent(cfg.key) + '/app.json';
         this.showNotification('Đang thử kết nối...', 'info');
-        fetch(apiUrl, String(cfg.url || '').includes('/api/rtdb') ? { method: 'GET', credentials: 'include' } : { method: 'GET' })
+        const proxy = String(cfg.url || '').includes('/api/rtdb');
+        const init = proxy ? await window.FirebaseStorage._proxyFetchInit({ method: 'GET' }) : { method: 'GET' };
+        fetch(apiUrl, init)
             .then(res => res.text().then(t => {
                 if (res.ok) {
                     this.showNotification('Kết nối đám mây thành công. Đang đồng bộ dữ liệu...', 'success');

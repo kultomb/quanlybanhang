@@ -2,7 +2,8 @@
  * Proxy RTDB cho legacy app Hangho.com (bundle POS / FirebaseStorage).
  *
  * Mô hình dữ liệu (tương đương tinh thần “Auth riêng, data trên server”):
- * - Firebase Auth: đăng nhập; session cookie `ha_session_token` xác thực request tới đây.
+ * - Firebase Auth: đăng nhập; cookie HttpOnly `ha_session_token` **hoặc** header `Authorization: Bearer <idToken>`
+ *   (iframe legacy gửi Bearer khi một số trình duyệt không kèm cookie trong request từ iframe, dù cùng site).
  * - `users/{uid}`: hồ sơ tài khoản (shopSlug, paymentStatus, …) — không lưu toàn bộ products/orders tại đây.
  * - Dữ liệu nghiệp vụ shop: RTDB `backups/shop_{slug}/…` (pro) hoặc `trial_backups/shop_{slug}/…` (dùng thử).
  *   Client legacy vẫn gọi `/api/rtdb/backups/…`; server map trial → `trial_backups` theo hồ sơ user.
@@ -24,6 +25,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "ha_session_token";
+
+function idTokenFromRequest(request: Request, cookieValue: string): string {
+  const fromCookie = String(cookieValue || "").trim();
+  if (fromCookie) return fromCookie;
+  const h = request.headers.get("authorization") ?? request.headers.get("Authorization") ?? "";
+  const m = String(h).match(/^\s*Bearer\s+(\S+)\s*$/i);
+  return m?.[1]?.trim() ?? "";
+}
 
 function normalizePathSegments(pathValue: string) {
   return pathValue
@@ -92,7 +101,7 @@ async function proxy(
   context: { params: Promise<{ path?: string[] }> },
 ) {
   const jar = await cookies();
-  const token = jar.get(COOKIE_NAME)?.value || "";
+  const token = idTokenFromRequest(request, jar.get(COOKIE_NAME)?.value || "");
   if (!token) return new Response("Unauthorized", { status: 401 });
 
   const decoded = await adminAuth()
