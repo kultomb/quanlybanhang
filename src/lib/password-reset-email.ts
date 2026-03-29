@@ -15,7 +15,8 @@ import { getPasswordResetContinueOrigin } from "@/lib/site-brand";
  * domain đẹp nằm ở tham số continue và trang đích. Muốn link hiển thị trực tiếp `hangho.com` trong mail,
  * cần **Firebase Hosting** (cùng project) gắn custom domain — xem tài liệu “custom auth domain / action URL”.
  *
- * **Templates:** Authentication → Password reset — chỉnh tiêu đề/nội dung Hangho (mẫu trong comment cuối file).
+ * **Templates (bỏ "dangnnhap-…" trong mail):** xem file `firebase-password-reset-email-hangho.txt` ở gốc repo —
+ * dán Subject + Body vào Firebase Console → Authentication → Templates → Password reset.
  */
 export function buildPasswordResetActionCodeSettings(): ActionCodeSettings | undefined {
   const origin = getPasswordResetContinueOrigin();
@@ -26,22 +27,3 @@ export function buildPasswordResetActionCodeSettings(): ActionCodeSettings | und
   };
 }
 
-/*
- * --- Mẫu dán Firebase Console → Authentication → Templates → Password reset ---
- * Kiểm tra ô nhập: thường là %LINK% hoặc tương đương trong form hiện tại.
- *
- * Subject: Đặt lại mật khẩu — Hangho (hangho.com)
- *
- * Body:
- * Xin chào,
- *
- * Bạn (hoặc ai đó) vừa yêu cầu đặt lại mật khẩu cho tài khoản Hangho trên hangho.com.
- *
- * Bấm liên kết sau để đặt mật khẩu mới (liên kết có thời hạn):
- * %LINK%
- *
- * Nếu bạn không yêu cầu thao tác này, hãy bỏ qua email — mật khẩu hiện tại vẫn giữ nguyên.
- *
- * Trân trọng,
- * Đội ngũ Hangho · hangho.com
- */
