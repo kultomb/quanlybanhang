@@ -1,10 +1,4 @@
-/**
- * Hangho.com — bundle chính (quản lý bán hàng).
- * Thứ tự trong HTML: firebase-config.js (window.FIREBASE_CONFIG) → script này (defer không dùng; đặt cuối <body>).
- */
-// Firebase Storage — chỉ cloud (fetch/PUT); không còn localStorage (tránh lộ dữ liệu giữa tài khoản trên cùng máy).
 const LEGACY_PURGE_LS_KEYS = ['ha_mobile_firebase_config', 'ha_mobile_app_data', 'ha_mobile_pending_sync'];
-/** Debug legacy: thêm ?ha_debug=1 hoặc sessionStorage.setItem('ha_legacy_debug','1') */
 function haLegacyDebugLog(tag, payload) {
     try {
         var on = false;
@@ -23,7 +17,6 @@ function backupKeyHintForUi(cfg) {
 window.FirebaseStorage = {
     _cache: { data: null, company: {}, meta: {} },
     _config: null,
-    /** Giữ tối đa bấy nhiêu bản JSON trong backups/<key>/snapshots/ (mỗi bản một file, không ghi đè lên nhau) */
     MAX_ROLLING_SNAPSHOTS: 48,
     getConfig() {
         const cfg = window.FIREBASE_CONFIG || {};
@@ -52,7 +45,6 @@ window.FirebaseStorage = {
         const c = this.getConfig();
         return !!(c && String(c.url || '').includes('/api/rtdb'));
     },
-    /** Xóa key cũ từ bản build trước (một lần mỗi load) — không còn đọc/ghi localStorage cho dữ liệu POS. */
     purgeLegacyLocalStorageKeys() {
         try {
             for (let i = 0; i < LEGACY_PURGE_LS_KEYS.length; i++) {
@@ -154,7 +146,6 @@ window.FirebaseStorage = {
         window._loadedFromCloud = false;
         return this._logLoadTrace(null, 'empty');
     },
-    /** GET app.json thô — dùng để xác minh trước khi ghi demo, tránh ghi đè do lỗi tạm thời */
     async peekAppJson() {
         const api = this._api('app.json');
         if (!api) return { ok: false, status: 0, json: null };
@@ -290,19 +281,16 @@ window.FirebaseStorage = {
     setMeta(k, v) { this._cache.meta = this._cache.meta || {}; this._cache.meta[k] = v; }
 };
 
-// XSS protection - escape user content for safe HTML
 function escapeHtml(str) {
     if (str == null || str === undefined) return '';
     const s = String(str);
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-// Validate image URL - only allow https or data:image for logo/QR
 function isSafeImageUrl(url) {
     if (!url || typeof url !== 'string') return false;
     const u = url.trim().toLowerCase();
     return u.startsWith('https://') || u.startsWith('data:image/');
 }
-// Event-based update for company logo/QR (gọi khi load page company-info hoặc sau khi lưu)
 function updateCompanyAssets() {
     const company = window.FirebaseStorage.getCompany();
     const logo = company.logo || null;
@@ -328,7 +316,6 @@ function updateCompanyAssets() {
 window.companyAssets = { logo: null, qr: null };
 setInterval(function() { updateCompanyAssets(); }, 30000);
 
-// Vietnamese PhuocIT - Dữ liệu trên đám mây qua fetch; không cache POS trong localStorage
 class HamobileBanhang {
     constructor() {
         this.currentPage = 'dashboard';
@@ -660,7 +647,6 @@ class HamobileBanhang {
         this.migrateProductData();
     }
 
-    // Migrate data để thêm minStock cho sản phẩm cũ
     migrateProductData() {
         let needsSave = false;
         
@@ -680,7 +666,6 @@ class HamobileBanhang {
             this.demoData.repairs = [];
             needsSave = true;
         }
-        // Migrate repairs: thêm amountPaid, paymentStatus cho phiếu cũ
         if (this.demoData.repairs) {
             this.demoData.repairs.forEach(rep => {
                 const cost = Number(rep.repairCost) || 0;
@@ -691,7 +676,6 @@ class HamobileBanhang {
                 }
             });
         }
-        // Migrate orders: trừ tồn kho cho đơn cũ chưa được trừ (fix đơn hàng đã bán nhưng tồn kho không bị trừ)
         if (this.demoData.orders && this.demoData.products) {
             this.demoData.orders.forEach(order => {
                 if (order.stockDeducted) return;
@@ -713,7 +697,6 @@ class HamobileBanhang {
             this.demoData.customers = this.demoData.customers.filter(c => c.id !== 'KH_LE' && !(c.id && c.id.startsWith('KL_')));
             if (this.demoData.customers.length !== before) needsSave = true;
         }
-        // Bỏ auto-thêm "Linh kiện sửa chữa" để tránh trùng lặp khi user đã tạo sẵn
 
         // Xóa danh mục trùng tên (chỉ giữ một theo parent+name, ưu tiên ID cũ hơn)
         if (this.demoData.categories && this.demoData.categories.length > 0) {
@@ -790,7 +773,6 @@ class HamobileBanhang {
         }
         
         if (needsSave) {
-            // Lưu ngay lên Firebase khi migration thêm debtPayments/repairs (không debounce)
             this.saveToFirebaseImmediate().then(ok => {
                 if (!ok) this.saveToLocalStorage();
             });
@@ -810,7 +792,7 @@ class HamobileBanhang {
     init() {
         this.setupNavigation();
         this.setupEventListeners();
-        this.checkStorageRisk(); // kiểm tra sessionStorage (không dùng localStorage cho POS)
+        this.checkStorageRisk();
         this.startAutoSync();
         this.retryPendingSyncAndNotify();
         const hashPage = (window.location.hash || '#dashboard').replace('#', '') || 'dashboard';
@@ -895,7 +877,6 @@ class HamobileBanhang {
                         persisted = await navigator.storage.persist();
                     } catch (_) {}
                 }
-                // Không bật cảnh báo chỉ vì persisted === false — Chrome/Edge thường trả false dù tab thường.
             } catch (_) {}
         }
     }
@@ -1157,7 +1138,6 @@ class HamobileBanhang {
             const dateA = new Date(a.date + (a.time ? ' ' + a.time : ' 00:00:00'));
             const dateB = new Date(b.date + (b.time ? ' ' + b.time : ' 00:00:00'));
             
-            // Nếu không parse được date, dùng fallback
             const timeA = isNaN(dateA.getTime()) ? new Date(a.date).getTime() : dateA.getTime();
             const timeB = isNaN(dateB.getTime()) ? new Date(b.date).getTime() : dateB.getTime();
             
@@ -1896,7 +1876,6 @@ class HamobileBanhang {
         }).join('');
     }
 
-    // Bỏ dấu tiếng Việt để tìm kiếm không cần gõ dấu (cuong → Cường, nguyen → Nguyễn)
     removeAccents(str) {
         if (!str) return '';
         return String(str).replace(/đ/g,'d').replace(/Đ/g,'D').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -5427,7 +5406,6 @@ class HamobileBanhang {
     }
 
     calcRepairProfit(repair) {
-        // Chỉ tính khi đã trả cho khách (đã thu tiền)
         if ((repair.status || '') !== 'Đã trả') return 0;
         const repairCost = Number(repair.repairCost) || 0;
         const partsManualCost = Number(repair.partsManualCost) || 0;
@@ -6090,7 +6068,6 @@ class HamobileBanhang {
             let activities = window.FirebaseStorage.getMeta('system_activity_history') || [];
             if (!Array.isArray(activities)) activities = [];
         
-        // Nếu chưa có lịch sử, tạo một số hoạt động mẫu từ dữ liệu hiện tại
         if (activities.length === 0) {
             activities = this.generateInitialActivityHistory();
             if (Array.isArray(activities)) {
@@ -6812,7 +6789,6 @@ class HamobileBanhang {
         const startDate = formData.get('startDate');
         const endDate = formData.get('endDate');
         
-        // Validate dates
         if (new Date(startDate) > new Date(endDate)) {
             this.showNotification('Ngày bắt đầu không thể lớn hơn ngày kết thúc', 'error');
             return;
@@ -7194,7 +7170,6 @@ class HamobileBanhang {
                     csvData = csvData.slice(1);
                 }
                 
-                // Debug: Log raw data
                 console.log('Raw CSV Data:', csvData.substring(0, 200));
                 
                 const lines = csvData.split('\n').filter(line => line.trim());
@@ -7695,7 +7670,6 @@ class HamobileBanhang {
         }, app._saveDebounceMs);
     }
     saveToLocalStorage() {
-        // Đánh dấu có thay đổi và debounce để tránh serialize/fetch quá dày gây lag UI.
         this._hasUnsyncedChanges = true;
         if (this._saveRealtimeTimer) clearTimeout(this._saveRealtimeTimer);
         this._saveRealtimeTimer = setTimeout(() => {
@@ -7979,7 +7953,6 @@ class HamobileBanhang {
             updatedAt: this.getVietnamTime().toISOString()
         };
         
-        // Validate required fields
         if (!companySettings.companyName.trim() || !companySettings.address.trim() || !companySettings.phone.trim()) {
             this.showNotification('Vui lòng điền đầy đủ thông tin bắt buộc (có dấu *)', 'error');
             return;
@@ -8008,7 +7981,6 @@ class HamobileBanhang {
             const parsed = window.FirebaseStorage.getCompany();
             if (!parsed || typeof parsed !== 'object') return {};
             
-            // Validate that logo and QR data exist
             console.log('Loading company settings...');
             console.log('Logo exists:', !!parsed.logo);
             console.log('QR exists:', !!parsed.qrCode);
@@ -8188,7 +8160,6 @@ class HamobileBanhang {
                 return;
             }
             
-            // Debug log
             console.log('Logo saved with path:', logoPath);
             console.log('Logo data saved:', !!companySettings.logo);
             
@@ -8285,13 +8256,11 @@ class HamobileBanhang {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Validate file type
         if (!file.type.startsWith('image/')) {
             this.showNotification('Vui lòng chọn file hình ảnh (PNG, JPG, GIF)', 'error');
             return;
         }
 
-        // Validate file size (2MB limit)
         if (file.size > 2 * 1024 * 1024) {
             this.showNotification('File quá lớn! Vui lòng chọn file dưới 2MB', 'error');
             return;
@@ -10872,7 +10841,6 @@ class HamobileBanhang {
             this.syncCustomerDebt();
             customer.debt = this.getActualDebtForCustomer(customer);
             this.updateDebtorsList();
-            // Lưu ngay lên Firebase (không debounce) để công nợ luôn được đồng bộ
             const saved = await this.saveToFirebaseImmediate();
             if (!saved) this.saveToLocalStorage();
             
@@ -10985,7 +10953,6 @@ class HamobileBanhang {
             attempts++;
         }
         
-        // Nếu còn dư tiền, thêm vào sản phẩm cuối
         if (remainingTotal > 0 && items.length > 0) {
             const lastItem = items[items.length - 1];
             const extraPerUnit = Math.floor(remainingTotal / lastItem.quantity);
@@ -11446,7 +11413,6 @@ class HamobileBanhang {
     
     // Refresh tất cả phần hiển thị khách hàng để đồng bộ dữ liệu (không ghi đè demoData bằng cache)
     refreshAllCustomerDisplays() {
-        // Nếu đang xem tab Khách hàng hoặc Công nợ thì tải lại nội dung để hiển thị công nợ mới nhất
         if (this.currentPage === 'customers' || this.currentPage === 'debts') {
             this.loadPage(this.currentPage);
         }
@@ -13083,7 +13049,6 @@ class HamobileBanhang {
         });
         
         if (!targetRow) {
-            // Nếu không tìm thấy row, tải lại trang
             this.loadPage('orders');
             return;
         }
@@ -13668,7 +13633,6 @@ class HamobileBanhang {
             customerSelect.value = newCustomer.id;
         }
 
-        // Nếu đang ở trang Bán hàng (POS), chọn khách mới và cập nhật dropdown
         if (this.currentPage === 'sales') {
             this.selectPOSCustomer(newCustomer.id, newCustomer.name);
             const inp = document.getElementById('pos-customer-search');
@@ -15108,7 +15072,6 @@ class HamobileBanhang {
             return;
         }
 
-        // Lưu trạng thái filter
         this.filterState.fromDate = fromDate;
         this.filterState.toDate = toDate;
 
@@ -16339,7 +16302,6 @@ document.getElementById('appContainer').style.display = 'flex';
 app = new HamobileBanhang();
 window.app = app;
 
-// Chỉ đóng modal khi thực sự click vào vùng tối (không đóng khi kéo chuột từ ô input ra)
 window._modalMousedownTarget = null;
 document.addEventListener('mousedown', function(e) { window._modalMousedownTarget = e.target; }, true);
 
