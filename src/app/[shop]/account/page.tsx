@@ -1,4 +1,5 @@
 import AccountPage from "@/components/AccountPage";
+import RequireAuth from "@/components/RequireAuth";
 
 type ShopAccountPageProps = {
   params: Promise<{ shop: string }>;
@@ -6,5 +7,9 @@ type ShopAccountPageProps = {
 
 export default async function ShopAccountPage({ params }: ShopAccountPageProps) {
   const { shop } = await params;
-  return <AccountPage shop={shop} />;
+  return (
+    <RequireAuth pathShopFromUrl={shop}>
+      <AccountPage shop={shop} />
+    </RequireAuth>
+  );
 }

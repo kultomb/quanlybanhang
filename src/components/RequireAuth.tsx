@@ -8,10 +8,11 @@ import { rtdb } from "@/lib/backend/client";
 import {
   forceLogoutMissingShop,
   hasValidShopSlug,
+  normalizeShopPathSegment,
   paymentAllowsAppAccess,
   postSessionCookieWithRetries,
 } from "@/lib/client-auth";
-import { syncTrialUiSessionFlag } from "@/lib/trial-shop";
+import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
 
 function toPaymentRequiredPath(shopSlug?: string) {
   const shop = String(shopSlug || "").trim();
@@ -20,9 +21,37 @@ function toPaymentRequiredPath(shopSlug?: string) {
 
 type RequireAuthProps = {
   children: ReactNode;
+  /**
+   * Khi có (route /[shop]), bắt buộc khớp với shopSlug trong hồ sơ — tránh mở POS tại /src, /12345…
+   * vẫn dùng cookie/iframe của shop khác.
+   */
+  pathShopFromUrl?: string;
 };
 
-export default function RequireAuth({ children }: RequireAuthProps) {
+function redirectIfUrlShopMismatch(
+  pathShopFromUrl: string | undefined,
+  profileSlug: string,
+  reg: boolean | null,
+): boolean {
+  if (pathShopFromUrl === undefined) return false;
+  const seg = String(pathShopFromUrl).trim();
+  if (!seg) return false;
+  if (normalizeShopPathSegment(seg) === normalizeShopPathSegment(profileSlug)) return false;
+  const trialQs = isEffectiveTrialAccount(reg, profileSlug) ? "?trial=1" : "";
+  const target = `/${encodeURIComponent(profileSlug)}${trialQs}`;
+  try {
+    if (window.top && window.top !== window) {
+      window.top.location.replace(target);
+      return true;
+    }
+  } catch {
+    // Ignore.
+  }
+  window.location.replace(target);
+  return true;
+}
+
+export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthProps) {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
 
@@ -107,6 +136,10 @@ export default function RequireAuth({ children }: RequireAuthProps) {
 
           syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
 
+          if (redirectIfUrlShopMismatch(pathShopFromUrl, shopSlug, reg)) {
+            return;
+          }
+
           if (paymentStatus !== "active") {
             const target = toPaymentRequiredPath(shopSlug);
             try {
@@ -165,6 +198,9 @@ export default function RequireAuth({ children }: RequireAuthProps) {
             return;
           }
           syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
+          if (redirectIfUrlShopMismatch(pathShopFromUrl, shopSlug, reg)) {
+            return;
+          }
           if (!paymentAllowsAppAccess(profile.paymentStatus)) {
             window.location.href = toPaymentRequiredPath(shopSlug);
             return;
@@ -185,7 +221,7 @@ export default function RequireAuth({ children }: RequireAuthProps) {
       window.clearTimeout(fallbackTimer);
       unsub();
     };
-  }, []);
+  }, [pathShopFromUrl]);
 
   if (!ready) return null;
   if (!authed) return null;

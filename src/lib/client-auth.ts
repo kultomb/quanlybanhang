@@ -35,6 +35,17 @@ export function hasValidShopSlug(value?: string) {
   return Boolean(String(value || "").trim());
 }
 
+/** Chuẩn hóa segment shop trên URL để so khớp với shopSlug trong hồ sơ (chữ thường, đã decode). */
+export function normalizeShopPathSegment(raw: string): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  try {
+    return decodeURIComponent(s).trim().toLowerCase();
+  } catch {
+    return s.toLowerCase();
+  }
+}
+
 /** Cho phép vào POS: đã kích hoạt hoặc đang chờ CK nâng cấp từ trial (vẫn dùng shop thử). */
 export function paymentAllowsAppAccess(paymentStatus?: string) {
   const s = String(paymentStatus || "").trim();

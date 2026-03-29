@@ -9,7 +9,7 @@ export default async function ShopPage({ params }: ShopPageProps) {
   const { shop } = await params;
 
   return (
-    <RequireAuth>
+    <RequireAuth pathShopFromUrl={shop}>
       <main
         style={{
           position: "relative",
