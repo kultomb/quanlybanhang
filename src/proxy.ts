@@ -25,7 +25,7 @@ function protectedRouteKind(pathname: string): "auth" | "admin" | null {
   return null;
 }
 
-/** Giống normalizeShopSlug (server) — không import userShopSlug vì middleware Edge không được kéo admin SDK. */
+/** Giống normalizeShopSlug (server) — không import userShopSlug vì proxy Edge không được kéo admin SDK. */
 function normSlug(value: string): string {
   return String(value || "")
     .trim()
@@ -55,7 +55,7 @@ const RESERVED_TOP = new Set([
  * Chặn /abc, /src… khi đã có cookie shop: redirect ngay trên Edge (trước cache HTML/RSC),
  * không phụ thuộc bundle JS trong trình duyệt chính.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const kind = protectedRouteKind(pathname);

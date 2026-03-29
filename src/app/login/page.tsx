@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useRef, useState, type RefObject } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/backend/client";
-import LoginTurnstile from "@/components/LoginTurnstile";
+import LoginTurnstile, { type LoginTurnstileHandle } from "@/components/LoginTurnstile";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
   forceLogoutMissingShop,

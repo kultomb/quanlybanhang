@@ -11,7 +11,7 @@ export type FirebaseIdPayload = {
 };
 
 /**
- * Xác minh ID token Firebase trên Edge (middleware) — không dùng firebase-admin.
+ * Xác minh ID token Firebase trên Edge (proxy) — không dùng firebase-admin.
  */
 export async function verifyFirebaseIdToken(
   token: string,
