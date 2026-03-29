@@ -4,6 +4,10 @@ import type { NextConfig } from "next";
  * Chuẩn hóa www ↔ apex: xem `src/middleware.ts` (bỏ qua `/api/*` để tránh mất Bearer/cookie khi redirect).
  */
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: ["firebase/app", "firebase/auth", "firebase/firestore", "firebase/database"],
+  },
   async headers() {
     return [
       {

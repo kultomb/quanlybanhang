@@ -128,11 +128,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         setSessionBridgeFailed(false);
         let cookieOk = await syncIdTokenToCookie(shopSlug);
         if (!cookieOk) {
-          await new Promise((r) => setTimeout(r, 400));
-          cookieOk = await syncIdTokenToCookie(shopSlug);
-        }
-        if (!cookieOk) {
-          await new Promise((r) => setTimeout(r, 900));
+          await new Promise((r) => setTimeout(r, 500));
           cookieOk = await syncIdTokenToCookie(shopSlug);
         }
         if (!cookieOk) {
@@ -294,17 +290,11 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
             }}
           >
             <h1 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", margin: "0 0 12px" }}>
-              Đăng nhập đúng — nhưng chưa kết nối kho dữ liệu
+              Chưa thiết lập phiên đồng bộ
             </h1>
-            <p style={{ fontSize: 15, lineHeight: 1.6, color: "#475569", margin: "0 0 14px" }}>
-              Tài khoản và mật khẩu <strong>đã được Firebase chấp nhận</strong>. POS còn cần một bước riêng: trình duyệt
-              phải lưu <strong>phiên bảo mật (cookie)</strong> cho máy chủ Hangho để đọc/ghi dữ liệu qua{" "}
-              <code style={{ fontSize: 13 }}>/api/rtdb</code>. Nếu bước này lỗi hoặc bị chặn, bạn sẽ thấy &quot;Không tải
-              được dữ liệu&quot; dù mật khẩu không sai.
-            </p>
-            <p style={{ fontSize: 14, lineHeight: 1.55, color: "#64748b", margin: "0 0 22px" }}>
-              Gợi ý: dùng <strong>tab thường</strong> (không ẩn danh), không chặn cookie cho hangho.com, thử mạng khác;
-              rồi bấm <strong>Thử lại</strong> hoặc <strong>Tải lại trang</strong>.
+            <p style={{ fontSize: 15, lineHeight: 1.6, color: "#475569", margin: "0 0 18px" }}>
+              Đăng nhập Firebase đã OK; cần thêm cookie phiên cho <code style={{ fontSize: 13 }}>/api/rtdb</code>. Thử{" "}
+              <strong>Tải lại trang</strong>, tab thường, bật cookie cho domain chuẩn (www hoặc non-www như cấu hình).
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
               <button

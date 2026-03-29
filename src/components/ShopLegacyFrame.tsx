@@ -8,7 +8,6 @@ import TrialModeBanner from "@/components/TrialModeBanner";
 
 declare global {
   interface Window {
-    /** POS iframe: gọi trực tiếp (cùng origin) hoặc dùng kèm postMessage fallback. */
     __hanghoGetIdToken?: () => Promise<string | null>;
   }
 }
@@ -16,13 +15,22 @@ declare global {
 const PM_GET = "HANGHO_GET_ID_TOKEN";
 const PM_TOKEN = "HANGHO_ID_TOKEN";
 
+async function readHanghoIdToken(): Promise<string | null> {
+  const u = auth.currentUser;
+  if (!u) return null;
+  try {
+    return await u.getIdToken();
+  } catch {
+    return null;
+  }
+}
+
 type ShopLegacyFrameProps = {
   shop: string;
 };
 
 export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [bridgeReady, setBridgeReady] = useState(false);
   const [accountMount, setAccountMount] = useState<HTMLElement | null>(null);
   const src = useMemo(() => `/legacy/index.html?shop=${encodeURIComponent(shop)}`, [shop]);
 
@@ -31,15 +39,7 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
   }, [shop]);
 
   useLayoutEffect(() => {
-    window.__hanghoGetIdToken = async () => {
-      const u = auth.currentUser;
-      if (!u) return null;
-      try {
-        return await u.getIdToken();
-      } catch {
-        return null;
-      }
-    };
+    window.__hanghoGetIdToken = () => readHanghoIdToken();
 
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
@@ -48,15 +48,7 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
       const d = e.data;
       if (!d || d.type !== PM_GET || typeof d.requestId !== "string") return;
       void (async () => {
-        const u = auth.currentUser;
-        let token: string | null = null;
-        if (u) {
-          try {
-            token = await u.getIdToken();
-          } catch {
-            token = null;
-          }
-        }
+        const token = await readHanghoIdToken();
         (e.source as Window | null)?.postMessage(
           { type: PM_TOKEN, requestId: d.requestId, token },
           e.origin,
@@ -65,7 +57,6 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
     };
 
     window.addEventListener("message", onMessage);
-    setBridgeReady(true);
     return () => {
       window.removeEventListener("message", onMessage);
       delete window.__hanghoGetIdToken;
@@ -90,35 +81,19 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
       }}
     >
       <TrialModeBanner shopSlug={shop} />
-      {bridgeReady ? (
-        <iframe
-          ref={iframeRef}
-          src={src}
-          title={`Legacy Sales App - ${shop}`}
-          onLoad={onFrameLoad}
-          style={{
-            flex: 1,
-            minHeight: 0,
-            width: "100%",
-            border: "none",
-            display: "block",
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            display: "grid",
-            placeItems: "center",
-            color: "#64748b",
-            fontSize: 14,
-          }}
-          aria-busy="true"
-        >
-          Đang chuẩn bị phiên đồng bộ…
-        </div>
-      )}
+      <iframe
+        ref={iframeRef}
+        src={src}
+        title={`Legacy Sales App - ${shop}`}
+        onLoad={onFrameLoad}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          width: "100%",
+          border: "none",
+          display: "block",
+        }}
+      />
       {accountMount ? createPortal(<AccountBar shop={shop} docked />, accountMount) : null}
     </div>
   );

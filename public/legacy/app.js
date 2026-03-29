@@ -14,6 +14,68 @@ function backupKeyHintForUi(cfg) {
     if (k.length <= 12) return '••••' + k.slice(-3);
     return k.slice(0, 4) + '…' + k.slice(-4);
 }
+var HA_POS_ARRAY_KEYS = ['customers', 'products', 'suppliers', 'categories', 'orders', 'sales', 'debtPayments', 'debtors', 'repairs'];
+function haAsPosArray(v) {
+    if (v === undefined || v === null) return [];
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === 'object') return Object.values(v);
+    return [];
+}
+/** Chuỗi lồng data → data → … (khớp backend / RTDB). */
+function haCollectBackupDataLayers(root) {
+    var layers = [];
+    var cur = root;
+    for (var d = 0; d < 4; d++) {
+        if (!cur || typeof cur !== 'object' || Array.isArray(cur)) break;
+        layers.push(cur);
+        if (cur.data && typeof cur.data === 'object' && !Array.isArray(cur.data)) cur = cur.data;
+        else break;
+    }
+    return layers;
+}
+function haMergedBusinessFromBackupLayers(layers) {
+    var merged = {};
+    for (var li = 0; li < layers.length; li++) {
+        var L = layers[li];
+        for (var key in L) {
+            if (!Object.prototype.hasOwnProperty.call(L, key)) continue;
+            if (key === 'company' || key === 'meta' || key === 'data') continue;
+            merged[key] = L[key];
+        }
+    }
+    return merged;
+}
+function haCoercePosArrayKeysOnRecord(merged) {
+    if (!merged || typeof merged !== 'object' || Array.isArray(merged)) return null;
+    var data = Object.assign({}, merged);
+    for (var i = 0; i < HA_POS_ARRAY_KEYS.length; i++) {
+        var k = HA_POS_ARRAY_KEYS[i];
+        data[k] = haAsPosArray(data[k]);
+    }
+    return data;
+}
+/** Gói app.json / data.json: flat, { data }, hoặc data.data (products chỉ ở tầng trong). */
+function haNormalizeBackupPackage(json) {
+    if (json == null || typeof json !== 'object' || Array.isArray(json)) return null;
+    var company = json.company && typeof json.company === 'object' && !Array.isArray(json.company) ? json.company : {};
+    var meta = json.meta && typeof json.meta === 'object' && !Array.isArray(json.meta) ? json.meta : {};
+    var layers = haCollectBackupDataLayers(json);
+    var merged = haMergedBusinessFromBackupLayers(layers);
+    var data = haCoercePosArrayKeysOnRecord(merged);
+    if (!data) return null;
+    return { data: data, company: company, meta: Object.keys(meta).length ? meta : { schemaVersion: 1 } };
+}
+/** Đảm bảo các field mảng POS tồn tại (thiếu key DB ≠ lỗi — coi như []). */
+function haEnsurePosDataArraysInPlace(d) {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return;
+    for (var i = 0; i < HA_POS_ARRAY_KEYS.length; i++) {
+        var k = HA_POS_ARRAY_KEYS[i];
+        d[k] = haAsPosArray(d[k]);
+    }
+}
+function haIsLoadedPosPackage(pkg) {
+    return !!(pkg && pkg.data && typeof pkg.data === 'object' && !Array.isArray(pkg.data));
+}
 /** Fallback khi parent.__hanghoGetIdToken chưa sẵn sàng hoặc Edge chặn gọi trực tiếp — postMessage cùng origin. */
 async function haRequestIdTokenFromParentViaPostMessage() {
     return new Promise(function(resolve) {
@@ -125,7 +187,7 @@ window.FirebaseStorage = {
             const c = this.getConfig();
             haLegacyDebugLog('LOAD_SOURCE', {
                 hint: hint || '',
-                hasData: !!(result && result.data && result.data.customers && result.data.products),
+                hasData: !!(result && result.data && typeof result.data === 'object' && !Array.isArray(result.data)),
                 fromCloud: !!window._loadedFromCloud,
                 lastError: window._lastFirebaseError || null,
                 usesProxy: this.usesCloudProxyApi(),
@@ -165,24 +227,17 @@ window.FirebaseStorage = {
                 return this._logLoadTrace(null, 'http_' + res.status);
             }
             const json = await res.json();
-            if (json && typeof json === 'object') {
-                if (json.data && json.data.customers && json.data.products) {
-                    this._cache.data = json.data;
-                    this._cache.company = json.company || {};
-                    this._cache.meta = json.meta || {};
-                    window._lastFirebaseError = null;
-                    window._loadedFromCloud = true;
-                    return this._logLoadTrace(this._cache, 'cloud_wrapped');
-                }
-                if (json.customers && json.products) {
-                    this._cache.data = json;
-                    this._cache.company = json.company || {};
-                    this._cache.meta = json.meta || {};
-                    window._lastFirebaseError = null;
-                    window._loadedFromCloud = true;
-                    return this._logLoadTrace(this._cache, 'cloud_flat');
-                }
-                window._lastFirebaseError = 'Dữ liệu không đúng định dạng (thiếu customers/products).';
+            const pkg = haNormalizeBackupPackage(json);
+            if (pkg) {
+                this._cache.data = pkg.data;
+                this._cache.company = pkg.company;
+                this._cache.meta = pkg.meta;
+                window._lastFirebaseError = null;
+                window._loadedFromCloud = true;
+                return this._logLoadTrace(this._cache, 'cloud_norm');
+            }
+            if (json != null && typeof json === 'object' && !Array.isArray(json)) {
+                window._lastFirebaseError = 'Không đọc được gói dữ liệu app.json (JSON không hỗ trợ).';
             }
         } catch (e) {
             window._lastFirebaseError = 'Kết nối tạm thời gián đoạn. Vui lòng thử lại.';
@@ -212,11 +267,17 @@ window.FirebaseStorage = {
                 return this._logLoadTrace(null, 'legacy_http_fail');
             }
             const legJson = await legRes.json();
-            if (legJson && legJson.customers && legJson.products) {
-                this._cache.data = legJson;
+            const legPkg = haNormalizeBackupPackage(legJson);
+            if (legPkg) {
+                this._cache.data = legPkg.data;
+                this._cache.company = legPkg.company;
+                this._cache.meta = legPkg.meta;
                 window._lastFirebaseError = null;
                 window._loadedFromCloud = true;
                 return this._logLoadTrace(this._cache, 'legacy_data_json');
+            }
+            if (legJson != null && typeof legJson === 'object' && !Array.isArray(legJson) && !window._lastFirebaseError) {
+                window._lastFirebaseError = 'Không đọc được gói dữ liệu data.json (JSON không hỗ trợ).';
             }
         } catch (e) { console.warn('Firebase legacy load:', e); }
         window._loadedFromCloud = false;
@@ -238,24 +299,14 @@ window.FirebaseStorage = {
         }
     },
     _applyLoadedJson(json) {
-        if (!json || typeof json !== 'object') return false;
-        if (json.data && json.data.customers && json.data.products) {
-            this._cache.data = json.data;
-            this._cache.company = json.company || {};
-            this._cache.meta = json.meta || {};
-            window._lastFirebaseError = null;
-            window._loadedFromCloud = true;
-            return true;
-        }
-        if (json.customers && json.products) {
-            this._cache.data = json;
-            this._cache.company = json.company || {};
-            this._cache.meta = json.meta || {};
-            window._lastFirebaseError = null;
-            window._loadedFromCloud = true;
-            return true;
-        }
-        return false;
+        var pkg = haNormalizeBackupPackage(json);
+        if (!pkg) return false;
+        this._cache.data = pkg.data;
+        this._cache.company = pkg.company;
+        this._cache.meta = pkg.meta;
+        window._lastFirebaseError = null;
+        window._loadedFromCloud = true;
+        return true;
     },
     isLikelyBundledDemoData(data) {
         try {
@@ -294,6 +345,7 @@ window.FirebaseStorage = {
                 this._cache.data = body.data;
                 this._cache.company = body.company;
                 this._cache.meta = body.meta;
+                haEnsurePosDataArraysInPlace(this._cache.data);
                 const backupsApi = this._api('backups.json');
                 if (backupsApi) {
                     const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: body.meta };
@@ -356,8 +408,15 @@ window.FirebaseStorage = {
     hasPendingSync() {
         return false;
     },
-    getData() { return this._cache.data; },
-    setData(v) { this._cache.data = v; },
+    getData() {
+        var d = this._cache.data;
+        haEnsurePosDataArraysInPlace(d);
+        return d;
+    },
+    setData(v) {
+        this._cache.data = v;
+        haEnsurePosDataArraysInPlace(this._cache.data);
+    },
     getCompany() { return this._cache.company || {}; },
     setCompany(v) { this._cache.company = v || {}; },
     getMeta(k) { return (this._cache.meta || {})[k]; },
@@ -444,14 +503,14 @@ class HamobileBanhang {
             return;
         }
         const loaded = await window.FirebaseStorage.load();
-        if (loaded && loaded.data && loaded.data.customers && loaded.data.products) {
+        if (haIsLoadedPosPackage(loaded)) {
             const maybeDefaultDemo = window.FirebaseStorage.isLikelyBundledDemoData(loaded.data);
             if (maybeDefaultDemo && !localHadData) {
                 if (window.FirebaseStorage.usesCloudProxyApi()) {
                     if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang đồng bộ dữ liệu shop...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
                     await new Promise(function(r) { setTimeout(r, 700); });
                     const reloadPkg = await window.FirebaseStorage.load();
-                    const pick = (reloadPkg && reloadPkg.data && reloadPkg.data.customers && reloadPkg.data.products) ? reloadPkg : loaded;
+                    const pick = haIsLoadedPosPackage(reloadPkg) ? reloadPkg : loaded;
                     this.demoData = pick.data;
                     window.companyAssets.logo = pick.company?.logo || null;
                     window.companyAssets.qr = pick.company?.qrCode || pick.company?.qr || null;
@@ -504,7 +563,7 @@ class HamobileBanhang {
             const peek = await window.FirebaseStorage.peekAppJson();
             if (peek.ok && window.FirebaseStorage._applyLoadedJson(peek.json)) {
                 const again = window.FirebaseStorage.getData();
-                if (again && again.customers && again.products) {
+                if (again && typeof again === 'object' && !Array.isArray(again)) {
                     this.demoData = again;
                     window.companyAssets.logo = window.FirebaseStorage.getCompany()?.logo || null;
                     window.companyAssets.qr = window.FirebaseStorage.getCompany()?.qrCode || window.FirebaseStorage.getCompany()?.qr || null;
@@ -516,7 +575,7 @@ class HamobileBanhang {
                 }
             }
             const loadedRetry = await window.FirebaseStorage.load();
-            if (loadedRetry && loadedRetry.data && loadedRetry.data.customers && loadedRetry.data.products) {
+            if (haIsLoadedPosPackage(loadedRetry)) {
                 this.demoData = loadedRetry.data;
                 window.companyAssets.logo = loadedRetry.company?.logo || null;
                 window.companyAssets.qr = loadedRetry.company?.qrCode || loadedRetry.company?.qr || null;
@@ -529,7 +588,7 @@ class HamobileBanhang {
             if (window.FirebaseStorage.usesCloudProxyApi()) {
                 await new Promise(function(r) { setTimeout(r, 900); });
                 const loadedThird = await window.FirebaseStorage.load();
-                if (loadedThird && loadedThird.data && loadedThird.data.customers && loadedThird.data.products) {
+                if (haIsLoadedPosPackage(loadedThird)) {
                     this.demoData = loadedThird.data;
                     window.companyAssets.logo = loadedThird.company?.logo || null;
                     window.companyAssets.qr = loadedThird.company?.qrCode || loadedThird.company?.qr || null;
@@ -546,7 +605,7 @@ class HamobileBanhang {
                     content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                         '<h2>⚠️ Không tải được dữ liệu</h2>' +
                         '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
-                        '<p style="margin: 8px 0; font-size: 13px; color: #64748b;">💡 Nếu thấy 401/403: đăng nhập lại bằng tab thường, cho phép cookie cho site này (Edge/Chrome). Mật khẩu đúng nhưng thiếu phiên đồng bộ máy chủ vẫn không tải được dữ liệu.</p>' +
+                        '<p style="margin: 8px 0; font-size: 13px; color: #64748b;">💡 401/403: tải lại trang, bật cookie, dùng đúng URL chuẩn (www hoặc non-www).</p>' +
                         '<div style="display:grid;gap:12px;margin-top:20px;">' +
                         '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                         '</div></div>';
@@ -593,7 +652,7 @@ class HamobileBanhang {
                 content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
                     '<h2>⚠️ Không tải được dữ liệu</h2>' +
                     '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
-                    '<p style="margin: 8px 0; font-size: 13px; color: #64748b;">💡 Nếu thấy 401/403: đăng nhập lại bằng tab thường, cho phép cookie cho site này (Edge/Chrome). Mật khẩu đúng nhưng thiếu phiên đồng bộ máy chủ vẫn không tải được dữ liệu.</p>' +
+                    '<p style="margin: 8px 0; font-size: 13px; color: #64748b;">💡 401/403: tải lại trang, bật cookie, dùng đúng URL chuẩn (www hoặc non-www).</p>' +
                     '<div style="display:grid;gap:12px;margin-top:20px;">' +
                     '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
                     '</div></div>';
@@ -663,7 +722,7 @@ class HamobileBanhang {
         for (const key of candidates) {
             window.FirebaseStorage.setConfig(cfg.url, key);
             const alt = await window.FirebaseStorage.load();
-            if (alt && alt.data && alt.data.customers && alt.data.products && !window.FirebaseStorage.isLikelyBundledDemoData(alt.data)) {
+            if (haIsLoadedPosPackage(alt) && !window.FirebaseStorage.isLikelyBundledDemoData(alt.data)) {
                 return { loaded: alt, key };
             }
         }
@@ -674,7 +733,7 @@ class HamobileBanhang {
     initializeData() {
         this.demoData = window.FirebaseStorage.getData() || this.demoData;
         const hostedProxy = window.FirebaseStorage.usesCloudProxyApi();
-        if (!this.demoData.customers || !this.demoData.products) {
+        if (!Array.isArray(this.demoData.customers) || !Array.isArray(this.demoData.products)) {
             if (hostedProxy || window._loadedFromCloud) {
                 if (!this.demoData) this.demoData = {};
                 if (!Array.isArray(this.demoData.customers)) this.demoData.customers = [];
@@ -838,12 +897,7 @@ class HamobileBanhang {
     }
 
     clearOldDataIfNeeded() {
-        const data = window.FirebaseStorage.getData();
-        if (!data) return false;
-        if (!data.customers || !data.products) {
-            console.warn('clearOldDataIfNeeded: bỏ qua — cache thiếu customers/products (không thay bằng demo để tránh ghi đè cloud).');
-            return false;
-        }
+        if (!window.FirebaseStorage.getData()) return false;
         return false;
     }
     
@@ -1821,7 +1875,7 @@ class HamobileBanhang {
                                 </tr>
                             </thead>
                             <tbody id="products-table-tbody">
-                                ${rows || '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Không có sản phẩm nào.</td></tr>'}
+                                ${rows}
                             </tbody>
                         </table>
                         <div id="products-table-footer" class="products-table-footer">
@@ -1851,7 +1905,12 @@ class HamobileBanhang {
     }
 
     getProductsMobileListHtml(filtered) {
-        if (!filtered || filtered.length === 0) return '<div class="products-mobile-empty">Chưa có sản phẩm nào.</div>';
+        if (!filtered || filtered.length === 0) {
+            if (!(this.demoData.products && this.demoData.products.length)) {
+                return '<div class="products-mobile-empty" style="text-align:center;padding:20px;"><div style="font-weight:600;color:#374151;margin-bottom:8px;">Chưa có sản phẩm</div><div style="font-size:14px;color:#6b7280;margin-bottom:14px;">Thêm sản phẩm đầu tiên hoặc nhập từ Excel.</div><button type="button" onclick="app.showAddProductForm()" style="background:var(--primary-green);color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:600;">+ Thêm sản phẩm</button></div>';
+            }
+            return '<div class="products-mobile-empty">Không có sản phẩm phù hợp tìm kiếm hoặc bộ lọc.</div>';
+        }
         return filtered.map((product) => {
             const isImei = product.hasImei && product.imeis && product.imeis.length > 0;
             const stockVal = isImei ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
@@ -1903,7 +1962,12 @@ class HamobileBanhang {
         return lines.map((line) => escapeHtml(line)).join('<br>');
     }
     getProductTableRowsHtml(filtered) {
-        if (!filtered || filtered.length === 0) return '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Không có sản phẩm nào.</td></tr>';
+        if (!filtered || filtered.length === 0) {
+            if (!(this.demoData.products && this.demoData.products.length)) {
+                return '<tr><td colspan="8" style="padding: 32px; text-align: center; color: #6b7280;"><div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 8px;">Chưa có sản phẩm</div><div style="font-size: 14px;">Thêm sản phẩm đầu tiên hoặc nhập từ Excel.</div><div style="margin-top: 14px;"><button type="button" onclick="app.showAddProductForm()" style="background: var(--primary-green); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600;">+ Thêm sản phẩm</button></div></td></tr>';
+            }
+            return '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Không có sản phẩm phù hợp tìm kiếm hoặc bộ lọc.</td></tr>';
+        }
         return filtered.map((product, index) => {
             const isImei = product.hasImei && product.imeis && product.imeis.length > 0;
             const stockVal = isImei ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0);
@@ -2014,7 +2078,7 @@ class HamobileBanhang {
     }
     getCustomerTableRowsHtml(customers) {
         if (!customers || customers.length === 0) {
-            return '<tr id="customers-empty-search-row"><td colspan="5" style="padding: 24px; text-align: center; color: #6b7280;">Không tìm thấy khách hàng nào.</td></tr>';
+            return '<tr id="customers-empty-search-row"><td colspan="5" style="padding: 32px; text-align: center; color: #6b7280;"><div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 8px;">Chưa có khách hàng</div><div style="font-size: 14px;">Thêm khách hàng đầu tiên để bắt đầu.</div><div style="margin-top: 14px;"><button type="button" onclick="app.showAddCustomerForm()" style="background: var(--primary-green); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600;">+ Thêm khách hàng</button></div></td></tr>';
         }
         return customers.map((customer, idx) => {
             const originalIndex = this.demoData.customers.findIndex(c => c.id === customer.id);
@@ -7770,7 +7834,7 @@ class HamobileBanhang {
         const cfg = this.getFirebaseConfig();
         if (!cfg) { if (callback) callback(false); return; }
         window.FirebaseStorage.load().then(loaded => {
-            if (loaded && loaded.data && loaded.data.customers && loaded.data.products) {
+            if (haIsLoadedPosPackage(loaded)) {
                 this.demoData = loaded.data;
                 window.FirebaseStorage.setData(this.demoData);
                 if (loaded.company) window.FirebaseStorage.setCompany(loaded.company);
@@ -12927,11 +12991,14 @@ class HamobileBanhang {
             `${counts.categories} danh mục, ${counts.orders + counts.sales} đơn hàng, ${counts.repairs} sửa chữa và dữ liệu công nợ.\n\n` +
             `Không thể hoàn tác. Tiếp tục?`;
         if (confirm(msg)) {
-            this.resetSalesData();
+            void this.resetSalesData();
         }
     }
 
-    resetSalesData() {
+    async resetSalesData() {
+        const company = window.FirebaseStorage.getCompany() || {};
+        const prevMeta = window.FirebaseStorage._cache.meta || {};
+        const meta = Object.assign({}, prevMeta, { system_activity_history: [], schemaVersion: prevMeta.schemaVersion != null ? prevMeta.schemaVersion : 1 });
         this.demoData.customers = [];
         this.demoData.suppliers = [];
         this.demoData.products = [];
@@ -12941,8 +13008,21 @@ class HamobileBanhang {
         this.demoData.repairs = [];
         this.demoData.debtPayments = [];
         this.demoData.debtors = [];
+        window.FirebaseStorage.setData(this.demoData);
+        window.FirebaseStorage.setCompany(company);
+        window.FirebaseStorage._cache.meta = meta;
         this.saveToLocalStorage();
-        this.showNotification('Đã xóa toàn bộ dữ liệu demo của shop', 'success');
+        const cfg = window.FirebaseStorage.getConfig();
+        if (cfg) {
+            const ok = await window.FirebaseStorage.save({ data: this.demoData, company, meta });
+            if (ok) {
+                this.showNotification('Đã xóa dữ liệu và khởi tạo lại shop rỗng trên đám mây', 'success');
+            } else {
+                this.showNotification('Đã xóa trên máy này; không ghi được lên đám mây — kiểm tra mạng và đồng bộ lại', 'warning');
+            }
+        } else {
+            this.showNotification('Đã xóa toàn bộ dữ liệu demo (chưa cấu hình đám mây)', 'success');
+        }
         this.loadPage('settings');
     }
 

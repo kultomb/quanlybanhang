@@ -7,6 +7,7 @@
  * - `users/{uid}`: hồ sơ tài khoản (shopSlug, paymentStatus, …) — không lưu toàn bộ products/orders tại đây.
  * - Dữ liệu nghiệp vụ shop: RTDB `backups/shop_{slug}/…` (pro) hoặc `trial_backups/shop_{slug}/…` (dùng thử).
  *   Client legacy vẫn gọi `/api/rtdb/backups/…`; server map trial → `trial_backups` theo hồ sơ user.
+ * - GET `…/app` và `…/data`: chuẩn hóa JSON (node null / thiếu customers|products → mảng rỗng) để POS không lỗi khi RTDB trống.
  * - Client legacy gửi URL có thể kèm key cũ; server luôn ép `segments[1] = shop_{slug}` theo `users/{uid}/shopSlug`
  *   (resolve + tự ghi lại nếu chỉ tìm thấy qua `shops/` hoặc `trialShops/`) để không đọc/ghi nhầm kho.
  * - 403 JSON: `missing_shop_slug`, `trial_slug_mismatch`, `production_trial_prefix_forbidden`, `trial_expired`,
@@ -18,6 +19,7 @@
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/backend/server";
 import { getBackupDbRoot } from "@/lib/backend/shop-paths";
+import { normalizePosBackupJsonForGet } from "@/lib/backend/pos-backup-normalize";
 import { liftLegacyTrialBackupToTrialBackups } from "@/lib/backend/trialUpgrade";
 import { resolveUserShopContext, type UserShopContext } from "@/lib/backend/userShopSlug";
 import { getTrialShopPrefix, isEffectiveTrialAccount } from "@/lib/trial-shop";
@@ -167,8 +169,14 @@ async function proxy(
     const snap = await dbRef.get();
     const reqUrl = new URL(request.url);
     const shallow = reqUrl.searchParams.get("shallow") === "true";
-    const value = shallow ? toShallowObject(snap.val()) : snap.val();
-    return new Response(JSON.stringify(value ?? null), {
+    const rawVal = snap.val();
+    const value = shallow ? toShallowObject(rawVal) : rawVal;
+    const leaf = segments[segments.length - 1] || "";
+    const payload =
+      !shallow && (leaf === "app" || leaf === "data")
+        ? normalizePosBackupJsonForGet(value)
+        : value;
+    return new Response(JSON.stringify(payload ?? null), {
       status: 200,
       headers: {
         "content-type": "application/json; charset=utf-8",

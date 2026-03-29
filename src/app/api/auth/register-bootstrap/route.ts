@@ -1,4 +1,5 @@
 import { adminAuth, adminDb } from "@/lib/backend/server";
+import { emptyPosAppJsonPayload } from "@/lib/backend/pos-backup-normalize";
 import { getShopPaths } from "@/lib/backend/shop-paths";
 import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
 import admin from "firebase-admin";
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const shopPath = getShopPaths(slug, isTrial).shop;
+    const { shop: shopPath, backup: backupPath } = getShopPaths(slug, isTrial);
     const db = adminDb();
     const shopSnap = await db.ref(shopPath).get();
     if (shopSnap.exists()) {
@@ -97,6 +98,7 @@ export async function POST(request: Request) {
 
     await db.ref(`users/${uid}`).set(userPayload);
     await db.ref(shopPath).set(shopPayload);
+    await db.ref(`${backupPath}/app`).set(emptyPosAppJsonPayload());
 
     try {
       const fs = adminFirestore();
