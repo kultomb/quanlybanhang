@@ -66,16 +66,23 @@ export async function postSessionCookieWithRetries(
   const body = JSON.stringify(
     shop ? { idToken: trimmed, shopSlug: shop } : { idToken: trimmed },
   );
-  const maxAttempts = 5;
-  const baseMs = 200;
+  const maxAttempts = 3;
+  const baseMs = 100;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const res = await fetch("/api/auth/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body,
-      });
-      if (res.ok) return true;
+      const ctrl = new AbortController();
+      const timer = window.setTimeout(() => ctrl.abort(), 20000);
+      try {
+        const res = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+          signal: ctrl.signal,
+        });
+        if (res.ok) return true;
+      } finally {
+        window.clearTimeout(timer);
+      }
     } catch {
       // Mạng / abort — thử lại.
     }

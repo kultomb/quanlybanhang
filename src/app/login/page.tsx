@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/backend/client";
 import LoginTurnstile from "@/components/LoginTurnstile";
@@ -53,6 +53,7 @@ function getAuthErrorMessage(err: unknown): string {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const submittingRef = useRef(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -79,7 +80,7 @@ function LoginContent() {
   useEffect(() => {
     let forcingLogout = false;
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
+      if (!user || submittingRef.current) return;
       const profile = await resolveUserProfile(user.uid);
       if (!hasValidShopSlug(profile.shopSlug)) {
         if (forcingLogout) return;
@@ -119,25 +120,32 @@ function LoginContent() {
       return;
     }
 
+    submittingRef.current = true;
     try {
-      const preRes = await fetch("/api/auth/login-precheck", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email: emailTrimmed,
-          turnstileToken: turnstileSiteKey ? turnstileToken : "",
-        }),
-      });
+      const preCtrl = new AbortController();
+      const preTimer = window.setTimeout(() => preCtrl.abort(), 15000);
+      let preRes: Response;
+      try {
+        preRes = await fetch("/api/auth/login-precheck", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: emailTrimmed,
+            turnstileToken: turnstileSiteKey ? turnstileToken : "",
+          }),
+          signal: preCtrl.signal,
+        });
+      } finally {
+        window.clearTimeout(preTimer);
+      }
       if (preRes.status === 429) {
         const j = (await preRes.json().catch(() => ({}))) as { retryAfterSec?: number };
         const sec = typeof j.retryAfterSec === "number" ? j.retryAfterSec : 60;
         setError(`Đăng nhập tạm khóa do thử quá nhiều lần. Thử lại sau khoảng ${sec} giây.`);
-        setLoading(false);
         return;
       }
       if (!preRes.ok) {
         setError("Không thể xác minh phiên đăng nhập. Thử lại sau giây lát.");
-        setLoading(false);
         return;
       }
 
@@ -154,7 +162,6 @@ function LoginContent() {
       });
       if (!sessionOk) {
         setError("Chưa đăng nhập xong. Kiểm tra mạng rồi thử bấm Đăng nhập lại.");
-        setLoading(false);
         return;
       }
       syncTrialUiSessionFlag({
@@ -168,8 +175,13 @@ function LoginContent() {
       if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
       else router.replace("/account");
     } catch (err: unknown) {
-      setError(getAuthErrorMessage(err));
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("Hết thời gian chờ máy chủ. Kiểm tra mạng và thử lại.");
+      } else {
+        setError(getAuthErrorMessage(err));
+      }
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   }
@@ -333,9 +345,26 @@ function LoginContent() {
   );
 }
 
+function LoginSuspenseFallback() {
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background: "linear-gradient(160deg, #ecfdf5 0%, #d1fae5 100%)",
+        color: "#4b5563",
+        fontSize: 15,
+      }}
+    >
+      Đang tải trang đăng nhập…
+    </main>
+  );
+}
+
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<LoginSuspenseFallback />}>
       <LoginContent />
     </Suspense>
   );

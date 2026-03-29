@@ -201,7 +201,39 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
     };
   }, [pathShopFromUrl]);
 
-  if (!ready) return null;
-  if (!authed) return null;
+  if (!ready) {
+    return (
+      <div
+        style={{
+          minHeight: "40vh",
+          display: "grid",
+          placeItems: "center",
+          padding: 24,
+          color: "#6b7280",
+          fontSize: 15,
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        Đang kiểm tra phiên đăng nhập…
+      </div>
+    );
+  }
+  if (!authed) {
+    return (
+      <div
+        style={{
+          minHeight: "40vh",
+          display: "grid",
+          placeItems: "center",
+          padding: 24,
+          color: "#6b7280",
+          fontSize: 15,
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        Đang chuyển hướng…
+      </div>
+    );
+  }
   return <>{children}</>;
 }
