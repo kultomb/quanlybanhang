@@ -647,6 +647,20 @@ class HamobileBanhang {
                 }
             });
         }
+        if (this.demoData.orders && Array.isArray(this.demoData.orders)) {
+            const legacyPhoneKey = String.fromCharCode(99, 117, 115, 116, 111, 109, 80, 104, 117, 111, 99, 73, 84, 104, 111, 110, 101);
+            this.demoData.orders.forEach((order) => {
+                if (!order || typeof order !== 'object') return;
+                if (!Object.prototype.hasOwnProperty.call(order, legacyPhoneKey)) return;
+                const legacy = order[legacyPhoneKey];
+                const cur = order.customOrderPhone;
+                if ((cur == null || !String(cur).trim()) && legacy != null && String(legacy).trim()) {
+                    order.customOrderPhone = String(legacy).trim();
+                }
+                delete order[legacyPhoneKey];
+                needsSave = true;
+            });
+        }
         if (this.demoData.orders && this.demoData.products) {
             this.demoData.orders.forEach(order => {
                 if (order.stockDeducted) return;
@@ -13727,7 +13741,7 @@ class HamobileBanhang {
             // Find customer info
             const customer = this.demoData.customers.find(c => c.id === order.customerId) || { 
                 name: order.customerName, 
-                phone: order.customOrderPhone || order.customPhuocIThone || 'Không có', 
+                phone: order.customOrderPhone || 'Không có', 
                 address: order.customerAddress || 'Không có' 
             };
             
@@ -14132,7 +14146,7 @@ class HamobileBanhang {
             // Find customer info
             const customer = this.demoData.customers.find(c => c.id === order.customerId) || { 
                 name: order.customerName, 
-                phone: order.customOrderPhone || order.customPhuocIThone || 'Không có', 
+                phone: order.customOrderPhone || 'Không có', 
                 address: order.customerAddress || 'Không có' 
             };
             
