@@ -1804,7 +1804,7 @@ class HamobileBanhang {
 
         return `
             <div class="fade-in products-page-compact">
-                <button type="button" class="products-fab-add" onclick="app.showAddProductForm()" title="Thêm sản phẩm" aria-label="Thêm sản phẩm">+</button>
+                <button type="button" class="products-fab-add" onclick="app.showAddProductForm()" title="Thêm sản phẩm" aria-label="Thêm sản phẩm" style="position:fixed;right:16px;bottom:84px;z-index:1200;width:52px;height:52px;border:none;border-radius:999px;background:var(--primary-green);color:#fff;font-size:30px;line-height:1;font-weight:700;display:${window.innerWidth <= 768 ? 'flex' : 'none'};align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(0,0,0,.25);">+</button>
                 <div class="stats-grid products-stats">
                     <div class="stat-card products">
                         <div class="stat-header">
