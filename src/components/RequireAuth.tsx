@@ -59,6 +59,8 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [resolvedShopSlug, setResolvedShopSlug] = useState<string | null>(null);
+  const [sessionBridgeFailed, setSessionBridgeFailed] = useState(false);
+  const [bridgeRetryNonce, setBridgeRetryNonce] = useState(0);
 
   useEffect(() => {
     let disposed = false;
@@ -119,9 +121,26 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
 
         syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
 
-        await syncIdTokenToCookie(shopSlug);
-
         if (redirectIfUrlShopMismatch(pathShopFromUrl, shopSlug, reg)) {
+          return;
+        }
+
+        setSessionBridgeFailed(false);
+        let cookieOk = await syncIdTokenToCookie(shopSlug);
+        if (!cookieOk) {
+          await new Promise((r) => setTimeout(r, 400));
+          cookieOk = await syncIdTokenToCookie(shopSlug);
+        }
+        if (!cookieOk) {
+          await new Promise((r) => setTimeout(r, 900));
+          cookieOk = await syncIdTokenToCookie(shopSlug);
+        }
+        if (!cookieOk) {
+          if (disposed) return;
+          setSessionBridgeFailed(true);
+          setResolvedShopSlug(shopSlug);
+          setAuthed(true);
+          setReady(true);
           return;
         }
 
@@ -167,6 +186,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
             logoutDebounce = undefined;
             if (disposed) return;
             if (auth.currentUser) return;
+            setSessionBridgeFailed(false);
             setAuthed(false);
             setReady(true);
             void clearServerSession();
@@ -197,7 +217,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
       window.clearTimeout(fallbackTimer);
       unsub?.();
     };
-  }, [pathShopFromUrl]);
+  }, [pathShopFromUrl, bridgeRetryNonce]);
 
   if (!ready) {
     return (
@@ -248,6 +268,86 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
           }}
         >
           Đang tải cửa hàng…
+        </div>
+      );
+    }
+    if (sessionBridgeFailed) {
+      return (
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+            background: "linear-gradient(165deg, #ecfdf5 0%, #d1fae5 45%, #a7f3d0 100%)",
+            fontFamily: "system-ui, sans-serif",
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 480,
+              background: "rgba(255,255,255,0.95)",
+              borderRadius: 20,
+              padding: "32px 28px",
+              boxShadow: "0 20px 50px rgba(5, 150, 105, 0.18)",
+              border: "1px solid rgba(167, 243, 208, 0.9)",
+            }}
+          >
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", margin: "0 0 12px" }}>
+              Đăng nhập đúng — nhưng chưa kết nối kho dữ liệu
+            </h1>
+            <p style={{ fontSize: 15, lineHeight: 1.6, color: "#475569", margin: "0 0 14px" }}>
+              Tài khoản và mật khẩu <strong>đã được Firebase chấp nhận</strong>. POS còn cần một bước riêng: trình duyệt
+              phải lưu <strong>phiên bảo mật (cookie)</strong> cho máy chủ Hangho để đọc/ghi dữ liệu qua{" "}
+              <code style={{ fontSize: 13 }}>/api/rtdb</code>. Nếu bước này lỗi hoặc bị chặn, bạn sẽ thấy &quot;Không tải
+              được dữ liệu&quot; dù mật khẩu không sai.
+            </p>
+            <p style={{ fontSize: 14, lineHeight: 1.55, color: "#64748b", margin: "0 0 22px" }}>
+              Gợi ý: dùng <strong>tab thường</strong> (không ẩn danh), không chặn cookie cho hangho.com, thử mạng khác;
+              rồi bấm <strong>Thử lại</strong> hoặc <strong>Tải lại trang</strong>.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setSessionBridgeFailed(false);
+                  setReady(false);
+                  setAuthed(false);
+                  setResolvedShopSlug(null);
+                  setBridgeRetryNonce((n) => n + 1);
+                }}
+                style={{
+                  padding: "12px 22px",
+                  borderRadius: 12,
+                  border: "none",
+                  fontWeight: 700,
+                  fontSize: 15,
+                  cursor: "pointer",
+                  color: "#fff",
+                  background: "linear-gradient(135deg, #047857 0%, #059669 55%, #10b981 100%)",
+                  boxShadow: "0 8px 20px rgba(5, 150, 105, 0.35)",
+                }}
+              >
+                Thử lại
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                style={{
+                  padding: "12px 22px",
+                  borderRadius: 12,
+                  border: "2px solid #059669",
+                  fontWeight: 600,
+                  fontSize: 15,
+                  cursor: "pointer",
+                  color: "#047857",
+                  background: "#fff",
+                }}
+              >
+                Tải lại trang
+              </button>
+            </div>
+          </div>
         </div>
       );
     }
