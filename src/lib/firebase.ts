@@ -75,5 +75,8 @@ if (typeof window !== "undefined") {
 }
 
 export const auth = getAuth(app);
+if (typeof window !== "undefined") {
+  auth.languageCode = "vi";
+}
 export const rtdb = getDatabase(app);
 export const db = getFirestore(app);

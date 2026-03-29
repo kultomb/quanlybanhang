@@ -13,7 +13,9 @@ import {
 import { get, ref } from "firebase/database";
 import { auth, rtdb } from "@/lib/backend/client";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
+import { buildPasswordResetActionCodeSettings } from "@/lib/password-reset-email";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
+import { getSiteBrandName, getSiteDomainHint } from "@/lib/site-brand";
 
 export default function AccountClient() {
   const router = useRouter();
@@ -91,9 +93,15 @@ export default function AccountClient() {
       return;
     }
     try {
-      // Use default Firebase reset flow to avoid domain authorization mismatch.
-      await sendPasswordResetEmail(auth, email);
-      setMessage("Đã gửi email đặt lại mật khẩu.");
+      const actionSettings = buildPasswordResetActionCodeSettings();
+      if (actionSettings) {
+        await sendPasswordResetEmail(auth, email, actionSettings);
+      } else {
+        await sendPasswordResetEmail(auth, email);
+      }
+      setMessage(
+        `Đã gửi email đặt lại mật khẩu từ ${getSiteBrandName()} (${getSiteDomainHint()}). Kiểm tra hộp thư; nếu không thấy, mở cả mục Thư rác / Spam.`,
+      );
     } catch (error: unknown) {
       const raw = error instanceof Error ? error.message : String(error || "");
       const lower = raw.toLowerCase();

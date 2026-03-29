@@ -13,7 +13,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
+import { buildPasswordResetActionCodeSettings } from "@/lib/password-reset-email";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
+import { getSiteBrandName, getSiteDomainHint } from "@/lib/site-brand";
 
 type AccountPageProps = {
   shop?: string;
@@ -94,10 +96,16 @@ export default function AccountPage({ shop }: AccountPageProps) {
     setMessageType("info");
     setMessage("Đang gửi email khôi phục...");
     try {
-      // Use default Firebase reset flow to avoid unauthorized continue URL issues on custom domains.
-      await sendPasswordResetEmail(auth, email);
+      const actionSettings = buildPasswordResetActionCodeSettings();
+      if (actionSettings) {
+        await sendPasswordResetEmail(auth, email, actionSettings);
+      } else {
+        await sendPasswordResetEmail(auth, email);
+      }
       setMessageType("success");
-      setMessage("Đã gửi email quên mật khẩu.");
+      setMessage(
+        `Đã gửi email đặt lại mật khẩu từ ${getSiteBrandName()} (${getSiteDomainHint()}). Kiểm tra hộp thư; nếu không thấy, mở cả mục Thư rác / Spam.`,
+      );
     } catch (error: unknown) {
       const raw = error instanceof Error ? error.message : String(error || "");
       const lower = raw.toLowerCase();
