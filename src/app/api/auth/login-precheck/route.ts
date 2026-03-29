@@ -35,7 +35,11 @@ export async function POST(request: Request) {
           { status: 429, headers: { "retry-after": String(retryAfterSec) } },
         );
       }
-      throw e;
+      console.error("[login-precheck] rate_limit", e);
+      if (process.env.NODE_ENV !== "production") {
+        return Response.json({ ok: true });
+      }
+      return Response.json({ ok: false, error: "server_error" }, { status: 503 });
     }
 
     return Response.json({ ok: true });
