@@ -3173,7 +3173,7 @@ class HamobileBanhang {
         this.searchPOSProducts(val);
     }
     findProductByBarcodeForPOS(rawCode) {
-        const code = String(rawCode || '').trim();
+        const code = String(rawCode || '').trim().replace(/\u00a0/g, ' ').trim();
         if (!code) return null;
         const products = this.demoData.products || [];
         const direct = products.find(p =>
@@ -3181,6 +3181,14 @@ class HamobileBanhang {
             String(p.id || '').trim() === code
         );
         if (direct) return direct;
+        const codeDigits = code.replace(/\D/g, '');
+        if (codeDigits.length >= 8 && codeDigits.length <= 14) {
+            const byDigits = products.find(p => {
+                const b = String(p.barcode || '').replace(/\D/g, '');
+                return b && b === codeDigits;
+            });
+            if (byDigits) return byDigits;
+        }
         return products.find(p => Array.isArray(p.imeis) && p.imeis.some(v => String(v || '').trim() === code)) || null;
     }
     getPOSCameraLabelScore(label) {
@@ -9959,11 +9967,13 @@ class HamobileBanhang {
         const name = (p.name || '');
         const cat = (p.category || '');
         const id = (p.id || '');
+        const barcode = (p.barcode || '');
         const imeiText = Array.isArray(p.imeis) ? p.imeis.join(' ') : '';
         return words.every(word =>
             this.searchMatchWordBoundary(name, word) ||
             this.searchMatchWordBoundary(cat, word) ||
             this.searchMatch(id, word) ||
+            this.searchMatch(barcode, word) ||
             this.searchMatch(imeiText, word)
         );
     }
@@ -10294,12 +10304,13 @@ class HamobileBanhang {
 
     getPrintableLabelItems(product, quantity) {
         const qty = Math.max(1, parseInt(quantity, 10) || 1);
-        const baseCode = (product.barcode || product.id || '').toString().trim();
+        const baseCode = (product.id || product.barcode || '').toString().trim();
         const isImei = !!(product.hasImei && Array.isArray(product.imeis) && product.imeis.length > 0);
         if (!isImei) {
+            const productCode = (product.id || '').toString().trim() || baseCode;
             return Array.from({ length: qty }).map(() => ({
-                code: baseCode,
-                line2: product.id
+                code: productCode,
+                line2: productCode
             }));
         }
         const imeiList = product.imeis.slice(0, qty);
@@ -10509,7 +10520,7 @@ class HamobileBanhang {
     getLabelSheetCodeValue(product, item, printType) {
         const sourceCode = printType === 'imei'
             ? (item.line2 || '').replace(/^IMEI:\s*/i, '') || item.code
-            : (printType === 'barcode' ? (product.barcode || item.code) : (product.id || item.code));
+            : (printType === 'barcode' ? (product.id || item.code) : (product.id || item.code));
         return this.normalizeCode39Value(sourceCode || product.id || 'SP');
     }
 

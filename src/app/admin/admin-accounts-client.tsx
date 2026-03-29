@@ -142,7 +142,14 @@ export default function AdminAccountsClient() {
     };
     poll();
     const id = window.setInterval(poll, ADMIN_PRESENCE_POLL_MS);
-    return () => window.clearInterval(id);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") poll();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   useEffect(() => {
