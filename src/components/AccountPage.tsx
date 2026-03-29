@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
+import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 
 type AccountPageProps = {
   shop?: string;
@@ -48,9 +49,10 @@ export default function AccountPage({ shop }: AccountPageProps) {
       setMessage("Chưa đăng nhập. Vui lòng đăng nhập lại.");
       return;
     }
-    if (newPassword.length < 6) {
+    const pwCheck = validateSignupPassword(newPassword, currentUser.email);
+    if (!pwCheck.ok) {
       setMessageType("error");
-      setMessage("Mật khẩu mới phải từ 6 ký tự.");
+      setMessage(pwCheck.message);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -60,6 +62,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
     }
 
     setLoading(true);
+    setMessage("");
     try {
       const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
       await reauthenticateWithCredential(currentUser, credential);
@@ -67,6 +70,9 @@ export default function AccountPage({ shop }: AccountPageProps) {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setMessageType("success");
+      setMessage("Đổi mật khẩu thành công.");
+      await new Promise((r) => window.setTimeout(r, 2000));
       await revokeAllFirebaseSessionsThenSignOut();
       router.replace("/login?reason=password-changed");
     } catch {
@@ -278,7 +284,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
           </div>
         </section>
 
-        {message ? (
+        {message && !showPasswordModal ? (
           <div
             style={{
               background:
@@ -302,6 +308,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
                   : messageType === "error"
                     ? "#b91c1c"
                     : "#1d4ed8",
+              whiteSpace: "pre-line",
             }}
           >
             {message}
@@ -330,7 +337,10 @@ export default function AccountPage({ shop }: AccountPageProps) {
       {showPasswordModal ? (
         <div
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowPasswordModal(false);
+            if (e.target === e.currentTarget) {
+              setMessage("");
+              setShowPasswordModal(false);
+            }
           }}
           style={{
             position: "fixed",
@@ -357,11 +367,42 @@ export default function AccountPage({ shop }: AccountPageProps) {
             }}
           >
             <h3 style={{ margin: 0, fontSize: 18, color: "#1f2937" }}>Đổi mật khẩu</h3>
+            {message ? (
+              <div
+                style={{
+                  background:
+                    messageType === "success"
+                      ? "#ecfdf5"
+                      : messageType === "error"
+                        ? "#fef2f2"
+                        : "#eff6ff",
+                  border:
+                    messageType === "success"
+                      ? "1px solid #86efac"
+                      : messageType === "error"
+                        ? "1px solid #fecaca"
+                        : "1px solid #bfdbfe",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  fontSize: 13,
+                  color:
+                    messageType === "success"
+                      ? "#166534"
+                      : messageType === "error"
+                        ? "#b91c1c"
+                        : "#1d4ed8",
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {message}
+              </div>
+            ) : null}
             <input
               type="password"
               placeholder="Mật khẩu cũ"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
               style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "10px 12px" }}
             />
             <input
@@ -369,19 +410,29 @@ export default function AccountPage({ shop }: AccountPageProps) {
               placeholder="Mật khẩu mới"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={8}
+              maxLength={128}
               style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "10px 12px" }}
             />
+            <span style={{ fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>{SIGNUP_PASSWORD_HINT}</span>
             <input
               type="password"
               placeholder="Xác nhận mật khẩu mới"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={8}
+              maxLength={128}
               style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "10px 12px" }}
             />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 type="button"
-                onClick={() => setShowPasswordModal(false)}
+                onClick={() => {
+                  setMessage("");
+                  setShowPasswordModal(false);
+                }}
                 style={{
                   border: "1px solid #cbd5e1",
                   background: "white",
@@ -407,7 +458,7 @@ export default function AccountPage({ shop }: AccountPageProps) {
                   cursor: loading ? "not-allowed" : "pointer",
                 }}
               >
-                {loading ? "Đang lưu..." : "Lưu mật khẩu mới"}
+                {loading ? "Đang xử lý…" : "Lưu mật khẩu mới"}
               </button>
             </div>
           </form>

@@ -13,6 +13,7 @@ import {
 import { get, ref } from "firebase/database";
 import { auth, rtdb } from "@/lib/backend/client";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
+import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
 
 export default function AccountClient() {
   const router = useRouter();
@@ -52,8 +53,9 @@ export default function AccountClient() {
       setError("Bạn chưa đăng nhập hoặc phiên đã hết hạn. Vui lòng đăng nhập lại.");
       return;
     }
-    if (newPassword.length < 6) {
-      setError("Mật khẩu mới phải từ 6 ký tự.");
+    const pwCheck = validateSignupPassword(newPassword, user.email);
+    if (!pwCheck.ok) {
+      setError(pwCheck.message);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -61,6 +63,8 @@ export default function AccountClient() {
       return;
     }
     setSavingPassword(true);
+    setError("");
+    setMessage("");
     try {
       const credential = EmailAuthProvider.credential(user.email, currentPassword);
       await reauthenticateWithCredential(user, credential);
@@ -68,6 +72,8 @@ export default function AccountClient() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setMessage("Đổi mật khẩu thành công.");
+      await new Promise((r) => window.setTimeout(r, 2000));
       await revokeAllFirebaseSessionsThenSignOut();
       router.replace("/login?reason=password-changed");
     } catch {
@@ -145,6 +151,7 @@ export default function AccountClient() {
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             placeholder="Mật khẩu cũ"
+            autoComplete="current-password"
             style={{
               border: "1px solid #cbd5e1",
               borderRadius: 8,
@@ -157,6 +164,9 @@ export default function AccountClient() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder="Mật khẩu mới"
+            autoComplete="new-password"
+            minLength={8}
+            maxLength={128}
             style={{
               border: "1px solid #cbd5e1",
               borderRadius: 8,
@@ -164,11 +174,15 @@ export default function AccountClient() {
               fontSize: 14,
             }}
           />
+          <span style={{ fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>{SIGNUP_PASSWORD_HINT}</span>
           <input
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Xác nhận mật khẩu mới"
+            autoComplete="new-password"
+            minLength={8}
+            maxLength={128}
             style={{
               border: "1px solid #cbd5e1",
               borderRadius: 8,
@@ -189,7 +203,7 @@ export default function AccountClient() {
               cursor: savingPassword ? "not-allowed" : "pointer",
             }}
           >
-            {savingPassword ? "Đang lưu..." : "Lưu mật khẩu mới"}
+            {savingPassword ? "Đang xử lý…" : "Lưu mật khẩu mới"}
           </button>
         </form>
 
@@ -233,6 +247,7 @@ export default function AccountClient() {
               borderRadius: 8,
               padding: "10px 12px",
               fontSize: 13,
+              whiteSpace: "pre-line",
             }}
           >
             {message}

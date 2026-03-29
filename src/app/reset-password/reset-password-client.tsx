@@ -50,6 +50,8 @@ export default function ResetPasswordClient() {
       await confirmPasswordReset(auth, oobCode, password);
       setPassword("");
       setConfirmPassword("");
+      setMessage("Đổi mật khẩu thành công.");
+      await new Promise((r) => window.setTimeout(r, 2000));
       await revokeAllFirebaseSessionsThenSignOut();
       router.replace("/login?reason=password-changed");
     } catch {
@@ -163,6 +165,7 @@ export default function ResetPasswordClient() {
                   borderRadius: 8,
                   padding: "10px 12px",
                   fontSize: 13,
+                  whiteSpace: "pre-line",
                 }}
               >
                 {message}
@@ -182,7 +185,7 @@ export default function ResetPasswordClient() {
                 cursor: loading ? "not-allowed" : "pointer",
               }}
             >
-              {loading ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
+              {loading ? "Đang xử lý…" : "Cập nhật mật khẩu"}
             </button>
           </form>
         )}

@@ -66,6 +66,7 @@ function LoginContent() {
   const [notice, setNotice] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileSiteKey = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
+  const isPasswordChangedNotice = String(searchParams.get("reason") || "") === "password-changed";
 
   useEffect(() => {
     const reason = String(searchParams.get("reason") || "");
@@ -76,9 +77,7 @@ function LoginContent() {
       return;
     }
     if (reason === "password-changed") {
-      setNotice(
-        "Mật khẩu đã được đổi. Toàn bộ phiên đăng nhập trên mọi thiết bị đã kết thúc — vui lòng đăng nhập lại bằng mật khẩu mới.",
-      );
+      setNotice("Vui lòng đăng nhập lại bằng mật khẩu mới.");
       return;
     }
     setNotice("");
@@ -253,19 +252,24 @@ function LoginContent() {
         {notice ? (
           <div
             style={{
-              background:
-                "linear-gradient(180deg, rgba(239,246,255,0.95) 0%, rgba(219,234,254,0.95) 100%)",
-              border: "1px solid #93c5fd",
-              color: "#1d4ed8",
+              background: isPasswordChangedNotice
+                ? "linear-gradient(180deg, rgba(236,253,245,0.98) 0%, rgba(209,250,229,0.95) 100%)"
+                : "linear-gradient(180deg, rgba(239,246,255,0.95) 0%, rgba(219,234,254,0.95) 100%)",
+              border: isPasswordChangedNotice ? "1px solid #6ee7b7" : "1px solid #93c5fd",
+              color: isPasswordChangedNotice ? "#166534" : "#1d4ed8",
               borderRadius: 12,
               padding: "11px 12px",
               fontSize: 13,
               lineHeight: 1.45,
-              boxShadow: "0 8px 18px rgba(37,99,235,0.12)",
+              boxShadow: isPasswordChangedNotice
+                ? "0 8px 18px rgba(5,150,105,0.14)"
+                : "0 8px 18px rgba(37,99,235,0.12)",
             }}
           >
-            <div style={{ fontWeight: 800, marginBottom: 4 }}>Thông báo hệ thống</div>
-            <div>{notice}</div>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>
+              {isPasswordChangedNotice ? "Đổi mật khẩu thành công" : "Thông báo hệ thống"}
+            </div>
+            <div style={{ whiteSpace: "pre-line" }}>{notice}</div>
           </div>
         ) : null}
 
