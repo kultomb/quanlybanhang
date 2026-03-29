@@ -118,13 +118,6 @@ export default function AccountClient() {
 
         <form onSubmit={handleChangePassword} style={{ display: "grid", gap: 10 }}>
           <h3 style={{ margin: "6px 0 0 0", color: "#0f172a" }}>Đổi mật khẩu</h3>
-          <p style={{ margin: 0, fontSize: 13, color: "#64748b", lineHeight: 1.45 }}>
-            Quên mật khẩu khi chưa đăng nhập? Dùng trang{" "}
-            <Link href="/login" style={{ color: "#047857", fontWeight: 700 }}>
-              Đăng nhập
-            </Link>
-            .
-          </p>
           <input
             type="password"
             value={currentPassword}

@@ -193,13 +193,6 @@ export default function AccountPage({ shop }: AccountPageProps) {
               }}
             >
               <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>Đổi mật khẩu</div>
-              <p style={{ margin: 0, fontSize: 13, color: "#64748b", lineHeight: 1.45 }}>
-                Quên mật khẩu khi chưa đăng nhập? Dùng mục tương ứng trên trang{" "}
-                <Link href="/login" style={{ color: "#047857", fontWeight: 700 }}>
-                  Đăng nhập
-                </Link>
-                .
-              </p>
               <button
                 type="button"
                 onClick={() => {
