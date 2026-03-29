@@ -27,10 +27,18 @@ window.FirebaseStorage = {
     /** Giữ tối đa bấy nhiêu bản JSON trong backups/<key>/snapshots/ (mỗi bản một file, không ghi đè lên nhau) */
     MAX_ROLLING_SNAPSHOTS: 48,
     getConfig() {
-        if (this._config && this._config.url) return this._config;
         const cfg = window.FIREBASE_CONFIG || {};
-        let url = (cfg.url || '').trim().replace(/\/+$/, '');
-        let key = (cfg.key || '').trim();
+        if (this._config && this._config.url) {
+            const wUrl = String(cfg.url || '').trim().replace(/\/+$/, '');
+            const wKey = String(cfg.key || '').trim();
+            if (wUrl && wKey && (this._config.url !== wUrl || this._config.key !== wKey)) {
+                this._config = null;
+            } else {
+                return this._config;
+            }
+        }
+        let url = String(cfg.url || '').trim().replace(/\/+$/, '');
+        let key = String(cfg.key || '').trim();
         if (!url) {
             try {
                 const saved = localStorage.getItem(FB_CONFIG_KEY);
@@ -40,7 +48,8 @@ window.FirebaseStorage = {
                 }
             } catch (_) {}
         }
-        if (!key) {
+        const proxy = url && String(url).includes('/api/rtdb');
+        if (!key && !proxy) {
             try {
                 const queryShop = (new URLSearchParams(window.location.search).get('shop') || '')
                     .trim()
@@ -49,7 +58,7 @@ window.FirebaseStorage = {
                 if (queryShop) key = 'shop_' + queryShop;
             } catch (_) {}
         }
-        if (url && !key) {
+        if (url && !key && !proxy) {
             const seg = String(window.location.pathname || '').split('/').filter(Boolean)[0] || '';
             const safeSeg = String(seg).toLowerCase().replace(/[^a-z0-9-]/g, '');
             key = safeSeg && safeSeg !== 'legacy' ? ('shop_' + safeSeg) : 'shop_autokey';
@@ -2835,6 +2844,7 @@ class HamobileBanhang {
         const products = this.demoData.products || [];
         return header + items.map((item, i) => {
             const p = products.find(x => x.id === item.productId);
+            const imeiCartLine = this.buildPosImeiLineForCartItem(p, item.quantity || 1);
             const origPrice = item.originalPrice != null ? item.originalPrice : (p ? (p.price || 0) : (item.price || 0));
             const currPrice = item.price || 0;
             const priceEdited = origPrice > 0 && currPrice !== origPrice;
@@ -2850,7 +2860,7 @@ class HamobileBanhang {
                 <div class="pos-cart-row-desktop">
                     <span class="pos-cart-tt">${i+1}</span>
                     <button type="button" onclick="app.removeFromPOS(${i})" class="pos-cart-del" title="Xóa">🗑️</button>
-                    <div class="pos-cart-name">${(item.name||'').replace(/</g,'&lt;')}</div>
+                    <div class="pos-cart-name">${(item.name||'').replace(/</g,'&lt;')}${imeiCartLine}</div>
                     <input type="number" min="1" value="${item.quantity}" onchange="app.updatePOSQty(${i}, this.value)" class="pos-cart-qty">
                     <input type="text" class="price-input pos-cart-price" value="${this.formatPrice(item.price||0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.updatePOSItemPrice(${i}, this.value)" onblur="app.priceInputBlur(this); app.updatePOSItemPrice(${i}, this.value)" data-pos-price-idx="${i}" inputmode="numeric" placeholder="0" title="Đơn giá">
                     <div class="pos-cart-discount-wrap">
@@ -2864,7 +2874,7 @@ class HamobileBanhang {
                 </div>
                 <div class="pos-cart-row-mobile">
                     <div class="pos-cart-mobile-top">
-                        <div class="pos-cart-mobile-name" ${isMobileStep2 ? `onclick="app.showPOSProductDetailModal(${i})" style="cursor: pointer;"` : ''}>${(item.name||'').replace(/</g,'&lt;')}</div>
+                        <div class="pos-cart-mobile-name" ${isMobileStep2 ? `onclick="app.showPOSProductDetailModal(${i})" style="cursor: pointer;"` : ''}>${(item.name||'').replace(/</g,'&lt;')}${imeiCartLine}</div>
                         ${priceDisplayMobile}
                     </div>
                     <div class="pos-cart-mobile-bottom">
@@ -3410,6 +3420,27 @@ class HamobileBanhang {
         }
         return score;
     }
+    /** IMEI dưới mã SP trong danh sách bán hàng (xem trước tối đa 2 số). */
+    buildPosImeiLineForProductList(p) {
+        const imeis = Array.isArray(p && p.imeis) ? (p.imeis || []).map(x => String(x || '').trim()).filter(Boolean) : [];
+        if (!imeis.length) return '';
+        const slice = imeis.slice(0, 2);
+        const preview = slice.map(s => escapeHtml(s)).join(', ');
+        const more = imeis.length > 2 ? ' +' + (imeis.length - 2) : '';
+        const title = escapeHtml(imeis.join(', '));
+        return `<div class="pos-product-imei" style="font-size:11px;color:#7f1d1d;font-weight:600;margin-top:3px;line-height:1.35;word-break:break-all;" title="${title}">IMEI: ${preview}${escapeHtml(more)}</div>`;
+    }
+    /** IMEI trong giỏ / hóa đơn: hiển thị theo số lượng dự kiến bán (FIFO). */
+    buildPosImeiLineForCartItem(p, quantity) {
+        const imeis = Array.isArray(p && p.imeis) ? (p.imeis || []).map(x => String(x || '').trim()).filter(Boolean) : [];
+        if (!imeis.length) return '';
+        const q = Math.max(1, quantity || 1);
+        const n = Math.min(q, imeis.length, 4);
+        const parts = imeis.slice(0, n).map(x => escapeHtml(x)).filter(Boolean);
+        if (!parts.length) return '';
+        const hidden = imeis.length > n ? `<span style="font-weight:600;color:#92400e"> (+${imeis.length - n})</span>` : '';
+        return `<div class="pos-cart-imei" style="font-size:11px;color:#7f1d1d;font-weight:600;margin-top:2px;line-height:1.35;word-break:break-all;">IMEI: ${parts.join(', ')}${hidden}</div>`;
+    }
     searchPOSProducts(query) {
         const term = (query || '').trim().toLowerCase();
         const listEl = document.getElementById('pos-product-list');
@@ -3430,7 +3461,7 @@ class HamobileBanhang {
             const inCart = this.posCart.items.find(x => x.productId === p.id);
             const qty = inCart ? (inCart.quantity || 1) : 0;
             const stepper = canSell ? `<div class="pos-product-stepper"><button type="button" class="pos-stepper-btn" onclick="event.stopPropagation(); app.decreasePOSProduct('${p.id}')">−</button><span class="pos-stepper-qty">${qty}</span><button type="button" class="pos-stepper-btn" onclick="event.stopPropagation(); app.addProductToPOS('${p.id}')">+</button></div>` : '';
-            return `<div class="pos-product-card" data-product-id="${p.id}" onclick="${canSell && !qty ? `app.addProductToPOS('${p.id}')` : ''}" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 12px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};" onmouseover="if(${canSell}) this.style.borderColor='#059669'; this.style.background='#ecfdf5';" onmouseout="if(${canSell}) this.style.borderColor='#e5e7eb'; this.style.background='white';"><div class="pos-product-thumb" style="width: 52px; height: 52px; background: linear-gradient(135deg,#e0f2fe 0%,#bae6fd 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">📦</div><div class="pos-product-info" style="flex: 1; min-width: 0;"><div class="pos-product-name">${(p.name||'').replace(/</g,'&lt;')}</div><div class="pos-product-meta">${(p.id||'')} • Tồn: ${stock}</div><div class="pos-product-price">${(p.price||0).toLocaleString('vi-VN')}</div></div>${stepper}</div>`;
+            return `<div class="pos-product-card" data-product-id="${p.id}" onclick="${canSell && !qty ? `app.addProductToPOS('${p.id}')` : ''}" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 12px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};" onmouseover="if(${canSell}) this.style.borderColor='#059669'; this.style.background='#ecfdf5';" onmouseout="if(${canSell}) this.style.borderColor='#e5e7eb'; this.style.background='white';"><div class="pos-product-thumb" style="width: 52px; height: 52px; background: linear-gradient(135deg,#e0f2fe 0%,#bae6fd 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">📦</div><div class="pos-product-info" style="flex: 1; min-width: 0;"><div class="pos-product-name">${(p.name||'').replace(/</g,'&lt;')}</div><div class="pos-product-meta" style="font-size:12px;color:#6b7280;">${(p.id||'').replace(/</g,'&lt;')} • Tồn: ${stock}</div>${this.buildPosImeiLineForProductList(p)}<div class="pos-product-price">${(p.price||0).toLocaleString('vi-VN')}</div></div>${stepper}</div>`;
         }).join('');
         listEl.innerHTML = html;
     }
@@ -3495,8 +3526,9 @@ class HamobileBanhang {
             const qty = inCart ? (inCart.quantity || 1) : 0;
             return `<div class="pos-product-card pos-mobile-step1-card" data-product-id="${p.id}" onclick="${canSell ? `app.addProductToPOS('${p.id}')` : ''}" style="display: block; padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 10px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};">
                 <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.4; margin-bottom: 4px;">${(p.name||'').replace(/</g,'&lt;')}</div>
-                <div style="font-size: 12px; color: #6b7280; line-height: 1.4; margin-bottom: 4px;">${(p.id||'')}${qty ? ' • ' + qty + ' KH đặt: 0' : ''}</div>
-                <div style="font-weight: 600; font-size: 15px; color: #059669;">${(p.price||0).toLocaleString('vi-VN')}</div>
+                <div style="font-size: 12px; color: #6b7280; line-height: 1.4; margin-bottom: 2px;">${(p.id||'').replace(/</g,'&lt;')}${qty ? ' • ' + qty + ' KH đặt: 0' : ''}</div>
+                ${this.buildPosImeiLineForProductList(p)}
+                <div style="font-weight: 600; font-size: 15px; color: #059669; margin-top: 4px;">${(p.price||0).toLocaleString('vi-VN')}</div>
             </div>`;
         }).join('');
     }
@@ -3530,7 +3562,7 @@ class HamobileBanhang {
         resultsEl.innerHTML = products.map(p => {
             const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
             const canSell = stock > 0;
-            return `<div class="pos-step2-search-item" onclick="${canSell ? `app.addProductFromStep2Search('${p.id}')` : ''}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f3f4f6; cursor: ${canSell ? 'pointer' : 'not-allowed'}; background: ${canSell ? 'white' : '#f9fafb'};" onmouseover="if(${canSell}) this.style.background='#ecfdf5'" onmouseout="this.style.background='${canSell ? 'white' : '#f9fafb'}'"><div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 13px; line-height: 1.4;">${(p.name||'').replace(/</g,'&lt;')}</div><div style="font-size: 11px; color: #6b7280; line-height: 1.4; margin-top: 2px;">${(p.id||'')} • ${stock} tồn</div></div><div style="font-weight: 600; color: #059669; flex-shrink: 0;">${(p.price||0).toLocaleString('vi-VN')}</div></div>`;
+            return `<div class="pos-step2-search-item" onclick="${canSell ? `app.addProductFromStep2Search('${p.id}')` : ''}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f3f4f6; cursor: ${canSell ? 'pointer' : 'not-allowed'}; background: ${canSell ? 'white' : '#f9fafb'};" onmouseover="if(${canSell}) this.style.background='#ecfdf5'" onmouseout="this.style.background='${canSell ? 'white' : '#f9fafb'}'"><div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 13px; line-height: 1.4;">${(p.name||'').replace(/</g,'&lt;')}</div><div style="font-size: 11px; color: #6b7280; line-height: 1.4; margin-top: 2px;">${(p.id||'').replace(/</g,'&lt;')} • ${stock} tồn</div>${this.buildPosImeiLineForProductList(p)}</div><div style="font-weight: 600; color: #059669; flex-shrink: 0;">${(p.price||0).toLocaleString('vi-VN')}</div></div>`;
         }).join('');
     }
     addProductFromStep2Search(productId) {
@@ -3552,6 +3584,7 @@ class HamobileBanhang {
         const sellPrice = Math.max(0, rawTotal - itemDisc);
         const dt = item.discountType || 'vnd';
         const discVal = dt === 'percent' && rawTotal > 0 ? Math.round((itemDisc / rawTotal) * 100) : itemDisc;
+        const imeiDetailLine = this.buildPosImeiLineForCartItem(p, item.quantity || 1);
         const modal = document.createElement('div');
         modal.id = 'pos-product-detail-modal';
         modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;';
@@ -3562,7 +3595,8 @@ class HamobileBanhang {
         inner.innerHTML = `
             <div style="margin-bottom: 20px;">
                 <div style="font-weight: 700; font-size: 16px; line-height: 1.4;">${(item.name||'').replace(/</g,'&lt;')}</div>
-                <div style="font-size: 12px; color: #6b7280; line-height: 1.4; margin-top: 4px;">${item.productId || ''} • 1 KH đặt: 0</div>
+                <div style="font-size: 12px; color: #6b7280; line-height: 1.4; margin-top: 4px;">${(item.productId || '').replace(/</g,'&lt;')} • 1 KH đặt: 0</div>
+                ${imeiDetailLine}
                 ${priceDisplayModal}
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">

@@ -45,6 +45,17 @@ async function resolveShopSlugFromSession(request: Request) {
   return resolveUserShopSlugWithHeal(decoded.uid);
 }
 
+/** Chỉ dùng khi chưa có session/cookie — lấy ?shop= từ trang embed (Referer). */
+function shopSlugFromLegacyReferer(request: Request) {
+  const ref = request.headers.get("referer") || "";
+  try {
+    const u = new URL(ref);
+    return normalizeShopSlug(u.searchParams.get("shop") || "");
+  } catch {
+    return "";
+  }
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ path?: string[] }> },
@@ -61,12 +72,15 @@ export async function GET(
   if (fileName === "firebase-config.js") {
     const cookieShop = normalizeShopSlug(getCookieValue(request, SHOP_COOKIE_NAME));
     const sessionShop = await resolveShopSlugFromSession(request);
-    const fallbackShop = cookieShop || sessionShop;
-    const fallbackKey = fallbackShop ? `shop_${fallbackShop}` : DEFAULT_BACKUP_KEY;
-    const defaultConfigJs =
-      `;(function(){var c=window.FIREBASE_CONFIG||{};var seg=(location.pathname.split('/').filter(Boolean)[0]||'').toLowerCase().replace(/[^a-z0-9-]/g,'');var autoKey=(seg&&seg!=='legacy')?('shop_'+seg):'${fallbackKey}';window.FIREBASE_CONFIG={url:(c.url&&String(c.url).trim())?String(c.url).trim():'${DEFAULT_RTDB_URL}',key:(c.key&&String(c.key).trim())?String(c.key).trim():autoKey};})();`;
-    return new Response(defaultConfigJs, {
-      headers: { "content-type": "application/javascript; charset=utf-8" },
+    const refShop = shopSlugFromLegacyReferer(request);
+    const slug = sessionShop || cookieShop || refShop;
+    const key = slug ? `shop_${slug}` : DEFAULT_BACKUP_KEY;
+    const body = `window.FIREBASE_CONFIG=${JSON.stringify({ url: DEFAULT_RTDB_URL, key })};`;
+    return new Response(body, {
+      headers: {
+        "content-type": "application/javascript; charset=utf-8",
+        "cache-control": "no-store",
+      },
     });
   }
 
@@ -74,12 +88,15 @@ export async function GET(
   try {
     if (fileName === "index.html") {
       const raw = await readFile(absolutePath, "utf-8");
-      const shop = normalizeShopSlug(url.searchParams.get("shop") || "");
+      const urlShop = normalizeShopSlug(url.searchParams.get("shop") || "");
       const cookieShop = normalizeShopSlug(getCookieValue(request, SHOP_COOKIE_NAME));
       const sessionShop = await resolveShopSlugFromSession(request);
       const requestedKey = String(url.searchParams.get("key") || "").trim();
-      const inferredShop = shop || cookieShop || sessionShop;
-      const backupKey = requestedKey || (inferredShop ? `shop_${inferredShop}` : DEFAULT_BACKUP_KEY);
+      let backupKey = DEFAULT_BACKUP_KEY;
+      if (sessionShop) backupKey = `shop_${sessionShop}`;
+      else if (cookieShop) backupKey = `shop_${cookieShop}`;
+      else if (requestedKey) backupKey = requestedKey;
+      else if (urlShop) backupKey = `shop_${urlShop}`;
       const injectedConfig =
         `<script>window.FIREBASE_CONFIG = { url: '${DEFAULT_RTDB_URL}', key: '${backupKey}' };</script>`;
       let content = raw.replace(
