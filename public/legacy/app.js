@@ -465,13 +465,6 @@ class HamobileBanhang {
                     this._ready = true;
                     this.clearOldDataIfNeeded();
                     this.init();
-                    if (!localHadData && window._loadedFromCloud) {
-                        const isDemo = window.FirebaseStorage.isLikelyBundledDemoData(pick.data);
-                        const msg = isDemo
-                            ? 'Đã sẵn sàng làm việc. Dữ liệu đồng bộ theo tài khoản Hangho của bạn (máy chủ đã gắn đúng shop).'
-                            : '✅ Đã khôi phục từ đám mây. Dữ liệu an toàn khi đổi máy hoặc trình duyệt.';
-                        setTimeout(() => this.showNotification(msg, isDemo ? 'info' : 'success'), 800);
-                    }
                     return;
                 }
                 const cfgNow = window.FirebaseStorage.getConfig();
@@ -484,7 +477,6 @@ class HamobileBanhang {
                     this._ready = true;
                     this.clearOldDataIfNeeded();
                     this.init();
-                    setTimeout(() => this.showNotification('✅ Đã đồng bộ dữ liệu từ đám mây (bản không phải mẫu mặc định).', 'success'), 700);
                     return;
                 }
                 this._pendingCloudLoaded = loaded;
@@ -526,9 +518,6 @@ class HamobileBanhang {
                     this._ready = true;
                     this.clearOldDataIfNeeded();
                     this.init();
-                    if (!localHadData && window._loadedFromCloud) {
-                        setTimeout(() => this.showNotification('✅ Đã khôi phục dữ liệu thành công.', 'success'), 800);
-                    }
                     return;
                 }
             }
@@ -541,9 +530,6 @@ class HamobileBanhang {
                 this._ready = true;
                 this.clearOldDataIfNeeded();
                 this.init();
-                if (!localHadData && window._loadedFromCloud) {
-                    setTimeout(() => this.showNotification('✅ Đã khôi phục dữ liệu thành công.', 'success'), 800);
-                }
                 return;
             }
             if (window.FirebaseStorage.usesCloudProxyApi()) {
@@ -557,9 +543,6 @@ class HamobileBanhang {
                     this._ready = true;
                     this.clearOldDataIfNeeded();
                     this.init();
-                    if (!localHadData && window._loadedFromCloud) {
-                        setTimeout(() => this.showNotification('✅ Đã khôi phục dữ liệu thành công.', 'success'), 800);
-                    }
                     return;
                 }
             }
@@ -625,9 +608,6 @@ class HamobileBanhang {
         this._ready = true;
         this.clearOldDataIfNeeded();
         this.init();
-        if (!localHadData && window._loadedFromCloud) {
-            setTimeout(() => this.showNotification('✅ Đã khôi phục dữ liệu thành công.', 'success'), 800);
-        }
     }
 
     continueWithLoadedDemoCloudData() {
