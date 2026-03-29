@@ -7,26 +7,54 @@ export function normalizeShopSlug(value: string) {
     .replace(/[^a-z0-9-]/g, "");
 }
 
-/**
- * Đọc shopSlug cho uid. Nếu users/{uid}/shopSlug trống nhưng shops có ownerUid khớp,
- * ghi lại users/{uid}/shopSlug để lần sau không bị 403 / mapping lệch.
- */
-export async function resolveUserShopSlugWithHeal(uid: string): Promise<string> {
-  const userRef = adminDb().ref(`users/${uid}/shopSlug`);
-  const rawDirect = String((await userRef.get()).val() || "").trim();
-  const direct = normalizeShopSlug(rawDirect);
-  if (direct) return direct;
+export type UserShopContext = {
+  shopSlug: string;
+  /** true/false nếu đã set; null = bản ghi cũ chưa có field */
+  registrationTrial: boolean | null;
+  trialExpiresAt: number | null;
+};
 
-  const shopsSnap = await adminDb().ref("shops").get();
-  const shops = (shopsSnap.val() || {}) as Record<string, { ownerUid?: string; slug?: string }>;
-  for (const [slug, value] of Object.entries(shops)) {
-    if (String(value?.ownerUid || "").trim() === uid) {
-      const found = normalizeShopSlug(String(value?.slug || slug));
-      if (found) {
-        await userRef.set(found).catch(() => {});
+/**
+ * Đọc users/{uid} + shopSlug (heal từ shops/ hoặc trialShops/ nếu thiếu).
+ */
+export async function resolveUserShopContext(uid: string): Promise<UserShopContext> {
+  const snap = await adminDb().ref(`users/${uid}`).get();
+  const v = (snap.val() || {}) as Record<string, unknown>;
+  let slug = normalizeShopSlug(String(v.shopSlug || ""));
+
+  const rt = v.registrationTrial;
+  let registrationTrial: boolean | null = null;
+  if (rt === true || rt === "true") registrationTrial = true;
+  else if (rt === false || rt === "false") registrationTrial = false;
+
+  const te = v.trialExpiresAt;
+  const n = typeof te === "number" ? te : Number(te);
+  const trialExpiresAt = Number.isFinite(n) && n > 0 ? n : null;
+
+  async function healSlugFromTable(table: "shops" | "trialShops") {
+    const tableSnap = await adminDb().ref(table).get();
+    const rows = (tableSnap.val() || {}) as Record<string, { ownerUid?: string; slug?: string }>;
+    for (const [key, value] of Object.entries(rows)) {
+      if (String(value?.ownerUid || "").trim() === uid) {
+        const found = normalizeShopSlug(String(value?.slug || key));
+        if (found) {
+          await adminDb().ref(`users/${uid}/shopSlug`).set(found).catch(() => {});
+        }
+        return found;
       }
-      return found;
     }
+    return "";
   }
-  return "";
+
+  if (!slug) {
+    slug = await healSlugFromTable("shops");
+    if (!slug) slug = await healSlugFromTable("trialShops");
+  }
+
+  return { shopSlug: slug, registrationTrial, trialExpiresAt };
+}
+
+export async function resolveUserShopSlugWithHeal(uid: string): Promise<string> {
+  const ctx = await resolveUserShopContext(uid);
+  return ctx.shopSlug;
 }

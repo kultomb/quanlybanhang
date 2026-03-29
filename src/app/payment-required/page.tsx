@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { forceLogoutMissingShop, hasValidShopSlug } from "@/lib/client-auth";
+import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
 
 const BANK_BIN = process.env.NEXT_PUBLIC_BANK_BIN || "970422";
 const BANK_ACCOUNT = process.env.NEXT_PUBLIC_BANK_ACCOUNT || "0000000000";
@@ -20,6 +21,7 @@ function PaymentRequiredContent() {
   const searchParams = useSearchParams();
   const initialShop = String(searchParams.get("shop") || "");
   const [shop, setShop] = useState(initialShop);
+  const [isUpgradePay, setIsUpgradePay] = useState(false);
   const [paymentRef, setPaymentRef] = useState("");
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState("");
@@ -39,9 +41,18 @@ function PaymentRequiredContent() {
       shopSlug?: string;
       paymentStatus?: string;
       paymentRef?: string;
+      registrationTrial?: unknown;
+      upgradeTargetSlug?: string;
     };
     const resolvedShop = String(profile.shopSlug || "");
+    const upgradeTarget = String(profile.upgradeTargetSlug || "").trim();
     const paid = profile.paymentStatus === "active";
+    const reg =
+      profile.registrationTrial === true || profile.registrationTrial === "true"
+        ? true
+        : profile.registrationTrial === false || profile.registrationTrial === "false"
+          ? false
+          : null;
     if (!hasValidShopSlug(resolvedShop)) {
       if (!forcingLogout) {
         setForcingLogout(true);
@@ -49,7 +60,13 @@ function PaymentRequiredContent() {
       }
       return false;
     }
-    if (resolvedShop) setShop(resolvedShop);
+    if (upgradeTarget) {
+      setIsUpgradePay(true);
+      setShop(`${resolvedShop || shop} → ${upgradeTarget}`);
+    } else {
+      setIsUpgradePay(false);
+      if (resolvedShop) setShop(resolvedShop);
+    }
     setPaymentRef(String(profile.paymentRef || ""));
     if (!resolvedShop && !shop) {
       setMessage(
@@ -57,7 +74,21 @@ function PaymentRequiredContent() {
       );
     }
     if (paid) {
-      router.replace(resolvedShop || shop ? `/${resolvedShop || shop}` : "/account");
+      const slug = String(resolvedShop || "").trim();
+      if (!slug) return false;
+      const u = auth.currentUser;
+      if (u) {
+        const token = await u.getIdToken();
+        await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ idToken: token, shopSlug: slug }),
+        }).catch(() => undefined);
+      }
+      syncTrialUiSessionFlag({ shopSlug: slug, registrationTrial: reg });
+      const path =
+        isEffectiveTrialAccount(reg, slug) ? `/${slug}?trial=1` : `/${slug}`;
+      router.replace(path);
       return true;
     }
     return false;
@@ -162,10 +193,19 @@ function PaymentRequiredContent() {
         }}
       >
         <h1 style={{ margin: 0, color: "#065f46", fontSize: 24, textAlign: "center" }}>
-          Kích hoạt tài khoản
+          {isUpgradePay ? "Thanh toán nâng cấp tài khoản" : "Kích hoạt tài khoản"}
         </h1>
         <p style={{ margin: 0, color: "#475569", textAlign: "center", fontSize: 14 }}>
-          Hoàn tất chuyển khoản để mở khóa gian hàng: <strong>{shop || "-"}</strong>
+          {isUpgradePay ? (
+            <>
+              Chuyển khoản để chuyển dữ liệu sang shop chính thức (cùng tài khoản đăng nhập):{" "}
+              <strong>{shop || "-"}</strong>
+            </>
+          ) : (
+            <>
+              Hoàn tất chuyển khoản để mở khóa gian hàng: <strong>{shop || "-"}</strong>
+            </>
+          )}
         </p>
 
         <div style={{ textAlign: "center", fontSize: 14, color: "#0f172a" }}>

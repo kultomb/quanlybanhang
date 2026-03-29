@@ -1,3 +1,5 @@
+import { migrateTrialShopToProduction } from "@/lib/backend/trialUpgrade";
+import { normalizeShopSlug } from "@/lib/backend/userShopSlug";
 import { adminDb } from "@/lib/backend/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,6 +68,42 @@ function webhookSecretOk(request: Request) {
   return false;
 }
 
+type UserPayRow = { paymentRef?: string; shopSlug?: string };
+
+function findPaymentMatch(
+  users: Record<string, UserPayRow> | null,
+  paymentCode: string,
+  paymentCodeCompact: string,
+  transferContent: string,
+  transferContentCompact: string,
+  amount: number,
+  required: number,
+): { uid: string; matchedRef: string } | null {
+  if (!users) return null;
+  let matchedUid = "";
+  let matchedRef = "";
+  Object.entries(users).some(([uid, value]) => {
+    const payRef = normalizeText(value.paymentRef);
+    const payRefCompact = normalizeCompact(payRef);
+    if (!payRef) return false;
+    const matchedByCode = paymentCode ? paymentCode === payRef : false;
+    const matchedByCodeCompact = paymentCodeCompact
+      ? paymentCodeCompact === payRefCompact
+      : false;
+    const matchedByContent = transferContent.includes(payRef);
+    const matchedByContentCompact = payRefCompact
+      ? transferContentCompact.includes(payRefCompact)
+      : false;
+    if (!matchedByCode && !matchedByCodeCompact && !matchedByContent && !matchedByContentCompact)
+      return false;
+    if (amount < required) return false;
+    matchedUid = uid;
+    matchedRef = payRef;
+    return true;
+  });
+  return matchedUid ? { uid: matchedUid, matchedRef } : null;
+}
+
 export async function POST(request: Request) {
   try {
     if (!webhookSecretOk(request)) {
@@ -100,70 +138,108 @@ export async function POST(request: Request) {
       return Response.json({ success: true, duplicated: true });
     }
 
-    const pendingSnap = await db
+    const required = paymentAmountRequired();
+
+    const pendingSnap = await db.ref("users").orderByChild("paymentStatus").equalTo("pending").get();
+    const upgradeSnap = await db
       .ref("users")
       .orderByChild("paymentStatus")
-      .equalTo("pending")
+      .equalTo("pending_upgrade")
       .get();
 
-    if (!pendingSnap.exists()) {
+    let match = findPaymentMatch(
+      pendingSnap.exists() ? (pendingSnap.val() as Record<string, UserPayRow>) : null,
+      paymentCode,
+      paymentCodeCompact,
+      transferContent,
+      transferContentCompact,
+      amount,
+      required,
+    );
+    let isUpgrade = false;
+    if (!match) {
+      match = findPaymentMatch(
+        upgradeSnap.exists() ? (upgradeSnap.val() as Record<string, UserPayRow>) : null,
+        paymentCode,
+        paymentCodeCompact,
+        transferContent,
+        transferContentCompact,
+        amount,
+        required,
+      );
+      isUpgrade = !!match;
+    }
+
+    if (!match) {
+      const statusNote =
+        !pendingSnap.exists() && !upgradeSnap.exists() ? "no_pending_user" : "unmatched";
       await eventRef.set({
         receivedAt: Date.now(),
         amount,
         paymentCode,
         transferContent,
-        status: "no_pending_user",
+        status: statusNote,
       });
       return Response.json({ success: true, matched: false });
     }
 
-    const required = paymentAmountRequired();
-    const users = pendingSnap.val() as Record<string, { paymentRef?: string; shopSlug?: string }>;
-    let matchedUid = "";
-    let matchedRef = "";
-
-    Object.entries(users).some(([uid, value]) => {
-      const payRef = normalizeText(value.paymentRef);
-      const payRefCompact = normalizeCompact(payRef);
-      if (!payRef) return false;
-      const matchedByCode = paymentCode ? paymentCode === payRef : false;
-      const matchedByCodeCompact = paymentCodeCompact
-        ? paymentCodeCompact === payRefCompact
-        : false;
-      const matchedByContent = transferContent.includes(payRef);
-      const matchedByContentCompact = payRefCompact
-        ? transferContentCompact.includes(payRefCompact)
-        : false;
-      if (!matchedByCode && !matchedByCodeCompact && !matchedByContent && !matchedByContentCompact)
-        return false;
-      if (amount < required) return false;
-      matchedUid = uid;
-      matchedRef = payRef;
-      return true;
-    });
-
-    if (!matchedUid) {
-      await eventRef.set({
-        receivedAt: Date.now(),
-        amount,
-        paymentCode,
-        transferContent,
-        status: "unmatched",
-      });
-      return Response.json({ success: true, matched: false });
-    }
-
+    const { uid: matchedUid, matchedRef } = match;
     const userRef = db.ref(`users/${matchedUid}`);
-    await userRef.update({
-      paymentStatus: "active",
-      paymentPaidAt: Date.now(),
-      paymentTxnId: txnId,
-      paymentAmount: amount,
-    });
+
+    if (isUpgrade) {
+      const fullSnap = await userRef.get();
+      const profile = (fullSnap.val() || {}) as {
+        shopSlug?: string;
+        upgradeTargetSlug?: string;
+        email?: string;
+        paymentStatus?: string;
+      };
+      const upgradeTo = normalizeShopSlug(String(profile.upgradeTargetSlug || ""));
+      const fromSlug = normalizeShopSlug(String(profile.shopSlug || ""));
+      if (
+        profile.paymentStatus === "pending_upgrade" &&
+        upgradeTo &&
+        fromSlug &&
+        upgradeTo !== fromSlug
+      ) {
+        await migrateTrialShopToProduction(db, {
+          uid: matchedUid,
+          fromSlug,
+          toSlug: upgradeTo,
+          ownerEmail: String(profile.email || ""),
+        });
+        await userRef.update({
+          shopSlug: upgradeTo,
+          registrationTrial: false,
+          paymentStatus: "active",
+          paymentPaidAt: Date.now(),
+          paymentTxnId: txnId,
+          paymentAmount: amount,
+        });
+        await userRef.child("upgradeTargetSlug").remove();
+        await userRef.child("upgradeFromSlug").remove();
+        await userRef.child("trialExpiresAt").remove();
+      } else {
+        await userRef.update({
+          paymentStatus: "active",
+          paymentPaidAt: Date.now(),
+          paymentTxnId: txnId,
+          paymentAmount: amount,
+        });
+      }
+    } else {
+      await userRef.update({
+        paymentStatus: "active",
+        paymentPaidAt: Date.now(),
+        paymentTxnId: txnId,
+        paymentAmount: amount,
+      });
+    }
     await eventRef.set({
       receivedAt: Date.now(),
       uid: matchedUid,
       paymentRef: matchedRef,
+      upgrade: isUpgrade,
       amount,
       paymentCode,
       transferContent,

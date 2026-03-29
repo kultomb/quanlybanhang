@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import AccountBar from "@/components/AccountBar";
+import TrialModeBanner from "@/components/TrialModeBanner";
 
 type ShopLegacyFrameProps = {
   shop: string;
@@ -24,17 +25,24 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
   }, []);
 
   return (
-    <>
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
+      <TrialModeBanner shopSlug={shop} />
       <iframe
         src={src}
         title={`Legacy Sales App - ${shop}`}
         onLoad={onFrameLoad}
         style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
+          flex: 1,
+          minHeight: 0,
           width: "100%",
-          height: "100%",
           border: "none",
           display: "block",
         }}
@@ -42,6 +50,6 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
       {accountMount
         ? createPortal(<AccountBar shop={shop} docked />, accountMount)
         : null}
-    </>
+    </div>
   );
 }

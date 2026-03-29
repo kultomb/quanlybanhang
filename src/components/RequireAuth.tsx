@@ -5,7 +5,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { ReactNode, useEffect, useState } from "react";
 import { rtdb } from "@/lib/backend/client";
-import { forceLogoutMissingShop, hasValidShopSlug } from "@/lib/client-auth";
+import { forceLogoutMissingShop, hasValidShopSlug, paymentAllowsAppAccess } from "@/lib/client-auth";
+import { syncTrialUiSessionFlag } from "@/lib/trial-shop";
 
 function toPaymentRequiredPath(shopSlug?: string) {
   const shop = String(shopSlug || "").trim();
@@ -77,9 +78,19 @@ export default function RequireAuth({ children }: RequireAuthProps) {
       void (async () => {
         try {
           const profileSnap = await get(ref(rtdb, `users/${user.uid}`));
-          const profile = (profileSnap.val() || {}) as { shopSlug?: string; paymentStatus?: string };
+          const profile = (profileSnap.val() || {}) as {
+            shopSlug?: string;
+            paymentStatus?: string;
+            registrationTrial?: unknown;
+          };
           const shopSlug = String(profile.shopSlug || "");
           const paymentStatus = profile.paymentStatus === "active" ? "active" : "pending";
+          const reg =
+            profile.registrationTrial === true || profile.registrationTrial === "true"
+              ? true
+              : profile.registrationTrial === false || profile.registrationTrial === "false"
+                ? false
+                : null;
 
           if (!hasValidShopSlug(shopSlug)) {
             if (forcingLogout) return;
@@ -87,6 +98,8 @@ export default function RequireAuth({ children }: RequireAuthProps) {
             await forceLogoutMissingShop();
             return;
           }
+
+          syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
 
           if (paymentStatus !== "active") {
             const target = toPaymentRequiredPath(shopSlug);
@@ -127,16 +140,26 @@ export default function RequireAuth({ children }: RequireAuthProps) {
       void (async () => {
         try {
           const profileSnap = await get(ref(rtdb, `users/${user.uid}`));
-          const profile = (profileSnap.val() || {}) as { shopSlug?: string; paymentStatus?: string };
+          const profile = (profileSnap.val() || {}) as {
+            shopSlug?: string;
+            paymentStatus?: string;
+            registrationTrial?: unknown;
+          };
           const shopSlug = String(profile.shopSlug || "");
-          const paymentStatus = profile.paymentStatus === "active" ? "active" : "pending";
+          const reg =
+            profile.registrationTrial === true || profile.registrationTrial === "true"
+              ? true
+              : profile.registrationTrial === false || profile.registrationTrial === "false"
+                ? false
+                : null;
           if (!hasValidShopSlug(shopSlug)) {
             if (forcingLogout) return;
             forcingLogout = true;
             await forceLogoutMissingShop();
             return;
           }
-          if (paymentStatus !== "active") {
+          syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
+          if (!paymentAllowsAppAccess(profile.paymentStatus)) {
             window.location.href = toPaymentRequiredPath(shopSlug);
             return;
           }

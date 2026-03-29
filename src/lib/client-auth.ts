@@ -35,6 +35,12 @@ export function hasValidShopSlug(value?: string) {
   return Boolean(String(value || "").trim());
 }
 
+/** Cho phép vào POS: đã kích hoạt hoặc đang chờ CK nâng cấp từ trial (vẫn dùng shop thử). */
+export function paymentAllowsAppAccess(paymentStatus?: string) {
+  const s = String(paymentStatus || "").trim();
+  return s === "active" || s === "pending_upgrade";
+}
+
 export async function forceLogoutMissingShop(redirectUrl = LOGIN_REDIRECT) {
   try {
     await signOut(auth);

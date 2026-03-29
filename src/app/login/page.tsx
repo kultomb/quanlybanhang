@@ -8,7 +8,13 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { auth, rtdb } from "@/lib/backend/client";
-import { forceLogoutMissingShop, hasValidShopSlug } from "@/lib/client-auth";
+import { forceLogoutMissingShop, hasValidShopSlug, paymentAllowsAppAccess } from "@/lib/client-auth";
+import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
+
+function shopAppPath(slug: string, registrationTrial: boolean | null) {
+  const trial = isEffectiveTrialAccount(registrationTrial, slug);
+  return trial ? `/${slug}?trial=1` : `/${slug}`;
+}
 
 function toPaymentRequiredPath(shopSlug?: string) {
   const shop = String(shopSlug || "").trim();
@@ -61,12 +67,21 @@ function LoginContent() {
   async function resolveUserProfile(uid: string) {
     const snap = await get(ref(rtdb, `users/${uid}`));
     if (!snap.exists()) {
-      return { shopSlug: "", paymentStatus: "pending" as const };
+      return { shopSlug: "", paymentStatus: "pending" as const, registrationTrial: null as boolean | null };
     }
-    const value = (snap.val() || {}) as { shopSlug?: string; paymentStatus?: string };
+    const value = (snap.val() || {}) as {
+      shopSlug?: string;
+      paymentStatus?: string;
+      registrationTrial?: unknown;
+    };
+    const rt = value.registrationTrial;
+    const registrationTrial =
+      rt === true || rt === "true" ? true : rt === false || rt === "false" ? false : null;
+    const ps = String(value.paymentStatus || "").trim();
     return {
       shopSlug: String(value.shopSlug || ""),
-      paymentStatus: value.paymentStatus === "active" ? "active" : "pending",
+      paymentStatus: ps,
+      registrationTrial,
     };
   }
 
@@ -81,11 +96,15 @@ function LoginContent() {
         await forceLogoutMissingShop();
         return;
       }
-      if (profile.paymentStatus !== "active") {
+      syncTrialUiSessionFlag({
+        shopSlug: profile.shopSlug,
+        registrationTrial: profile.registrationTrial,
+      });
+      if (!paymentAllowsAppAccess(profile.paymentStatus)) {
         router.replace(toPaymentRequiredPath(profile.shopSlug));
         return;
       }
-      if (profile.shopSlug) router.replace(`/${profile.shopSlug}`);
+      if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
       else router.replace("/account");
     });
     return () => unsub();
@@ -117,11 +136,15 @@ function LoginContent() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ idToken, shopSlug: profile.shopSlug }),
       }).catch(() => undefined);
-      if (profile.paymentStatus !== "active") {
+      syncTrialUiSessionFlag({
+        shopSlug: profile.shopSlug,
+        registrationTrial: profile.registrationTrial,
+      });
+      if (!paymentAllowsAppAccess(profile.paymentStatus)) {
         router.replace(toPaymentRequiredPath(profile.shopSlug));
         return;
       }
-      if (profile.shopSlug) router.replace(`/${profile.shopSlug}`);
+      if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
       else router.replace("/account");
     } catch (err: unknown) {
       setError(getAuthErrorMessage(err));
@@ -177,7 +200,7 @@ function LoginContent() {
               boxShadow: "0 8px 18px rgba(37,99,235,0.12)",
             }}
           >
-            <div style={{ fontWeight: 800, marginBottom: 4 }}>Thong bao he thong</div>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>Thông báo hệ thống</div>
             <div>{notice}</div>
           </div>
         ) : null}
@@ -251,24 +274,34 @@ function LoginContent() {
           {loading ? "Đang đăng nhập..." : "Đăng nhập"}
         </button>
 
-        <div style={{ textAlign: "center", fontSize: 14, color: "#4b5563" }}>
-          Chưa có tài khoản?
-          {" "}
-          <Link
-            href="/register"
-            style={{
-              color: "#065f46",
-              fontWeight: 800,
-              textDecoration: "none",
-              background: "#ecfdf5",
-              border: "1px solid #a7f3d0",
-              borderRadius: 999,
-              padding: "4px 10px",
-              display: "inline-block",
-            }}
-          >
-            Đăng ký
-          </Link>
+        <div style={{ textAlign: "center", fontSize: 14, color: "#4b5563", display: "grid", gap: 10 }}>
+          <div>
+            Chưa có tài khoản?{" "}
+            <Link
+              href="/register"
+              style={{
+                color: "#065f46",
+                fontWeight: 800,
+                textDecoration: "none",
+                background: "#ecfdf5",
+                border: "1px solid #a7f3d0",
+                borderRadius: 999,
+                padding: "4px 10px",
+                display: "inline-block",
+              }}
+            >
+              Đăng ký
+            </Link>
+          </div>
+          <div>
+            <Link href="/" style={{ color: "#6b7280", fontSize: 13 }}>
+              ← Trang chủ
+            </Link>
+            {" · "}
+            <Link href="/trial" style={{ color: "#6b7280", fontSize: 13 }}>
+              Dùng thử
+            </Link>
+          </div>
         </div>
       </form>
     </main>

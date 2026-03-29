@@ -4,17 +4,20 @@
  * Mô hình dữ liệu (tương đương tinh thần “Auth riêng, data trên server”):
  * - Firebase Auth: đăng nhập; session cookie `ha_session_token` xác thực request tới đây.
  * - `users/{uid}`: hồ sơ tài khoản (shopSlug, paymentStatus, …) — không lưu toàn bộ products/orders tại đây.
- * - Dữ liệu nghiệp vụ shop: RTDB path `backups/shop_{shopSlug}/app.json` (một JSON lớn: customers, products, orders…).
+ * - Dữ liệu nghiệp vụ shop: RTDB `backups/shop_{slug}/…` (pro) hoặc `trial_backups/shop_{slug}/…` (dùng thử).
+ *   Client legacy vẫn gọi `/api/rtdb/backups/…`; server map trial → `trial_backups` theo hồ sơ user.
  * - Client legacy gửi URL có thể kèm key cũ; server luôn ép `segments[1] = shop_{slug}` theo `users/{uid}/shopSlug`
- *   (resolve + tự ghi lại nếu chỉ tìm thấy qua `shops/`) để không đọc/ghi nhầm kho.
- * - 403 `missing_shop_slug`: JSON `{ error, message }` khi hồ sơ user không có slug hợp lệ.
+ *   (resolve + tự ghi lại nếu chỉ tìm thấy qua `shops/` hoặc `trialShops/`) để không đọc/ghi nhầm kho.
+ * - 403 JSON: `missing_shop_slug`, `trial_slug_mismatch`, `production_trial_prefix_forbidden`, `trial_expired`.
  *
  * Khác ví dụ Firestore (doc users/{uid} với field products[]): đây là RTDB + một file JSON backup; hành vi đúng
  * vẫn là: chỉ seed demo khi cloud thật sự trống và user xác nhận (xem initAsync trong app.js).
  */
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/backend/server";
-import { resolveUserShopSlugWithHeal } from "@/lib/backend/userShopSlug";
+import { liftLegacyTrialBackupToTrialBackups } from "@/lib/backend/trialUpgrade";
+import { resolveUserShopContext, type UserShopContext } from "@/lib/backend/userShopSlug";
+import { getTrialShopPrefix, isEffectiveTrialAccount } from "@/lib/trial-shop";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -34,6 +37,52 @@ function toShallowObject(value: unknown) {
     acc[key] = true;
     return acc;
   }, {});
+}
+
+function jsonError(status: number, error: string, message: string) {
+  return new Response(JSON.stringify({ error, message }), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+/**
+ * Chặn cross-mode: trial ↔ slug có tiền tố; hết hạn trial.
+ * Dùng isEffectiveTrialAccount (cờ true/false ưu tiên, chưa set thì suy từ slug).
+ */
+function assertTrialProductionRtdbAccess(ctx: UserShopContext): Response | null {
+  const { shopSlug, registrationTrial, trialExpiresAt } = ctx;
+  if (!shopSlug) return null;
+
+  const p = getTrialShopPrefix();
+  const slugLooksTrial = shopSlug.startsWith(`${p}-`);
+  const isTrial = isEffectiveTrialAccount(registrationTrial, shopSlug, p);
+
+  if (isTrial && !slugLooksTrial) {
+    return jsonError(
+      403,
+      "trial_slug_mismatch",
+      `Tài khoản dùng thử cần shopSlug có tiền tố "${p}-". Sửa users/{uid}/shopSlug hoặc registrationTrial.`,
+    );
+  }
+  if (!isTrial && slugLooksTrial) {
+    return jsonError(
+      403,
+      "production_trial_prefix_forbidden",
+      `Shop chính thức không được dùng tiền tố "${p}-". Đổi shopSlug hoặc registrationTrial: false.`,
+    );
+  }
+  if (isTrial && trialExpiresAt != null && Date.now() > trialExpiresAt) {
+    return jsonError(
+      403,
+      "trial_expired",
+      "Thời hạn dùng thử đã hết. Gia hạn trên hồ sơ hoặc nâng cấp tài khoản.",
+    );
+  }
+  return null;
 }
 
 async function proxy(
@@ -60,8 +109,11 @@ async function proxy(
   if (segments.length < 2 || segments[0] !== "backups") {
     return new Response("Forbidden path", { status: 403 });
   }
-  const requestedShopKey = segments[1];
-  const userShopSlug = await resolveUserShopSlugWithHeal(decoded.uid);
+  const userCtx = await resolveUserShopContext(decoded.uid);
+  const trialBlock = assertTrialProductionRtdbAccess(userCtx);
+  if (trialBlock) return trialBlock;
+
+  const userShopSlug = userCtx.shopSlug;
   const allowedShopKey = userShopSlug ? `shop_${userShopSlug}` : "";
   if (!allowedShopKey) {
     return new Response(
@@ -82,8 +134,16 @@ async function proxy(
 
   // Force per-user storage namespace even if old client sends stale keys like "12345".
   segments[1] = allowedShopKey;
+  const pfx = getTrialShopPrefix();
+  const trialUser = isEffectiveTrialAccount(userCtx.registrationTrial, userShopSlug, pfx);
+  // Trial → trial_backups; pro → backups (URL client luôn backups/…)
+  segments[0] = trialUser ? "trial_backups" : "backups";
   const targetPath = segments.join("/");
-  const dbRef = adminDb().ref(targetPath);
+  const db = adminDb();
+  if (trialUser) {
+    await liftLegacyTrialBackupToTrialBackups(db, allowedShopKey);
+  }
+  const dbRef = db.ref(targetPath);
   const method = request.method.toUpperCase();
   if (method === "GET") {
     const snap = await dbRef.get();
