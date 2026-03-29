@@ -11,6 +11,7 @@ import {
   paymentAllowsAppAccess,
   postSessionCookieWithRetries,
 } from "@/lib/client-auth";
+import { PRESENCE_HEARTBEAT_MS } from "@/lib/presence-config";
 import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
 
 function toPaymentRequiredPath(shopSlug?: string) {
@@ -214,6 +215,16 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
       unsub?.();
     };
   }, [pathShopFromUrl, bridgeRetryNonce]);
+
+  useEffect(() => {
+    if (!ready || !authed || sessionBridgeFailed) return;
+    const ping = () => {
+      void fetch("/api/auth/presence", { method: "POST", credentials: "include" });
+    };
+    ping();
+    const id = window.setInterval(ping, PRESENCE_HEARTBEAT_MS);
+    return () => window.clearInterval(id);
+  }, [ready, authed, sessionBridgeFailed]);
 
   if (!ready) {
     return (
