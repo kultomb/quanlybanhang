@@ -138,7 +138,26 @@ window.FirebaseStorage = {
         try {
             const legacyApi = this._api('data.json');
             const legRes = await fetch(legacyApi, { credentials: 'include' });
-            if (!legRes.ok) return this._logLoadTrace(null, 'legacy_http_fail');
+            if (!legRes.ok) {
+                let detail = legRes.statusText || '';
+                try {
+                    const t = await legRes.text();
+                    if (t) {
+                        try {
+                            const j = JSON.parse(t);
+                            if (j && typeof j.message === 'string' && j.message.trim()) detail = j.message.trim();
+                        } catch (_) {
+                            if (t.length < 420) detail = t;
+                        }
+                    }
+                } catch (_) {}
+                if (!window._lastFirebaseError) {
+                    window._lastFirebaseError = legRes.status === 403
+                        ? 'Không truy cập được kho dữ liệu (403, data.json). ' + (detail || 'Kiểm tra users/{uid}/shopSlug và đăng nhập lại (tab thường, cookie).')
+                        : 'Không thể kết nối dữ liệu đám mây (' + legRes.status + ', data.json). ' + (detail || 'Vui lòng thử lại.');
+                }
+                return this._logLoadTrace(null, 'legacy_http_fail');
+            }
             const legJson = await legRes.json();
             if (legJson && legJson.customers && legJson.products) {
                 this._cache.data = legJson;
