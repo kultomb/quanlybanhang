@@ -14,6 +14,39 @@ function backupKeyHintForUi(cfg) {
     if (k.length <= 12) return '••••' + k.slice(-3);
     return k.slice(0, 4) + '…' + k.slice(-4);
 }
+/** Fallback khi parent.__hanghoGetIdToken chưa sẵn sàng hoặc Edge chặn gọi trực tiếp — postMessage cùng origin. */
+async function haRequestIdTokenFromParentViaPostMessage() {
+    return new Promise(function(resolve) {
+        if (typeof window === 'undefined' || window.parent === window) {
+            resolve(null);
+            return;
+        }
+        var id = 'ha_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
+        var done = false;
+        var to = setTimeout(function() { finish(null); }, 4500);
+        function finish(v) {
+            if (done) return;
+            done = true;
+            clearTimeout(to);
+            try { window.removeEventListener('message', onMsg); } catch (_) {}
+            resolve(v || null);
+        }
+        function onMsg(e) {
+            try {
+                if (!e || e.source !== window.parent) return;
+                var d = e.data;
+                if (!d || d.type !== 'HANGHO_ID_TOKEN' || d.requestId !== id) return;
+                finish(d.token);
+            } catch (_) {}
+        }
+        window.addEventListener('message', onMsg);
+        try {
+            window.parent.postMessage({ type: 'HANGHO_GET_ID_TOKEN', requestId: id }, window.location.origin);
+        } catch (err) {
+            finish(null);
+        }
+    });
+}
 window.FirebaseStorage = {
     _cache: { data: null, company: {}, meta: {} },
     _config: null,
@@ -64,15 +97,19 @@ window.FirebaseStorage = {
         const init = Object.assign({ credentials: 'include' }, extra || {});
         if (!this.usesCloudProxyApi()) return init;
         const headers = Object.assign({}, init.headers || {});
+        var tok = null;
         try {
             var p = window.parent;
             if (p && p !== window && typeof p.__hanghoGetIdToken === 'function') {
-                var tok = await p.__hanghoGetIdToken();
-                if (tok && typeof tok === 'string' && tok.length > 20) {
-                    headers['Authorization'] = 'Bearer ' + tok;
-                }
+                tok = await p.__hanghoGetIdToken();
             }
         } catch (e) {}
+        if (!tok || typeof tok !== 'string' || tok.length < 20) {
+            tok = await haRequestIdTokenFromParentViaPostMessage();
+        }
+        if (tok && typeof tok === 'string' && tok.length > 20) {
+            headers['Authorization'] = 'Bearer ' + tok;
+        }
         init.headers = headers;
         return init;
     },

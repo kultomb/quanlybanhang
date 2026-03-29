@@ -1,6 +1,5 @@
 "use client";
 
-import HanghoLegacyAuthBridge from "@/components/HanghoLegacyAuthBridge";
 import RequireAuth from "@/components/RequireAuth";
 import ShopLegacyFrame from "@/components/ShopLegacyFrame";
 
@@ -18,7 +17,6 @@ export default function ShopPosClient({ pathShopFromUrl }: { pathShopFromUrl: st
             overflow: "hidden",
           }}
         >
-          <HanghoLegacyAuthBridge />
           <ShopLegacyFrame shop={shopSlug} />
         </main>
       )}
