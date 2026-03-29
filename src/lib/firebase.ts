@@ -2,18 +2,53 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-};
+function trimEnv(v: string | undefined) {
+  return typeof v === "string" ? v.trim() : "";
+}
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+/**
+ * Bắt buộc dùng `process.env.NEXT_PUBLIC_*` trực tiếp (không `process.env[name]`).
+ * Next/Webpack chỉ thay thế tĩnh các literal đó vào bundle trình duyệt; truy cập động → luôn rỗng → auth/invalid-api-key hoặc báo thiếu env.
+ */
+function readFirebaseWebConfig() {
+  const apiKey = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  const authDomain = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN);
+  const databaseURL = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL);
+  const projectId = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+  const storageBucket = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+  const messagingSenderId = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID);
+  const appId = trimEnv(process.env.NEXT_PUBLIC_FIREBASE_APP_ID);
+  const missing: string[] = [];
+  if (!apiKey) missing.push("NEXT_PUBLIC_FIREBASE_API_KEY");
+  if (!authDomain) missing.push("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
+  if (!databaseURL) missing.push("NEXT_PUBLIC_FIREBASE_DATABASE_URL");
+  if (!projectId) missing.push("NEXT_PUBLIC_FIREBASE_PROJECT_ID");
+  if (!storageBucket) missing.push("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET");
+  if (!messagingSenderId) missing.push("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID");
+  if (!appId) missing.push("NEXT_PUBLIC_FIREBASE_APP_ID");
+  if (missing.length > 0) {
+    throw new Error(
+      `[Hangho] Thiếu biến môi trường Firebase: ${missing.join(", ")}. ` +
+        "Tạo .env.local ở thư mục gốc, điền đủ NEXT_PUBLIC_FIREBASE_* (Firebase Console → Project settings → Web app). " +
+        "Sau đó dừng dev server, xóa thư mục .next nếu cần, rồi chạy lại npm run dev.",
+    );
+  }
+  const measurementRaw = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
+  const measurementId =
+    typeof measurementRaw === "string" && measurementRaw.trim() ? measurementRaw.trim() : undefined;
+  return {
+    apiKey,
+    authDomain,
+    databaseURL,
+    projectId,
+    storageBucket,
+    messagingSenderId,
+    appId,
+    ...(measurementId ? { measurementId } : {}),
+  };
+}
+
+const app = getApps().length ? getApp() : initializeApp(readFirebaseWebConfig());
 
 // Analytics is browser-only; keep login flow simple for now.
 if (typeof window !== "undefined") {

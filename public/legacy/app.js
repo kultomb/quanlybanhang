@@ -15,25 +15,7 @@ function haLegacyDebugLog(tag, payload) {
         console.log('[HaLegacy]', tag, payload);
     } catch (_) {}
 }
-function normalizeHostedShopSlugQuery(value) {
-    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
-}
-function hostedCloudKeyMatchesShopQuery(cfg) {
-    if (!cfg || !cfg.key || !window.FirebaseStorage.usesCloudProxyApi()) return false;
-    try {
-        let shop = normalizeHostedShopSlugQuery(new URL(window.location.href).searchParams.get('shop') || '');
-        if (!shop && typeof document !== 'undefined' && document.cookie) {
-            const m = document.cookie.match(/(?:^|;\s*)ha_shop_slug=([^;]*)/);
-            if (m) shop = normalizeHostedShopSlugQuery(decodeURIComponent(m[1] || ''));
-        }
-        if (!shop) return false;
-        return String(cfg.key).trim().toLowerCase() === 'shop_' + shop;
-    } catch (_) { return false; }
-}
 function backupKeyHintForUi(cfg) {
-    if (window.FirebaseStorage.usesCloudProxyApi()) {
-        return 'Kho dữ liệu đang theo shop trên địa chỉ này (không hiển thị mã nội bộ để bảo vệ dữ liệu).';
-    }
     const k = String((cfg && cfg.key) || '').trim();
     if (!k) return '(chưa có)';
     if (k.length <= 12) return '••••' + k.slice(-3);
@@ -462,21 +444,7 @@ class HamobileBanhang {
         if (loaded && loaded.data && loaded.data.customers && loaded.data.products) {
             const maybeDefaultDemo = window.FirebaseStorage.isLikelyBundledDemoData(loaded.data);
             if (maybeDefaultDemo && !localHadData) {
-                const cfgNow = window.FirebaseStorage.getConfig();
-                const recovered = await this.tryRecoverCloudDataByAlternateKeys(cfgNow);
-                if (recovered && recovered.loaded && recovered.loaded.data) {
-                    this.demoData = recovered.loaded.data;
-                    window.companyAssets.logo = recovered.loaded.company?.logo || null;
-                    window.companyAssets.qr = recovered.loaded.company?.qrCode || recovered.loaded.company?.qr || null;
-                    this.migrateProductData();
-                    this._ready = true;
-                    this.clearOldDataIfNeeded();
-                    this.init();
-                    setTimeout(() => this.showNotification('✅ Đã đồng bộ dữ liệu từ đám mây (bản không phải mẫu mặc định).', 'success'), 700);
-                    return;
-                }
-                const cfgAligned = window.FirebaseStorage.getConfig();
-                if (window.FirebaseStorage.usesCloudProxyApi() && hostedCloudKeyMatchesShopQuery(cfgAligned)) {
+                if (window.FirebaseStorage.usesCloudProxyApi()) {
                     if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang đồng bộ dữ liệu shop...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
                     await new Promise(function(r) { setTimeout(r, 700); });
                     const reloadPkg = await window.FirebaseStorage.load();
@@ -491,10 +459,23 @@ class HamobileBanhang {
                     if (!localHadData && window._loadedFromCloud) {
                         const isDemo = window.FirebaseStorage.isLikelyBundledDemoData(pick.data);
                         const msg = isDemo
-                            ? 'Đã sẵn sàng làm việc trên thiết bị này. Tài khoản Hangho của bạn vẫn gắn với đúng shop; chỉ vào Cài đặt nếu bạn chủ động dùng mã đồng bộ riêng.'
+                            ? 'Đã sẵn sàng làm việc. Dữ liệu đồng bộ theo tài khoản Hangho của bạn (máy chủ đã gắn đúng shop).'
                             : '✅ Đã khôi phục từ đám mây. Dữ liệu an toàn khi đổi máy hoặc trình duyệt.';
                         setTimeout(() => this.showNotification(msg, isDemo ? 'info' : 'success'), 800);
                     }
+                    return;
+                }
+                const cfgNow = window.FirebaseStorage.getConfig();
+                const recovered = await this.tryRecoverCloudDataByAlternateKeys(cfgNow);
+                if (recovered && recovered.loaded && recovered.loaded.data) {
+                    this.demoData = recovered.loaded.data;
+                    window.companyAssets.logo = recovered.loaded.company?.logo || null;
+                    window.companyAssets.qr = recovered.loaded.company?.qrCode || recovered.loaded.company?.qr || null;
+                    this.migrateProductData();
+                    this._ready = true;
+                    this.clearOldDataIfNeeded();
+                    this.init();
+                    setTimeout(() => this.showNotification('✅ Đã đồng bộ dữ liệu từ đám mây (bản không phải mẫu mặc định).', 'success'), 700);
                     return;
                 }
                 this._pendingCloudLoaded = loaded;
