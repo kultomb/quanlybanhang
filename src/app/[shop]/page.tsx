@@ -1,5 +1,6 @@
 import RequireAuth from "@/components/RequireAuth";
 import ShopLegacyFrame from "@/components/ShopLegacyFrame";
+import { redirectIfShopUrlMismatch } from "@/lib/backend/redirect-if-shop-url-mismatch";
 
 type ShopPageProps = {
   params: Promise<{ shop: string }>;
@@ -7,6 +8,7 @@ type ShopPageProps = {
 
 export default async function ShopPage({ params }: ShopPageProps) {
   const { shop } = await params;
+  await redirectIfShopUrlMismatch(shop);
 
   return (
     <RequireAuth pathShopFromUrl={shop}>
