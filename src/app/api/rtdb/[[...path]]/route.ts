@@ -169,8 +169,19 @@ async function proxy(
   }
 
   if (method === "PUT") {
+    const MAX_BODY = 6 * 1024 * 1024;
     const raw = await request.text();
-    const value = raw ? JSON.parse(raw) : null;
+    if (raw.length > MAX_BODY) {
+      return jsonError(413, "payload_too_large", "Payload vượt giới hạn cho phép.");
+    }
+    let value: unknown = null;
+    if (raw) {
+      try {
+        value = JSON.parse(raw) as unknown;
+      } catch {
+        return jsonError(400, "invalid_json", "Body không phải JSON hợp lệ.");
+      }
+    }
     await dbRef.set(value);
     return new Response(JSON.stringify(value ?? null), {
       status: 200,

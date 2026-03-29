@@ -7,7 +7,7 @@ import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
   forceLogoutMissingShop,
   hasValidShopSlug,
-  normalizeShopPathSegment,
+  normalizeShopSlugClient,
   paymentAllowsAppAccess,
   postSessionCookieWithRetries,
 } from "@/lib/client-auth";
@@ -19,7 +19,12 @@ function toPaymentRequiredPath(shopSlug?: string) {
 }
 
 type RequireAuthProps = {
-  children: ReactNode;
+  children?: ReactNode;
+  /**
+   * Route /[shop]: render với `shopSlug` từ hồ sơ Firebase — không dùng segment URL (tránh hiển thị slug rác
+   * trong khi `/api/rtdb` vẫn map đúng kho).
+   */
+  renderShop?: (ctx: { shopSlug: string }) => ReactNode;
   /**
    * Khi có (route /[shop]), bắt buộc khớp với shopSlug trong hồ sơ — tránh mở POS tại /src, /12345…
    * vẫn dùng cookie/iframe của shop khác.
@@ -35,7 +40,7 @@ function redirectIfUrlShopMismatch(
   if (pathShopFromUrl === undefined) return false;
   const seg = String(pathShopFromUrl).trim();
   if (!seg) return false;
-  if (normalizeShopPathSegment(seg) === normalizeShopPathSegment(profileSlug)) return false;
+  if (normalizeShopSlugClient(seg) === normalizeShopSlugClient(profileSlug)) return false;
   const trialQs = isEffectiveTrialAccount(reg, profileSlug) ? "?trial=1" : "";
   const target = `/${encodeURIComponent(profileSlug)}${trialQs}`;
   try {
@@ -50,9 +55,10 @@ function redirectIfUrlShopMismatch(
   return true;
 }
 
-export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthProps) {
+export default function RequireAuth({ children, renderShop, pathShopFromUrl }: RequireAuthProps) {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [resolvedShopSlug, setResolvedShopSlug] = useState<string | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -124,6 +130,8 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
 
           syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
 
+          await syncIdTokenToCookie(shopSlug);
+
           if (redirectIfUrlShopMismatch(pathShopFromUrl, shopSlug, reg)) {
             return;
           }
@@ -142,7 +150,7 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
             return;
           }
 
-          await syncIdTokenToCookie(shopSlug);
+          setResolvedShopSlug(shopSlug);
           setAuthed(true);
           setReady(true);
         } catch {
@@ -176,6 +184,7 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
             return;
           }
           syncTrialUiSessionFlag({ shopSlug, registrationTrial: reg });
+          await syncIdTokenToCookie(shopSlug);
           if (redirectIfUrlShopMismatch(pathShopFromUrl, shopSlug, reg)) {
             return;
           }
@@ -183,7 +192,7 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
             window.location.href = toPaymentRequiredPath(shopSlug);
             return;
           }
-          await syncIdTokenToCookie(shopSlug);
+          setResolvedShopSlug(shopSlug);
           setAuthed(true);
           setReady(true);
         } catch {
@@ -234,6 +243,26 @@ export default function RequireAuth({ children, pathShopFromUrl }: RequireAuthPr
         Đang chuyển hướng…
       </div>
     );
+  }
+  if (renderShop) {
+    if (!resolvedShopSlug) {
+      return (
+        <div
+          style={{
+            minHeight: "40vh",
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+            color: "#6b7280",
+            fontSize: 15,
+            fontFamily: "system-ui, sans-serif",
+          }}
+        >
+          Đang tải cửa hàng…
+        </div>
+      );
+    }
+    return <>{renderShop({ shopSlug: resolvedShopSlug })}</>;
   }
   return <>{children}</>;
 }

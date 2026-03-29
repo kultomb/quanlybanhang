@@ -46,6 +46,17 @@ export function normalizeShopPathSegment(raw: string): string {
   }
 }
 
+/** Giống `normalizeShopSlug` trên server — so khớp URL với slug trong DB (bỏ ký tự lạ). */
+export function normalizeShopSlugClient(raw: string): string {
+  let s = String(raw ?? "").trim();
+  try {
+    s = decodeURIComponent(s).trim();
+  } catch {
+    // giữ s
+  }
+  return s.toLowerCase().replace(/[^a-z0-9-]/g, "");
+}
+
 /** Cho phép vào POS: đã kích hoạt hoặc đang chờ CK nâng cấp từ trial (vẫn dùng shop thử). */
 export function paymentAllowsAppAccess(paymentStatus?: string) {
   const s = String(paymentStatus || "").trim();
