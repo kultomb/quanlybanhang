@@ -6114,7 +6114,7 @@ class HamobileBanhang {
             type: 'info',
             icon: '🚀',
             title: 'Khởi động hệ thống',
-            description: 'Hệ thống PhuocIT đã được khởi động và sẵn sàng hoạt động',
+            description: 'Hệ thống Hangho đã được khởi động và sẵn sàng hoạt động',
             time: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
             category: 'system'
         });
@@ -6848,7 +6848,7 @@ class HamobileBanhang {
 
                 <!-- Footer -->
                 <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280;">
-                    <p>Báo cáo được tạo tự động từ Hệ thống PhuocIT Việt Nam</p>
+                    <p>Báo cáo được tạo tự động từ Hệ thống Hangho Việt Nam</p>
                     <p style="font-size: 12px;">© ${new Date().getFullYear()} - Bản quyền thuộc về cửa hàng</p>
                 </div>
             </div>
@@ -8293,7 +8293,7 @@ class HamobileBanhang {
                         <div style="display: flex; gap: 12px; margin-bottom: 16px;">
                             <div style="flex: 1;">
                                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Số điện thoại:</label>
-                                <input type="tel" name="customPhuocIThone" required placeholder="Nhập số điện thoại" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                                <input type="tel" name="customOrderPhone" required placeholder="Nhập số điện thoại" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
                             </div>
                             <div style="flex: 2;">
                                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Địa chỉ:</label>
@@ -8477,7 +8477,7 @@ class HamobileBanhang {
         // Tạo thông tin khách hàng từ form
         const customerInfo = {
             name: formData.get('customerName'),
-            phone: formData.get('customPhuocIThone'),
+            phone: formData.get('customOrderPhone'),
             address: formData.get('customerAddress')
         };
         let total = 0;
@@ -8514,7 +8514,7 @@ class HamobileBanhang {
             id: 'DH' + String(this.demoData.sales.length + 1).padStart(3, '0'),
             date: this.getVietnamTime().toISOString().split('T')[0],
             customer: customerInfo.name,
-            customPhuocIThone: customerInfo.phone,
+            customOrderPhone: customerInfo.phone,
             customerAddress: customerInfo.address,
             notes: formData.get('orderNotes') || '',
             total: total,
@@ -13727,7 +13727,7 @@ class HamobileBanhang {
             // Find customer info
             const customer = this.demoData.customers.find(c => c.id === order.customerId) || { 
                 name: order.customerName, 
-                phone: order.customPhuocIThone || 'Không có', 
+                phone: order.customOrderPhone || order.customPhuocIThone || 'Không có', 
                 address: order.customerAddress || 'Không có' 
             };
             
@@ -14132,7 +14132,7 @@ class HamobileBanhang {
             // Find customer info
             const customer = this.demoData.customers.find(c => c.id === order.customerId) || { 
                 name: order.customerName, 
-                phone: order.customPhuocIThone || 'Không có', 
+                phone: order.customOrderPhone || order.customPhuocIThone || 'Không có', 
                 address: order.customerAddress || 'Không có' 
             };
             
