@@ -74,7 +74,6 @@ window.FirebaseStorage = {
     async load() {
         this.purgeLegacyLocalStorageKeys();
         window._lastFirebaseError = null;
-        this._hadAuthoritativeEmptyAppJson = false;
         const api = this._api('app.json');
         if (!api) return this._logLoadTrace(null, 'no_api');
         try {
@@ -100,9 +99,6 @@ window.FirebaseStorage = {
                 return this._logLoadTrace(null, 'http_' + res.status);
             }
             const json = await res.json();
-            if (json === null && res.ok) {
-                this._hadAuthoritativeEmptyAppJson = true;
-            }
             if (json && typeof json === 'object') {
                 if (json.data && json.data.customers && json.data.products) {
                     this._cache.data = json.data;
@@ -126,10 +122,6 @@ window.FirebaseStorage = {
             const msg = e && e.message ? e.message : String(e);
             window._lastFirebaseError = `Lỗi kết nối: ${msg}. Có thể do CORS, tab ẩn danh mở file local (file://), hoặc mạng.`;
             console.warn('Firebase load:', e);
-        }
-        if (this._hadAuthoritativeEmptyAppJson && this.usesCloudProxyApi()) {
-            window._loadedFromCloud = false;
-            return this._logLoadTrace(null, 'proxy_empty_skip_local');
         }
         try {
             const legacyApi = this._api('data.json');
@@ -814,7 +806,7 @@ class HamobileBanhang {
         this.loadPage(page);
         this.setActiveNav(document.querySelector(`.nav-item[data-page="${page}"]`) || document.querySelector('.nav-item'));
         this.initFilterState();
-        if (window.FirebaseStorage.getMeta('auto_backup_enabled') === 'true') {
+        if (window.FirebaseStorage.getMeta('auto_backup_enabled') !== 'false') {
             this.startAutoBackup();
         }
         if (window.FirebaseStorage.getConfig()) this.updatePendingSyncIndicator(window.FirebaseStorage.hasPendingSync());
@@ -5877,7 +5869,7 @@ class HamobileBanhang {
         try {
             if (!this.demoData) this.initializeData();
             const lastBackupTime = window.FirebaseStorage.getMeta('last_backup_time');
-            const autoBackupEnabled = window.FirebaseStorage.getMeta('auto_backup_enabled') === 'true';
+            const autoBackupEnabled = window.FirebaseStorage.getMeta('auto_backup_enabled') !== 'false';
             const backupInterval = window.FirebaseStorage.getMeta('backup_interval') || '15';
             const lastBackupStr = lastBackupTime ? (() => { try { return new Date(lastBackupTime).toLocaleString('vi-VN'); } catch(e) { return 'Chưa có'; } })() : 'Chưa có';
             const lastSync = window.FirebaseStorage.getMeta('last_sync');
@@ -7788,7 +7780,7 @@ class HamobileBanhang {
     setBackupInterval(minutes) {
         window.FirebaseStorage.setMeta('backup_interval', minutes);
         window.FirebaseStorage.save({ meta: { backup_interval: minutes } });
-        if (window.FirebaseStorage.getMeta('auto_backup_enabled') === 'true') {
+        if (window.FirebaseStorage.getMeta('auto_backup_enabled') !== 'false') {
             this.stopAutoBackup();
             this.startAutoBackup();
             const msg = minutes === '0' ? 'Đã bật sao lưu ngay khi có thay đổi' : `Đã đặt tần suất sao lưu ${minutes} phút`;
