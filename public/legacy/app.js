@@ -1946,6 +1946,7 @@ class HamobileBanhang {
     getSuppliersContent() {
         if (!this.selectedSupplierIds) this.selectedSupplierIds = new Set();
         if (this.suppliersSearchQuery === undefined) this.suppliersSearchQuery = '';
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const q = (this.suppliersSearchQuery || '').trim().toLowerCase();
         let filtered = this.demoData.suppliers || [];
         if (q) {
@@ -1961,6 +1962,8 @@ class HamobileBanhang {
         const selectAllChecked = filtered.length > 0 && filtered.every(s => this.selectedSupplierIds.has(s.id));
         const rows = this.getSupplierTableRowsHtml(filtered);
         const selectedCount = this.selectedSupplierIds.size;
+        const suppliersDesktopStyle = isMobile ? 'display:none;' : '';
+        const suppliersMobileStyle = isMobile ? '' : 'display:none;';
         const selectionBar = `
             <div id="suppliers-selection-bar" style="display: ${selectedCount > 0 ? 'flex' : 'none'}; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; flex-wrap: wrap;">
                 <span id="suppliers-selection-bar-count" style="font-weight: 600; color: #1e40af;">Đã chọn ${selectedCount}</span>
@@ -1991,7 +1994,7 @@ class HamobileBanhang {
                         <input type="text" id="suppliers-search-input" value="${(this.suppliersSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setSuppliersSearch(this.value)" placeholder="Tìm theo tên, SĐT, địa chỉ, email..." style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                     </div>
                     ${selectionBar}
-                    <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
+                    <div id="suppliers-table-desktop" style="${suppliersDesktopStyle}background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #f8fafc; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">
@@ -2010,6 +2013,9 @@ class HamobileBanhang {
                             </tbody>
                         </table>
                     </div>
+                    <div id="suppliers-mobile-list" style="${suppliersMobileStyle}">
+                        ${this.getSuppliersMobileListHtml(filtered)}
+                    </div>
                 </div>
             </div>
         `;
@@ -2027,6 +2033,53 @@ class HamobileBanhang {
                 <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;">${escapeHtml(supplier.email || '-')}</td>
                 <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;"><button type="button" onclick="app.editSupplier(${index})" style="background: #3b82f6; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-right: 4px;">Sửa</button><button type="button" onclick="app.deleteSupplierById('${(supplier.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" style="background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Xóa</button></td>
             </tr>`;
+        }).join('');
+    }
+
+    getSuppliersMobileListHtml(filtered) {
+        if (!filtered || filtered.length === 0) {
+            return '<div style="padding: 24px; text-align: center; color: #6b7280; font-size: 14px;">Không có nhà cung cấp nào.</div>';
+        }
+        return filtered.map((supplier, idx) => {
+            const index = this.demoData.suppliers.findIndex(s => s.id === supplier.id);
+            const checked = this.selectedSupplierIds.has(supplier.id);
+            const safeDeleteId = (supplier.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const address = supplier.address || '-';
+            return `
+                <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06);">
+                    <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+                        <div style="flex:1; min-width:0;">
+                            <div style="display:flex; align-items:flex-start; gap:10px;">
+                                <input type="checkbox"
+                                    data-supplier-id="${escapeHtml(supplier.id || '')}"
+                                    ${checked ? 'checked' : ''}
+                                    onchange="app.toggleSupplierSelect(this.getAttribute('data-supplier-id'), this.checked)"
+                                    style="width: 18px; height: 18px; cursor: pointer; margin-top: 4px;">
+                                <div style="min-width:0;">
+                                    <div style="font-weight: 700; color:#1f2937; font-size: 14px; line-height:1.3; max-width: 22ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                        ${escapeHtml(supplier.name || '-')}
+                                    </div>
+                                    <div style="font-size:12px; color:#6b7280; margin-top:2px;">${escapeHtml(supplier.id || '')}</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 8px; display:flex; flex-direction:column; gap: 6px;">
+                                <div style="font-size: 12px; color:#374151;"><span style="color:#6b7280;">SĐT:</span> ${escapeHtml(supplier.phone || '-')}</div>
+                                <div style="font-size: 12px; color:#374151;" title="${escapeHtml(address)}">
+                                    <span style="color:#6b7280;">Địa chỉ:</span>
+                                    <span style="display:inline-block; max-width: 28ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;">${escapeHtml(address)}</span>
+                                </div>
+                                <div style="font-size: 12px; color:#374151; word-break: break-word;"><span style="color:#6b7280;">Email:</span> ${escapeHtml(supplier.email || '-')}</div>
+                            </div>
+                        </div>
+
+                        <div style="flex-shrink:0; display:flex; flex-direction:column; gap: 8px; align-items:flex-end;">
+                            <button type="button" onclick="app.editSupplier(${index})" style="background: #3b82f6; color: white; padding: 8px 12px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 600; white-space: nowrap;">Sửa</button>
+                            <button type="button" onclick="app.deleteSupplierById('${safeDeleteId}')" style="background: #ef4444; color: white; padding: 8px 12px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 600; white-space: nowrap;">Xóa</button>
+                        </div>
+                    </div>
+                </div>
+            `;
         }).join('');
     }
     
