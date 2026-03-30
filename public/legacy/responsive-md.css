@@ -1,0 +1,209 @@
+/* Tablet (md): 769px - 1024px */
+@media (min-width:769px) and (max-width:1024px){
+  /* Sidebar / menu: icon only */
+  .nav-item-text{display:none!important}
+  .nav-action-text{display:none!important}
+  .main-nav-menu .nav-item{
+    justify-content:center!important;
+    padding:10px 12px!important;
+  }
+  .main-nav-menu .nav-item .nav-item-icon{margin-right:0!important}
+  .main-nav-actions .nav-action-btn{
+    padding:8px 10px!important;
+    gap:0!important;
+  }
+
+  /* Orders table: compact + hide long columns */
+  #orders-table th, #orders-table td{
+    padding:8px 6px!important;
+    font-size:12px!important;
+  }
+  #orders-table th.orders-col-address, #orders-table td.orders-col-address,
+  #orders-table th.orders-col-products, #orders-table td.orders-col-products,
+  #orders-table th.orders-col-time, #orders-table td.orders-col-time{
+    display:none!important;
+  }
+
+  /* Customers table: compact + hide address */
+  .page-customers #customers-list > div{overflow-x:hidden!important}
+  .page-customers #customers-table{
+    min-width:0!important;
+    width:100%!important;
+    table-layout:fixed!important;
+  }
+  .page-customers #customers-table th,
+  .page-customers #customers-table td{
+    padding:8px 6px!important;
+    font-size:12px!important;
+  }
+  .page-customers #customers-table th.customer-col-address,
+  .page-customers #customers-table td.customer-cell-address{
+    display:none!important;
+  }
+
+  /* Fix thao tác: tránh flex-wrap làm lệch nhịp/dồn trống */
+  .page-customers .customer-action-group{
+    flex-direction:column!important;
+    flex-wrap:nowrap!important;
+    align-items:flex-end!important;
+    gap:6px!important;
+  }
+  .page-customers #customers-table td.customer-cell-actions{
+    padding:8px 4px!important;
+    width:110px!important;
+    white-space:normal!important;
+    vertical-align:top!important;
+    text-align:right!important;
+  }
+  .page-customers #customers-table td.customer-cell-actions button{
+    padding:6px 10px!important;
+    font-size:12px!important;
+    white-space:nowrap!important;
+  }
+
+  /* Quan trọng: ẩn luôn <col> của cột "Địa chỉ" trong colgroup */
+  .page-customers #customers-table colgroup col:nth-child(3){
+    display:none!important;
+  }
+  /* Thu hẹp cột thao tác để tránh thừa khoảng trống */
+  .page-customers #customers-table colgroup col:nth-child(5){
+    width:110px!important;
+  }
+}
+
+/* Mobile: convert orders table to card-like blocks */
+@media (max-width:768px){
+  #orders-table{
+    min-width:0!important;
+    width:100%!important;
+    table-layout:auto!important;
+  }
+  #orders-table colgroup{display:none!important}
+  #orders-table thead{display:none!important}
+  #orders-table tbody, #orders-table tr, #orders-table td{
+    display:block!important;
+    width:100%!important;
+  }
+  #orders-table tbody tr[data-order-index]{
+    margin-bottom:10px!important;
+    border:1px solid #e5e7eb!important;
+    border-radius:12px!important;
+    background:#fff!important;
+    overflow:hidden!important;
+  }
+  #orders-table td{
+    border-bottom:1px solid #f3f4f6!important;
+    padding:10px 12px!important;
+    vertical-align:top!important;
+    font-size:13px!important;
+  }
+  #orders-table td[data-label]::before{
+    content:attr(data-label);
+    display:block;
+    font-size:10px!important;
+    font-weight:800!important;
+    color:#6b7280!important;
+    margin-bottom:4px!important;
+    text-transform:uppercase!important;
+    letter-spacing:.02em!important;
+  }
+  #orders-table td:last-child{border-bottom:none!important}
+
+  /* Orders mobile (card list) */
+  .orders-mobile-list{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding: 0 4px;
+  }
+  .orders-mobile-item{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:12px 12px;
+    background:#fff!important;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    cursor:pointer;
+    box-sizing:border-box;
+  }
+  .orders-mobile-left{min-width:0; flex:1;}
+  .orders-mobile-order-id{
+    font-weight:700;
+    color:#111827;
+    font-size:13px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    white-space:nowrap;
+  }
+  .orders-mobile-cancel-badge{
+    display:inline-block;
+    padding:2px 6px;
+    border-radius:999px;
+    background:#ef4444;
+    color:#fff;
+    font-size:10px;
+    font-weight:700;
+  }
+  .orders-mobile-customer{
+    margin-top:6px;
+    font-size:14px;
+    font-weight:700;
+    color:#111827;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .orders-mobile-product{
+    margin-top:4px;
+    font-size:12px;
+    color:#6b7280;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .orders-mobile-right{
+    width:140px;
+    text-align:right;
+  }
+  .orders-mobile-time{
+    font-size:12px;
+    color:#6b7280;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .orders-mobile-total{
+    margin-top:6px;
+    font-size:13px;
+    font-weight:700;
+    color:#111827;
+  }
+  .orders-mobile-status{
+    margin-top:6px;
+    display:flex;
+    justify-content:flex-end;
+  }
+  .orders-mobile-status-pill{
+    opacity:1;
+  }
+  .orders-mobile-status-pill:disabled{
+    opacity:0.7;
+    cursor:not-allowed;
+  }
+
+  /* Customers mobile: chỉ hiện tên, liên hệ, công nợ; tuỳ chọn theo dropdown */
+  .page-customers #customers-table td.customer-cell-address{display:none!important}
+  .page-customers #customers-table td.customer-cell-actions{display:none!important}
+  .page-customers .customer-meta-lines{display:none!important}
+  /* Tránh lặp nhãn "Khách hàng" làm tăng chiều cao card */
+  .page-customers #customers-table td.customer-cell-main::before{display:none!important}
+  /* Dropdown nằm trong ô "Tên", chỉ mở khi bấm */
+  .page-customers .customer-mobile-actions-dropdown{margin-top:8px}
+  .page-customers .customer-mobile-actions-dropdown button{width:100%; box-sizing:border-box}
+
+  /* Ẩn các nút In/Hủy/Xóa trong popup chi tiết đơn trên mobile */
+  .orders-detail-extra-action{display:none!important}
+}
+

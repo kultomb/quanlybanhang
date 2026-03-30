@@ -1777,7 +1777,7 @@ class HamobileBanhang {
                                         <tr style="background: #f8fafc;">
                                             <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Khách hàng</th>
                                             <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Liên hệ</th>
-                                            <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Địa chỉ</th>
+                                            <th class="customer-col-address" style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Địa chỉ</th>
                                             <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Công nợ</th>
                                             <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Thao tác</th>
                                         </tr>
@@ -2257,15 +2257,26 @@ class HamobileBanhang {
                 : '';
             return `<tr data-customer-index="${originalIndex}" style="${idx % 2 === 0 ? 'background: #fafbfc;' : 'background: white;'}">
                 <td class="customer-cell customer-cell-main" data-label="Khách hàng" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top;">
-                    <div style="font-weight: 600; color: #111827; font-size: 13px;">${escapeHtml(customer.name || '-')}</div>
-                    <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(customer.id || '-')} | ${typeLabel}</div>
-                    ${companyLine ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(companyLine)}</div>` : ''}
-                    ${customer.taxCode ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">MST: ${escapeHtml(customer.taxCode)}</div>` : ''}
+                    <div class="customer-name-trigger" onclick="app.toggleCustomerMobileActions(${originalIndex})" style="font-weight: 700; color: #111827; font-size: 13px; cursor: pointer; user-select: none;">
+                        ${escapeHtml(customer.name || '-')}
+                    </div>
+                    <div class="customer-meta-lines" style="font-size: 12px; color: #6b7280; margin-top: 2px;">
+                        <div>${escapeHtml(customer.id || '-')} | ${typeLabel}</div>
+                        ${companyLine ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${escapeHtml(companyLine)}</div>` : ''}
+                        ${customer.taxCode ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">MST: ${escapeHtml(customer.taxCode)}</div>` : ''}
+                    </div>
+                    <div id="customer-mobile-actions-${originalIndex}" class="customer-mobile-actions-dropdown" style="display:none; margin-top: 10px;">
+                        <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                            <button type="button" onclick="app.showCustomerDetails(${originalIndex}); app.toggleCustomerMobileActions(${originalIndex});" style="background: #3b82f6; color: white; padding: 6px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; white-space: nowrap;">Chi tiết</button>
+                            <button type="button" onclick="app.editCustomer(${originalIndex}); app.toggleCustomerMobileActions(${originalIndex});" style="background: #059669; color: white; padding: 6px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; white-space: nowrap;">Sửa</button>
+                            <button type="button" onclick="app.deleteCustomer(${originalIndex}); app.toggleCustomerMobileActions(${originalIndex});" style="background: #ef4444; color: white; padding: 6px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; white-space: nowrap;">Xóa</button>
+                        </div>
+                    </div>
                 </td>
                 <td class="customer-cell" data-label="Liên hệ" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 13px;">
                     <div>${escapeHtml(customer.phone || '-')}</div>
                 </td>
-                <td class="customer-cell" data-label="Địa chỉ" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 13px; max-width: 240px; word-break: break-word;">${escapeHtml(customer.address || '-')}</td>
+                <td class="customer-cell customer-cell-address" data-label="Địa chỉ" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; font-size: 13px; max-width: 240px; word-break: break-word;">${escapeHtml(customer.address || '-')}</td>
                 <td class="customer-cell customer-cell-debt" data-label="Công nợ" style="padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top;">
                     <span style="display: inline-block; background: ${actualDebt > 0 ? '#fef3c7' : '#ecfdf5'}; color: ${actualDebt > 0 ? '#92400e' : '#166534'}; border: 1px solid ${actualDebt > 0 ? '#fcd34d' : '#86efac'}; padding: 5px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;">
                         ${actualDebt > 0 ? actualDebt.toLocaleString('vi-VN') + ' đ' : 'Không nợ'}
@@ -3928,7 +3939,6 @@ class HamobileBanhang {
                 <div class="pos-customer-full-info">
                     <div class="pos-customer-full-name">${(c.name||'').replace(/</g,'&lt;')}</div>
                     <div class="pos-customer-full-details">${badges.join(' ')}</div>
-                    ${c.address ? `<div class="pos-customer-full-address">${(c.address+'').replace(/</g,'&lt;')}</div>` : ''}
                 </div>
             </div>`;
         }).join('');
@@ -4330,6 +4340,7 @@ class HamobileBanhang {
         if (this.ordersSearchQuery === undefined) this.ordersSearchQuery = '';
         if (this.ordersFilterPeriod === undefined) this.ordersFilterPeriod = 'all';
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+        const isTablet = typeof window !== 'undefined' && window.innerWidth > 768 && window.innerWidth <= 1024;
         const orders = this.demoData.orders || [];
         const vietnamTime = this.getVietnamTime();
         const todayStr = vietnamTime.toISOString().split('T')[0];
@@ -4340,7 +4351,7 @@ class HamobileBanhang {
         const q = (this.ordersSearchQuery || '').trim();
         if (q) filtered = filtered.filter(o => this.orderMatchesSearch(o, q));
         const selectAllChecked = filtered.length > 0 && filtered.every(o => this.selectedOrderIds.has(o.id));
-        const ordersTable = this.getOrderTableRowsHtml(orders.filter(o => o && o.id), orders);
+        const ordersTable = this.getOrderTableRowsHtml(filtered, orders);
         const selectedCount = this.selectedOrderIds.size;
         const selectionBar = `
             <div id="orders-selection-bar" style="display: ${selectedCount > 0 ? 'flex' : 'none'}; align-items: center; gap: 8px; margin-bottom: 16px; padding: 10px 12px; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; flex-wrap: wrap; font-size: 13px;">
@@ -4360,20 +4371,23 @@ class HamobileBanhang {
                         </h3>
 
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
-                            <button type="button" onclick="app.showCreateOrderForm()" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Thêm đơn hàng</button>
-                            <button type="button" id="orders-filter-today" onclick="app.setOrdersFilterPeriod('today')" style="background: ${this.ordersFilterPeriod === 'today' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'today' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'today' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Hôm nay</button>
-                            <button type="button" id="orders-filter-week" onclick="app.setOrdersFilterPeriod('week')" style="background: ${this.ordersFilterPeriod === 'week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tuần này</button>
-                            <button type="button" id="orders-filter-all" onclick="app.setOrdersFilterPeriod('all')" style="background: ${this.ordersFilterPeriod === 'all' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'all' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'all' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Tất cả</button>
-                            <button type="button" onclick="app.exportOrdersReport()" style="background: white; color: #374151; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Xuất báo cáo</button>
+                            <button type="button" onclick="app.showCreateOrderForm()" title="Thêm đơn hàng" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '➕' : 'Thêm đơn hàng'}</button>
+                            <button type="button" id="orders-filter-today" onclick="app.setOrdersFilterPeriod('today')" title="Lọc: Hôm nay" style="background: ${this.ordersFilterPeriod === 'today' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'today' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'today' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📅' : 'Hôm nay'}</button>
+                            <button type="button" id="orders-filter-week" onclick="app.setOrdersFilterPeriod('week')" title="Lọc: Tuần này" style="background: ${this.ordersFilterPeriod === 'week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '🗓' : 'Tuần này'}</button>
+                            <button type="button" id="orders-filter-all" onclick="app.setOrdersFilterPeriod('all')" title="Lọc: Tất cả" style="background: ${this.ordersFilterPeriod === 'all' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'all' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'all' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📌' : 'Tất cả'}</button>
+                            <button type="button" onclick="app.exportOrdersReport()" title="Xuất báo cáo" style="background: white; color: #374151; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📤' : 'Xuất báo cáo'}</button>
                         </div>
 
                         <div style="margin-bottom: 16px;">
                             <input type="text" id="orders-search-input" value="${(this.ordersSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.searchOrders(this.value)" placeholder="Tìm mã đơn, mã/tên SP, khách hàng, SĐT..." 
                                    style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                         </div>
-                        ${selectionBar}
-                        <div style="overflow-x: ${isMobile ? 'auto' : 'hidden'}; -webkit-overflow-scrolling: touch;">
-                            <table id="orders-table" style="width: 100%; ${isMobile ? 'min-width: 980px;' : ''} border-collapse: collapse; background: white; table-layout: fixed;">
+                        ${isMobile ? '' : selectionBar}
+                        <div class="orders-mobile-list" style="display: ${isMobile ? 'block' : 'none'};">
+                            ${this.getOrdersMobileListHtml(filtered, orders)}
+                        </div>
+                        <div style="display: ${isMobile ? 'none' : 'block'}; overflow-x: hidden; -webkit-overflow-scrolling: touch;">
+                            <table id="orders-table" style="width: 100%; border-collapse: collapse; background: white; table-layout: fixed;">
                                 <colgroup>
                                     <col style="width: 4%;">
                                     <col style="width: 7%;">
@@ -4393,9 +4407,9 @@ class HamobileBanhang {
                                         <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Mã đơn</th>
                                         <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Khách hàng</th>
                                         <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">SĐT</th>
-                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Địa chỉ</th>
-                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Sản phẩm</th>
-                                        <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Thời gian</th>
+                                        <th class="orders-col-address" style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Địa chỉ</th>
+                                        <th class="orders-col-products" style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Sản phẩm</th>
+                                        <th class="orders-col-time" style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Thời gian</th>
                                         <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Tổng tiền</th>
                                         <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">Thanh toán</th>
                                         <th style="padding: 10px 8px; text-align: center; border-bottom: 2px solid #e5e7eb; font-weight: 600; font-size: 13px;">TT nhanh</th>
@@ -4424,27 +4438,84 @@ class HamobileBanhang {
                 ? `<div style="display:inline-block; margin-left:6px; padding:2px 6px; border-radius:999px; background:#ef4444; color:#fff; font-size:10px; font-weight:700;">ĐÃ HỦY</div>`
                 : '';
             return `<tr data-order-index="${originalIndex}" style="background: ${rowBg};">
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: middle;"><input type="checkbox" data-order-id="${escapeHtml(order.id || '')}" ${checked ? 'checked' : ''} onchange="app.toggleOrderSelect(this.getAttribute('data-order-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${order.id}${cancelBadge}</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.customerName || '-')}</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.phone || '-')}</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px;" title="${escapeHtml(order.address || '')}">${escapeHtml(order.address || '-')}</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; line-height: 1.35; white-space: normal; word-break: normal; overflow-wrap: break-word;" title="${escapeHtml(productsStr)}"><div style="display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;">${escapeHtml(productsStr.length > 80 ? productsStr.substring(0, 80) + '…' : productsStr)}</div></td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${order.date || ''} ${order.time || ''}</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${(order.total || 0).toLocaleString('vi-VN')} VNĐ</td>
-                <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.paymentMethod || '-')}</td>
-                <td class="payment-cell" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">
+                <td data-label="Chọn" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: middle;"><input type="checkbox" data-order-id="${escapeHtml(order.id || '')}" ${checked ? 'checked' : ''} onchange="app.toggleOrderSelect(this.getAttribute('data-order-id'), this.checked)" style="width: 18px; height: 18px; cursor: pointer;"></td>
+                <td data-label="Mã đơn" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${order.id}${cancelBadge}</td>
+                <td data-label="Khách hàng" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.customerName || '-')}</td>
+                <td data-label="SĐT" class="orders-col-phone" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.phone || '-')}</td>
+                <td data-label="Địa chỉ" class="orders-col-address" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px;" title="${escapeHtml(order.address || '')}">${escapeHtml(order.address || '-')}</td>
+                <td data-label="Sản phẩm" class="orders-col-products" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; line-height: 1.35; white-space: normal; word-break: normal; overflow-wrap: break-word;" title="${escapeHtml(productsStr)}"><div style="display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;">${escapeHtml(productsStr.length > 80 ? productsStr.substring(0, 80) + '…' : productsStr)}</div></td>
+                <td data-label="Thời gian" class="orders-col-time" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${order.date || ''} ${order.time || ''}</td>
+                <td data-label="Tổng tiền" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${(order.total || 0).toLocaleString('vi-VN')} VNĐ</td>
+                <td data-label="Thanh toán" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${escapeHtml(order.paymentMethod || '-')}</td>
+                <td data-label="TT nhanh" class="payment-cell orders-col-payment-status" style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">
                     <button ondblclick="app.togglePaymentStatus(${originalIndex})" ${!this.isOrderFinalizedForRevenue(order) ? 'disabled' : ''} style="background: ${!this.isOrderFinalizedForRevenue(order) ? '#94a3b8' : (order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b')}; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: ${!this.isOrderFinalizedForRevenue(order) ? 'not-allowed' : 'pointer'}; font-size: 11px; font-weight: 600; white-space: nowrap;" title="${!this.isOrderFinalizedForRevenue(order) ? 'Đơn đã hủy - không đổi thanh toán' : 'Double click để đổi trạng thái thanh toán'}">${order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ'}</button>
                 </td>
-                <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; white-space: normal;">
-                    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;">
-                        <button onclick="app.showPrintOptionsPopup(${originalIndex})" style="width: 100%; background: var(--primary-green); color: white; border: none; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 10px; white-space: nowrap;" title="In">In</button>
-                        <button onclick="app.viewOrderDetails(${originalIndex})" style="width: 100%; background: var(--primary-blue); color: white; border: none; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 10px; white-space: nowrap;">Chi tiết</button>
-                        <button onclick="app.cancelOrder(${originalIndex})" style="width: 100%; background: #f59e0b; color: white; border: none; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 10px; white-space: nowrap;">Hủy đơn</button>
-                        <button onclick="app.deleteOrder(${originalIndex})" style="width: 100%; background: #ef4444; color: white; border: none; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 10px; white-space: nowrap;">Xóa</button>
-                    </div>
+                <td data-label="Thao tác" class="orders-col-actions" style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; white-space: normal; text-align:left;">
+                    <button type="button"
+                        onclick="app.viewOrderDetails(${originalIndex})"
+                        style="background: var(--primary-blue); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 10px; white-space: nowrap; font-weight: 700;">
+                        Chi tiết
+                    </button>
                 </td>
             </tr>`;
+        }).join('');
+    }
+
+    getOrdersMobileListHtml(filtered, orders) {
+        if (!filtered || filtered.length === 0) {
+            return `<div class="orders-mobile-empty" style="text-align:center; padding:18px 12px;">
+                <div style="font-weight:700; color:#374151; margin-bottom:6px;">Chưa có đơn hàng</div>
+                <div style="font-size:13px; color:#6b7280; margin-bottom:12px;">Hãy thêm đơn hàng để bắt đầu.</div>
+                <button type="button" onclick="app.showCreateOrderForm()" style="background: var(--primary-green); color: white; border: none; padding: 10px 16px; border-radius: 10px; cursor: pointer; font-weight: 700;">+ Thêm đơn hàng</button>
+            </div>`;
+        }
+
+        return filtered.map((order, idx) => {
+            const originalIndex = orders.findIndex(o => o.id === order.id);
+            const isFinalized = this.isOrderFinalizedForRevenue(order);
+            const isCancelled = !isFinalized;
+            const cancelBadge = isCancelled
+                ? `<span class="orders-mobile-cancel-badge">ĐÃ HỦY</span>`
+                : '';
+
+            const productsArr = order.products || [];
+            const firstProd = productsArr[0];
+            const firstProdName = firstProd ? (firstProd.name || firstProd.productName || '-') : '-';
+            const firstQty = firstProd ? (firstProd.quantity || 1) : 1;
+            const moreCount = Math.max(0, productsArr.length - 1);
+            // Giữ chuỗi ngắn để không chiếm nhiều chiều cao trên mobile.
+            const productsShortText = `${firstProdName} x${firstQty}${moreCount > 0 ? ' + ' + moreCount : ''}`;
+
+            const statusText = order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ';
+            const statusBg = !isFinalized
+                ? '#94a3b8'
+                : (order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b');
+
+            return `
+                <div class="orders-mobile-item" onclick="app.viewOrderDetails(${originalIndex})" style="${idx % 2 === 0 ? 'background:#fafbfc;' : 'background:#fff;'}">
+                    <div class="orders-mobile-left">
+                        <div class="orders-mobile-order-id">
+                            <span>${escapeHtml(order.id || '-')}</span>
+                            ${cancelBadge}
+                        </div>
+                        <div class="orders-mobile-customer">${escapeHtml(order.customerName || '-')}</div>
+                        <div class="orders-mobile-product" title="${escapeHtml(productsShortText)}">${escapeHtml(productsShortText)}</div>
+                    </div>
+                    <div class="orders-mobile-right">
+                        <div class="orders-mobile-time">${escapeHtml(order.date || '')} ${escapeHtml(order.time || '')}</div>
+                        <div class="orders-mobile-total">${(order.total || 0).toLocaleString('vi-VN')} VNĐ</div>
+                        <div class="orders-mobile-status">
+                            <button type="button"
+                                class="orders-mobile-status-pill"
+                                ${!isFinalized ? 'disabled' : ''}
+                                onclick="event.stopPropagation(); app.togglePaymentStatus(${originalIndex})"
+                                style="background:${statusBg}; color:white; border:none; padding:6px 10px; border-radius:999px; cursor:${!isFinalized ? 'not-allowed' : 'pointer'}; font-size:11px; font-weight:700; white-space:nowrap;">
+                                ${escapeHtml(statusText)}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
         }).join('');
     }
     setOrdersFilterPeriod(period) {
@@ -6841,6 +6912,20 @@ class HamobileBanhang {
             this.showNotification(`Đã xóa khách hàng ${customer.name}`, 'success');
             this.loadPage('customers');
         }
+    }
+
+    toggleCustomerMobileActions(index) {
+        // Chỉ áp dụng cho giao diện mobile/tablet hẹp
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+        if (!isMobile) return;
+        const dropdown = document.getElementById(`customer-mobile-actions-${index}`);
+        if (!dropdown) return;
+        const nextOpen = dropdown.style.display !== 'block';
+        // Đóng dropdown khác đang mở
+        document.querySelectorAll('.customer-mobile-actions-dropdown').forEach(el => {
+            if (el !== dropdown) el.style.display = 'none';
+        });
+        dropdown.style.display = nextOpen ? 'block' : 'none';
     }
 
     showCustomerDetails(index) {
@@ -12174,17 +12259,33 @@ class HamobileBanhang {
 
     // Order Management Functions
     showCreateOrderForm(prefillProductId) {
-        // Create customer dropdown options (Khách lẻ đầu tiên, mặc định - không lưu trong danh sách)
+        // Create customer dropdown options with the same "card/list" UI style as POS customer picker
+        // (avatar + name + id/phone + "Nợ" badge)
         const realCustomers = (this.demoData.customers || []).filter(c => c.id !== 'KH_LE' && !(c.id && c.id.startsWith('KL_')));
-        const customerDropdownOptions = `<div class="dropdown-option" data-value="KH_LE" onclick="app.selectCustomer(this, 'KH_LE', 'Khách lẻ')" 
-                  style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-weight: 600; color: #059669;" 
-                  onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">Khách lẻ</div>` + realCustomers.map(c =>
-            `<div class="dropdown-option" data-value="${c.id}" onclick="app.selectCustomer(this, '${c.id}', '${(c.name || '')}${c.phone ? ' - ' + c.phone : ''}')" 
-                  style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6;" 
-                  onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
-                ${c.name}${c.phone ? ' - ' + c.phone : ''}
-            </div>`
-        ).join('');
+        const khachLeOptionHtml =
+            `<div class="dropdown-option pos-customer-full-row pos-customer-khachle" data-value="KH_LE" onclick="app.selectCustomer(this, 'KH_LE', 'Khách lẻ')" 
+                 onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" style="border-bottom: 1px solid #f3f4f6; cursor: pointer; padding: 10px 12px;">
+                <div class="pos-customer-full-avatar">👤</div>
+                <div class="pos-customer-full-info"><div class="pos-customer-full-name">Khách lẻ</div></div>
+            </div>`;
+
+        const customerDropdownOptions = khachLeOptionHtml + realCustomers.map(c => {
+            const debt = this.getActualDebtForCustomer(c);
+            const debtStr = debt > 0 ? `Nợ: ${debt.toLocaleString('vi-VN')}` : '';
+            const badges = [];
+            if (c.id) badges.push(`<span class="pos-customer-badge">${escapeHtml((c.id + '')).toString()}</span>`);
+            if (debtStr) badges.push(`<span class="pos-customer-badge pos-customer-debt">${escapeHtml(debtStr)}</span>`);
+            if (c.phone) badges.push(`<span class="pos-customer-phone">${escapeHtml((c.phone + '')).toString()}</span>`);
+            return `<div class="dropdown-option pos-customer-full-row" data-value="${escapeHtml((c.id + '')).toString()}" 
+                         onclick="app.selectCustomer(this, '${(c.id + '').replace(/'/g,"\\'")}', '${(c.name || '').replace(/'/g,"\\'")}')" 
+                         onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" style="border-bottom: 1px solid #f3f4f6; cursor: pointer; padding: 10px 12px;">
+                        <div class="pos-customer-full-avatar">👤</div>
+                        <div class="pos-customer-full-info">
+                            <div class="pos-customer-full-name">${escapeHtml((c.name || '')).toString()}</div>
+                            <div class="pos-customer-full-details">${badges.join(' ')}</div>
+                        </div>
+                    </div>`;
+        }).join('');
         
         // Create product dropdown options
         const productDropdownOptions = this.demoData.products.map(p => 
@@ -12876,9 +12977,15 @@ class HamobileBanhang {
                         </div>
                     </div>
                     
-                    <div style="display: flex; gap: 12px; justify-content: center;">
+                    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
                         <button onclick="closeModal(this.closest('div[style*=fixed]')); app.editOrder(${index});" 
                                 style="padding: 12px 24px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer;">✏️ Sửa</button>
+                        <button class="orders-detail-extra-action" onclick="closeModal(this.closest('div[style*=fixed]')); app.showPrintOptionsPopup(${index});"
+                                style="padding: 12px 24px; background: var(--primary-green); color: white; border: none; border-radius: 8px; cursor: pointer;">🖨️ In</button>
+                        <button class="orders-detail-extra-action" onclick="closeModal(this.closest('div[style*=fixed]')); app.cancelOrder(${index});"
+                                style="padding: 12px 24px; background: #f59e0b; color: white; border: none; border-radius: 8px; cursor: pointer;">⚠️ Hủy đơn</button>
+                        <button class="orders-detail-extra-action" onclick="closeModal(this.closest('div[style*=fixed]')); app.deleteOrder(${index});"
+                                style="padding: 12px 24px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer;">🗑️ Xóa</button>
                         <button onclick="closeModal(this.closest('div[style*=fixed]'))" 
                                 style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Đóng</button>
                     </div>
@@ -12888,29 +12995,116 @@ class HamobileBanhang {
         document.body.insertAdjacentHTML('beforeend', detailHTML);
     }
 
+    openOrderDetailsActionsPopup(index) {
+        const order = this.demoData.orders[index];
+        if (!order) {
+            this.showNotification('Không tìm thấy đơn hàng', 'error');
+            return;
+        }
+
+        const orderId = order.id || '';
+        const paidBadge = order.paymentStatus === 'Đã thanh toán'
+            ? '<span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap;">Đã thanh toán</span>'
+            : '<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap;">Công nợ</span>';
+
+        const popupHTML = `
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" 
+                 onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
+                <div style="background: white; padding: 28px; border-radius: 12px; width: 560px; max-width: 90vw;" onclick="event.stopPropagation()">
+                    <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                        📄 Tùy chọn đơn hàng ${escapeHtml(orderId)}
+                        ${paidBadge}
+                    </h3>
+
+                    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px;">
+                        <button onclick="closeModal(this.closest('div[style*=fixed]')); app.viewOrderDetails(${index});"
+                                style="background: var(--primary-blue); color: white; border: none; padding: 12px 10px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 13px;">
+                            Xem chi tiết
+                        </button>
+                        <button onclick="closeModal(this.closest('div[style*=fixed]')); app.showPrintOptionsPopup(${index});"
+                                style="background: var(--primary-green); color: white; border: none; padding: 12px 10px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 13px;">
+                            In
+                        </button>
+                        <button onclick="closeModal(this.closest('div[style*=fixed]')); app.cancelOrder(${index});"
+                                style="background: #f59e0b; color: white; border: none; padding: 12px 10px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 13px;">
+                            Hủy đơn
+                        </button>
+                        <button onclick="closeModal(this.closest('div[style*=fixed]')); app.deleteOrder(${index});"
+                                style="background: #ef4444; color: white; border: none; padding: 12px 10px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 13px;">
+                            Xóa
+                        </button>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end;">
+                        <button type="button" onclick="closeModal(this.closest('div[style*=fixed]'))"
+                                style="padding: 10px 16px; border: 2px solid #e5e7eb; background: white; border-radius: 10px; cursor: pointer; font-weight: 700;">
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', popupHTML);
+    }
+
     editOrder(index) {
         const order = this.demoData.orders[index];
-        const customerOptions = this.demoData.customers.map(c => 
-            `<option value="${c.id}" ${c.id === order.customerId ? 'selected' : ''}>${c.name}</option>`
-        ).join('');
+        // Use same custom dropdown UI as "Tạo đơn hàng" for consistency
+        const realCustomers = (this.demoData.customers || []).filter(c =>
+            c.id !== 'KH_LE' && !(c.id && c.id.startsWith('KL_'))
+        );
+        const khachLeOptionHtml =
+            `<div class="dropdown-option pos-customer-full-row pos-customer-khachle" data-value="KH_LE" onclick="app.selectCustomer(this, 'KH_LE', 'Khách lẻ')" 
+                 onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" style="border-bottom: 1px solid #f3f4f6; cursor: pointer; padding: 10px 12px;">
+                <div class="pos-customer-full-avatar">👤</div>
+                <div class="pos-customer-full-info"><div class="pos-customer-full-name">Khách lẻ</div></div>
+            </div>`;
+
+        const customerDropdownOptions = khachLeOptionHtml + realCustomers.map(c => {
+            const debt = this.getActualDebtForCustomer(c);
+            const debtStr = debt > 0 ? `Nợ: ${debt.toLocaleString('vi-VN')}` : '';
+            const badges = [];
+            if (c.id) badges.push(`<span class="pos-customer-badge">${escapeHtml((c.id + '')).toString()}</span>`);
+            if (debtStr) badges.push(`<span class="pos-customer-badge pos-customer-debt">${escapeHtml(debtStr)}</span>`);
+            if (c.phone) badges.push(`<span class="pos-customer-phone">${escapeHtml((c.phone + '')).toString()}</span>`);
+            return `<div class="dropdown-option pos-customer-full-row" data-value="${escapeHtml((c.id + '')).toString()}" 
+                         onclick="app.selectCustomer(this, '${(c.id + '').replace(/'/g,"\\'")}', '${(c.name || '').replace(/'/g,"\\'")}')" 
+                         onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" style="border-bottom: 1px solid #f3f4f6; cursor: pointer; padding: 10px 12px;">
+                        <div class="pos-customer-full-avatar">👤</div>
+                        <div class="pos-customer-full-info">
+                            <div class="pos-customer-full-name">${escapeHtml((c.name || '')).toString()}</div>
+                            <div class="pos-customer-full-details">${badges.join(' ')}</div>
+                        </div>
+                    </div>`;
+        }).join('');
+        const selectedCustomerId = order.customerId || 'KH_LE';
+        const selectedCustomer = (this.demoData.customers || []).find(c => c.id === selectedCustomerId);
+        const selectedCustomerText = selectedCustomer ? (selectedCustomer.name || 'Khách lẻ') : 'Khách lẻ';
         
         const productRows = order.products.map((p, i) => {
             const dt = (p.discountType || 'vnd') === 'percent' ? 'percent' : 'vnd';
             return `
             <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${i}">
-                <select name="productId_${i}" style="flex: 2; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;">
+                <select name="productId_${i}" style="flex: 2; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;">
                     ${this.demoData.products.map(prod => 
                         `<option value="${prod.id}" ${prod.id === p.id ? 'selected' : ''}>${prod.name}</option>`
                     ).join('')}
                 </select>
-                <input type="text" class="price-input" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
-                <input type="number" name="quantity_${i}" value="${p.quantity}" min="1" style="flex: 1; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
-                <select name="discountType_${i}" style="width: 56px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
-                    <option value="vnd" ${dt === 'vnd' ? 'selected' : ''}>VNĐ</option>
-                    <option value="percent" ${dt === 'percent' ? 'selected' : ''}>%</option>
-                </select>
-                <input type="text" class="price-input" name="discount_${i}" value="${this.formatPrice(p.discount || 0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="${dt === 'vnd' ? 'VNĐ' : '%'}" inputmode="numeric">
-                <button type="button" onclick="this.parentElement.remove()" style="padding: 8px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
+                <input type="text" class="price-input" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:120px; flex: 0 0 120px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
+                <input type="number" name="quantity_${i}" value="${p.quantity}" min="1" style="width:80px; flex: 0 0 80px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
+
+                <div style="width:150px; flex: 0 0 150px; min-width:0; display: flex; gap: 4px; align-items: center;">
+                    <select name="discountType_${i}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
+                        <option value="vnd" ${dt === 'vnd' ? 'selected' : ''}>VNĐ</option>
+                        <option value="percent" ${dt === 'percent' ? 'selected' : ''}>%</option>
+                    </select>
+                    <input type="text" class="price-input" name="discount_${i}" value="${this.formatPrice(p.discount || 0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="${dt === 'vnd' ? 'VNĐ' : '%'}" inputmode="numeric">
+                </div>
+
+                <div style="width: 60px; display: flex; justify-content: center; align-items: center;">
+                    <button type="button" onclick="this.closest('[data-product-row]').remove()" style="padding: 0; width: 40px; height: 36px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
+                </div>
             </div>
         `;
         }).join('');
@@ -12922,19 +13116,43 @@ class HamobileBanhang {
                     <form onsubmit="app.updateOrderComplete(event, ${index})">
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Khách hàng:</label>
-                            <select name="customerId" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                                ${customerOptions}
-                            </select>
+                            <div style="display: flex; gap: 8px; align-items: flex-end;">
+                                <div style="flex: 1; position: relative;">
+                                    <div class="custom-dropdown" style="position: relative;">
+                                        <div class="dropdown-selected" onclick="app.toggleCustomerDropdown(this)" 
+                                             style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                                            <span class="selected-text" style="color: #374151;">${selectedCustomerText}</span>
+                                            <span class="dropdown-arrow" style="transform: rotate(0deg); transition: transform 0.3s;">▼</span>
+                                        </div>
+                                        <div class="dropdown-list" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; max-height: 250px; overflow-y: auto; z-index: 1000; display: none;">
+                                            <div style="padding: 8px; border-bottom: 1px solid #e5e7eb;">
+                                                <input type="text" class="dropdown-search" placeholder="🔍 Tìm khách hàng..." 
+                                                       style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;" 
+                                                       oninput="app.filterDropdownItems(this, 'customer')" 
+                                                       onclick="event.stopPropagation()">
+                                            </div>
+                                            <div class="dropdown-options">
+                                                ${customerDropdownOptions}
+                                            </div>
+                                        </div>
+                                        <input type="hidden" name="customerId" id="edit-order-customer-select" value="${selectedCustomerId}">
+                                    </div>
+                                </div>
+                                <button type="button" onclick="app.showQuickAddCustomer()" 
+                                        style="background: var(--primary-green); color: white; border: none; padding: 12px 16px; border-radius: 8px; cursor: pointer; white-space: nowrap; font-weight: 600;">
+                                    + Thêm KH mới
+                                </button>
+                            </div>
                         </div>
                         
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Sản phẩm:</label>
-                            <div style="margin-bottom: 8px; font-size: 12px; color: #666; display: flex; gap: 8px;">
-                                <span style="flex: 2;">Tên sản phẩm</span>
-                                <span style="flex: 1;">Giá bán</span>
-                                <span style="flex: 1;">Số lượng</span>
-                                <span style="flex: 1;">Giảm giá (VNĐ / %)</span>
-                                <span style="width: 40px;">Xóa</span>
+                            <div style="margin-bottom: 8px; font-size: 12px; color: #374151; background: #f8fafc; border-radius: 6px; padding: 8px; display: flex; gap: 8px; font-weight: 600;">
+                                <div style="flex: 2;">Tên sản phẩm</div>
+                                <div style="width: 120px; text-align: center;">Giá bán</div>
+                                <div style="width: 80px; text-align: center;">Số lượng</div>
+                                <div style="width: 150px; text-align: center;">Giảm giá (VNĐ / %)</div>
+                                <div style="width: 60px; text-align: center;">Xóa</div>
                             </div>
                             <div id="products-container">
                                 ${productRows}
@@ -12998,19 +13216,25 @@ class HamobileBanhang {
         const firstProduct = this.demoData.products[0];
         const newRow = `
             <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${rowCount}">
-                <select name="productId_${rowCount}" style="flex: 2; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" onchange="app.updateProductPriceInEdit(this, ${rowCount})">
+                <select name="productId_${rowCount}" style="flex: 2; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" onchange="app.updateProductPriceInEdit(this, ${rowCount})">
                     ${this.demoData.products.map(prod => 
                         `<option value="${prod.id}" data-price="${prod.price}">${prod.name}</option>`
                     ).join('')}
                 </select>
-                <input type="text" class="price-input" name="price_${rowCount}" value="${firstProduct ? (firstProduct.price||0).toLocaleString('vi-VN') : '0'}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
-                <input type="number" name="quantity_${rowCount}" value="1" min="1" style="flex: 1; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
-                <select name="discountType_${rowCount}" style="width: 56px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
-                    <option value="vnd" selected>VNĐ</option>
-                    <option value="percent">%</option>
-                </select>
-                <input type="text" class="price-input" name="discount_${rowCount}" value="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="VNĐ" inputmode="numeric">
-                <button type="button" onclick="this.parentElement.remove()" style="padding: 8px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
+                <input type="text" class="price-input" name="price_${rowCount}" value="${firstProduct ? (firstProduct.price||0).toLocaleString('vi-VN') : '0'}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:120px; flex: 0 0 120px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
+                <input type="number" name="quantity_${rowCount}" value="1" min="1" style="width:80px; flex: 0 0 80px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
+
+                <div style="width:150px; flex: 0 0 150px; min-width:0; display: flex; gap: 4px; align-items: center;">
+                    <select name="discountType_${rowCount}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
+                        <option value="vnd" selected>VNĐ</option>
+                        <option value="percent">%</option>
+                    </select>
+                    <input type="text" class="price-input" name="discount_${rowCount}" value="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="VNĐ" inputmode="numeric">
+                </div>
+
+                <div style="width: 60px; display: flex; justify-content: center; align-items: center;">
+                    <button type="button" onclick="this.closest('[data-product-row]').remove()" style="padding: 0; width: 40px; height: 36px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
+                </div>
             </div>
         `;
         container.insertAdjacentHTML('beforeend', newRow);
@@ -13421,6 +13645,41 @@ class HamobileBanhang {
     searchOrders(searchTerm) {
         const q = (searchTerm || '').trim();
         this.ordersSearchQuery = searchTerm || '';
+        const orders = this.demoData.orders || [];
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+        if (isMobile) {
+            // Mobile hiển thị card-list (.orders-mobile-list), không dùng table DOM.
+            const filteredOrders = orders.filter(order =>
+                !!order &&
+                order.id &&
+                this.orderMatchesPeriod(order, this.ordersFilterPeriod || 'all') &&
+                this.orderMatchesSearch(order, q)
+            );
+
+            const mobileList = document.querySelector('.orders-mobile-list');
+            if (mobileList) {
+                mobileList.innerHTML = this.getOrdersMobileListHtml(filteredOrders, orders);
+            }
+
+            const title = document.getElementById('orders-list-title');
+            if (title) {
+                const periodText = this.ordersFilterPeriod === 'today' ? ' hôm nay' : this.ordersFilterPeriod === 'week' ? ' tuần này' : '';
+                const vn = this.getVietnamTime();
+                const todayStr = vn.toISOString().split('T')[0];
+                const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
+
+                let periodOrders = orders;
+                if (this.ordersFilterPeriod === 'today') periodOrders = orders.filter(o => o.date === todayStr);
+                else if (this.ordersFilterPeriod === 'week') periodOrders = orders.filter(o => o.date >= weekStart);
+
+                title.innerHTML = `<span>📋</span> Danh sách đơn hàng${periodText} (${filteredOrders.length}${filteredOrders.length !== periodOrders.length ? '/' + periodOrders.length : ''})`;
+            }
+
+            this.updateOrdersFilterButtonsUI();
+            this.updateOrdersSelectionUI();
+            return;
+        }
+
         const rows = document.querySelectorAll('#orders-table tbody tr[data-order-index]');
         let visibleCount = 0;
         rows.forEach(row => {
