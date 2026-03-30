@@ -13097,16 +13097,16 @@ class HamobileBanhang {
         const productRows = order.products.map((p, i) => {
             const dt = (p.discountType || 'vnd') === 'percent' ? 'percent' : 'vnd';
             return `
-            <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${i}">
-                <select name="productId_${i}" style="flex: 2; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;">
+            <div class="edit-order-product-row" style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${i}">
+                <select class="edit-order-product-name" name="productId_${i}" style="flex: 2; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;">
                     ${this.demoData.products.map(prod => 
                         `<option value="${prod.id}" ${prod.id === p.id ? 'selected' : ''}>${prod.name}</option>`
                     ).join('')}
                 </select>
-                <input type="text" class="price-input" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:120px; flex: 0 0 120px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
-                <input type="number" name="quantity_${i}" value="${p.quantity}" min="1" style="width:80px; flex: 0 0 80px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
+                <input type="text" class="price-input edit-order-product-price" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:120px; flex: 0 0 120px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
+                <input type="number" class="edit-order-product-qty" name="quantity_${i}" value="${p.quantity}" min="1" style="width:80px; flex: 0 0 80px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
 
-                <div style="width:150px; flex: 0 0 150px; min-width:0; display: flex; gap: 4px; align-items: center;">
+                <div class="edit-order-product-discount" style="width:150px; flex: 0 0 150px; min-width:0; display: flex; gap: 4px; align-items: center;">
                     <select name="discountType_${i}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
                         <option value="vnd" ${dt === 'vnd' ? 'selected' : ''}>VNĐ</option>
                         <option value="percent" ${dt === 'percent' ? 'selected' : ''}>%</option>
@@ -13114,7 +13114,7 @@ class HamobileBanhang {
                     <input type="text" class="price-input" name="discount_${i}" value="${this.formatPrice(p.discount || 0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="${dt === 'vnd' ? 'VNĐ' : '%'}" inputmode="numeric">
                 </div>
 
-                <div style="width: 60px; display: flex; justify-content: center; align-items: center;">
+                <div class="edit-order-product-remove" style="width: 60px; display: flex; justify-content: center; align-items: center;">
                     <button type="button" onclick="this.closest('[data-product-row]').remove()" style="padding: 0; width: 40px; height: 36px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
                 </div>
             </div>
@@ -13123,12 +13123,12 @@ class HamobileBanhang {
         
         const formHTML = `
             <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
-                <div style="background: white; padding: 32px; border-radius: 12px; width: 900px; max-width: 90vw; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                <div class="edit-order-modal" style="background: white; padding: 32px; border-radius: 12px; width: 900px; max-width: 90vw; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
                     <h3 style="margin-bottom: 24px; color: var(--text-primary);">Sửa đơn hàng ${order.id}</h3>
                     <form onsubmit="app.updateOrderComplete(event, ${index})">
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Khách hàng:</label>
-                            <div style="display: flex; gap: 8px; align-items: flex-end;">
+                            <div class="edit-order-customer-row" style="display: flex; gap: 8px; align-items: flex-end;">
                                 <div style="flex: 1; position: relative;">
                                     <div class="custom-dropdown" style="position: relative;">
                                         <div class="dropdown-selected" onclick="app.toggleCustomerDropdown(this)" 
@@ -13159,7 +13159,7 @@ class HamobileBanhang {
                         
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Sản phẩm:</label>
-                            <div style="margin-bottom: 8px; font-size: 12px; color: #374151; background: #f8fafc; border-radius: 6px; padding: 8px; display: flex; gap: 8px; font-weight: 600;">
+                            <div class="edit-order-product-header" style="margin-bottom: 8px; font-size: 12px; color: #374151; background: #f8fafc; border-radius: 6px; padding: 8px; display: flex; gap: 8px; font-weight: 600;">
                                 <div style="flex: 2;">Tên sản phẩm</div>
                                 <div style="width: 120px; text-align: center;">Giá bán</div>
                                 <div style="width: 80px; text-align: center;">Số lượng</div>
@@ -13227,16 +13227,16 @@ class HamobileBanhang {
         const rowCount = container.children.length;
         const firstProduct = this.demoData.products[0];
         const newRow = `
-            <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${rowCount}">
-                <select name="productId_${rowCount}" style="flex: 2; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" onchange="app.updateProductPriceInEdit(this, ${rowCount})">
+            <div class="edit-order-product-row" style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${rowCount}">
+                <select class="edit-order-product-name" name="productId_${rowCount}" style="flex: 2; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" onchange="app.updateProductPriceInEdit(this, ${rowCount})">
                     ${this.demoData.products.map(prod => 
                         `<option value="${prod.id}" data-price="${prod.price}">${prod.name}</option>`
                     ).join('')}
                 </select>
-                <input type="text" class="price-input" name="price_${rowCount}" value="${firstProduct ? (firstProduct.price||0).toLocaleString('vi-VN') : '0'}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:120px; flex: 0 0 120px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
-                <input type="number" name="quantity_${rowCount}" value="1" min="1" style="width:80px; flex: 0 0 80px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
+                <input type="text" class="price-input edit-order-product-price" name="price_${rowCount}" value="${firstProduct ? (firstProduct.price||0).toLocaleString('vi-VN') : '0'}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:120px; flex: 0 0 120px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
+                <input type="number" class="edit-order-product-qty" name="quantity_${rowCount}" value="1" min="1" style="width:80px; flex: 0 0 80px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
 
-                <div style="width:150px; flex: 0 0 150px; min-width:0; display: flex; gap: 4px; align-items: center;">
+                <div class="edit-order-product-discount" style="width:150px; flex: 0 0 150px; min-width:0; display: flex; gap: 4px; align-items: center;">
                     <select name="discountType_${rowCount}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
                         <option value="vnd" selected>VNĐ</option>
                         <option value="percent">%</option>
@@ -13244,7 +13244,7 @@ class HamobileBanhang {
                     <input type="text" class="price-input" name="discount_${rowCount}" value="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="VNĐ" inputmode="numeric">
                 </div>
 
-                <div style="width: 60px; display: flex; justify-content: center; align-items: center;">
+                <div class="edit-order-product-remove" style="width: 60px; display: flex; justify-content: center; align-items: center;">
                     <button type="button" onclick="this.closest('[data-product-row]').remove()" style="padding: 0; width: 40px; height: 36px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
                 </div>
             </div>

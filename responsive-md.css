@@ -342,6 +342,55 @@
   /* Mobile: bỏ cụm thống kê mua hàng ở popup chi tiết khách hàng */
   .customer-details-purchase-stats{display:none!important}
 
+  /* Edit order popup: bỏ trượt ngang, xếp dọc từng dòng sản phẩm */
+  .edit-order-modal{
+    width:96vw!important;
+    max-width:96vw!important;
+    padding:16px!important;
+    border-radius:12px!important;
+  }
+  .edit-order-customer-row{
+    flex-direction:column!important;
+    align-items:stretch!important;
+  }
+  .edit-order-customer-row > div,
+  .edit-order-customer-row > button{
+    width:100%!important;
+  }
+  .edit-order-product-header{display:none!important}
+  .edit-order-product-row{
+    display:flex!important;
+    flex-wrap:wrap!important;
+    gap:8px!important;
+    padding:10px!important;
+    border:1px solid #e5e7eb!important;
+    border-radius:10px!important;
+    background:#f9fafb!important;
+    margin-bottom:10px!important;
+    align-items:stretch!important;
+  }
+  .edit-order-product-name{
+    flex:1 1 100%!important;
+    width:100%!important;
+  }
+  .edit-order-product-price,
+  .edit-order-product-qty{
+    flex:1 1 calc(50% - 4px)!important;
+    width:calc(50% - 4px)!important;
+    min-width:0!important;
+  }
+  .edit-order-product-discount{
+    flex:1 1 100%!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  .edit-order-product-remove{
+    width:100%!important;
+    display:flex!important;
+    justify-content:flex-end!important;
+    align-items:center!important;
+  }
+
   /* Ẩn các nút In/Hủy/Xóa trong popup chi tiết đơn trên mobile */
   .orders-detail-extra-action{display:none!important}
 }
