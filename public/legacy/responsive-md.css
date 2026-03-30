@@ -358,6 +358,15 @@
     width:100%!important;
   }
   .edit-order-product-header{display:none!important}
+  .edit-order-field-label{
+    display:block!important;
+    font-size:10px!important;
+    font-weight:800!important;
+    color:#6b7280!important;
+    margin-bottom:4px!important;
+    text-transform:uppercase!important;
+    letter-spacing:.02em!important;
+  }
   .edit-order-product-row{
     display:flex!important;
     flex-wrap:wrap!important;
@@ -389,6 +398,18 @@
     display:flex!important;
     justify-content:flex-end!important;
     align-items:center!important;
+  }
+  .page-customers .customer-action-group button,
+  .customer-details-orders-table td button,
+  .edit-order-modal button{
+    font-size:11px!important;
+    padding:6px 10px!important;
+    border-radius:6px!important;
+  }
+  .edit-order-modal .edit-order-product-remove button{
+    width:34px!important;
+    height:32px!important;
+    padding:0!important;
   }
 
   /* Ẩn các nút In/Hủy/Xóa trong popup chi tiết đơn trên mobile */

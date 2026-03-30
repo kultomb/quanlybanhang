@@ -13236,23 +13236,36 @@ class HamobileBanhang {
             const dt = (p.discountType || 'vnd') === 'percent' ? 'percent' : 'vnd';
             return `
             <div class="edit-order-product-row" style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${i}">
-                <select class="edit-order-product-name" name="productId_${i}" style="flex: 2; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;">
-                    ${this.demoData.products.map(prod => 
-                        `<option value="${prod.id}" ${prod.id === p.id ? 'selected' : ''}>${prod.name}</option>`
-                    ).join('')}
-                </select>
-                <input type="text" class="price-input edit-order-product-price" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:120px; flex: 0 0 120px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
-                <input type="number" class="edit-order-product-qty" name="quantity_${i}" value="${p.quantity}" min="1" style="width:80px; flex: 0 0 80px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
-                
-                <div class="edit-order-product-discount" style="width:150px; flex: 0 0 150px; min-width:0; display: flex; gap: 4px; align-items: center;">
-                    <select name="discountType_${i}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
-                        <option value="vnd" ${dt === 'vnd' ? 'selected' : ''}>VNĐ</option>
-                        <option value="percent" ${dt === 'percent' ? 'selected' : ''}>%</option>
+                <div class="edit-order-field edit-order-field-name" style="flex: 2; min-width:0;">
+                    <div class="edit-order-field-label">Tên sản phẩm</div>
+                    <select class="edit-order-product-name" name="productId_${i}" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;">
+                        ${this.demoData.products.map(prod => 
+                            `<option value="${prod.id}" ${prod.id === p.id ? 'selected' : ''}>${prod.name}</option>`
+                        ).join('')}
                     </select>
-                    <input type="text" class="price-input" name="discount_${i}" value="${this.formatPrice(p.discount || 0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="${dt === 'vnd' ? 'VNĐ' : '%'}" inputmode="numeric">
+                </div>
+                <div class="edit-order-field edit-order-field-price" style="width:120px; flex: 0 0 120px; min-width:0;">
+                    <div class="edit-order-field-label">Giá bán</div>
+                    <input type="text" class="price-input edit-order-product-price" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
+                </div>
+                <div class="edit-order-field edit-order-field-qty" style="width:80px; flex: 0 0 80px; min-width:0;">
+                    <div class="edit-order-field-label">Số lượng</div>
+                    <input type="number" class="edit-order-product-qty" name="quantity_${i}" value="${p.quantity}" min="1" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
                 </div>
                 
-                <div class="edit-order-product-remove" style="width: 60px; display: flex; justify-content: center; align-items: center;">
+                <div class="edit-order-field edit-order-field-discount edit-order-product-discount" style="width:150px; flex: 0 0 150px; min-width:0;">
+                    <div class="edit-order-field-label">Giảm giá (VNĐ / %)</div>
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <select name="discountType_${i}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
+                            <option value="vnd" ${dt === 'vnd' ? 'selected' : ''}>VNĐ</option>
+                            <option value="percent" ${dt === 'percent' ? 'selected' : ''}>%</option>
+                        </select>
+                        <input type="text" class="price-input" name="discount_${i}" value="${this.formatPrice(p.discount || 0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="${dt === 'vnd' ? 'VNĐ' : '%'}" inputmode="numeric">
+                    </div>
+                </div>
+                
+                <div class="edit-order-field edit-order-field-remove edit-order-product-remove" style="width: 60px; display: flex; justify-content: center; align-items: center;">
+                    <div class="edit-order-field-label">Xóa</div>
                     <button type="button" onclick="this.closest('[data-product-row]').remove()" style="padding: 0; width: 40px; height: 36px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
                 </div>
             </div>
@@ -13366,23 +13379,36 @@ class HamobileBanhang {
         const firstProduct = this.demoData.products[0];
         const newRow = `
             <div class="edit-order-product-row" style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${rowCount}">
-                <select class="edit-order-product-name" name="productId_${rowCount}" style="flex: 2; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" onchange="app.updateProductPriceInEdit(this, ${rowCount})">
-                    ${this.demoData.products.map(prod => 
-                        `<option value="${prod.id}" data-price="${prod.price}">${prod.name}</option>`
-                    ).join('')}
-                </select>
-                <input type="text" class="price-input edit-order-product-price" name="price_${rowCount}" value="${firstProduct ? (firstProduct.price||0).toLocaleString('vi-VN') : '0'}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:120px; flex: 0 0 120px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
-                <input type="number" class="edit-order-product-qty" name="quantity_${rowCount}" value="1" min="1" style="width:80px; flex: 0 0 80px; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
-                
-                <div class="edit-order-product-discount" style="width:150px; flex: 0 0 150px; min-width:0; display: flex; gap: 4px; align-items: center;">
-                    <select name="discountType_${rowCount}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
-                        <option value="vnd" selected>VNĐ</option>
-                        <option value="percent">%</option>
+                <div class="edit-order-field edit-order-field-name" style="flex: 2; min-width:0;">
+                    <div class="edit-order-field-label">Tên sản phẩm</div>
+                    <select class="edit-order-product-name" name="productId_${rowCount}" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" onchange="app.updateProductPriceInEdit(this, ${rowCount})">
+                        ${this.demoData.products.map(prod => 
+                            `<option value="${prod.id}" data-price="${prod.price}">${prod.name}</option>`
+                        ).join('')}
                     </select>
-                    <input type="text" class="price-input" name="discount_${rowCount}" value="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="VNĐ" inputmode="numeric">
+                </div>
+                <div class="edit-order-field edit-order-field-price" style="width:120px; flex: 0 0 120px; min-width:0;">
+                    <div class="edit-order-field-label">Giá bán</div>
+                    <input type="text" class="price-input edit-order-product-price" name="price_${rowCount}" value="${firstProduct ? (firstProduct.price||0).toLocaleString('vi-VN') : '0'}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
+                </div>
+                <div class="edit-order-field edit-order-field-qty" style="width:80px; flex: 0 0 80px; min-width:0;">
+                    <div class="edit-order-field-label">Số lượng</div>
+                    <input type="number" class="edit-order-product-qty" name="quantity_${rowCount}" value="1" min="1" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
                 </div>
                 
-                <div class="edit-order-product-remove" style="width: 60px; display: flex; justify-content: center; align-items: center;">
+                <div class="edit-order-field edit-order-field-discount edit-order-product-discount" style="width:150px; flex: 0 0 150px; min-width:0;">
+                    <div class="edit-order-field-label">Giảm giá (VNĐ / %)</div>
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <select name="discountType_${rowCount}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
+                            <option value="vnd" selected>VNĐ</option>
+                            <option value="percent">%</option>
+                        </select>
+                        <input type="text" class="price-input" name="discount_${rowCount}" value="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="VNĐ" inputmode="numeric">
+                    </div>
+                </div>
+                
+                <div class="edit-order-field edit-order-field-remove edit-order-product-remove" style="width: 60px; display: flex; justify-content: center; align-items: center;">
+                    <div class="edit-order-field-label">Xóa</div>
                     <button type="button" onclick="this.closest('[data-product-row]').remove()" style="padding: 0; width: 40px; height: 36px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
                 </div>
             </div>
