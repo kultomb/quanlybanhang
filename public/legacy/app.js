@@ -4659,8 +4659,7 @@ class HamobileBanhang {
                             <button type="button"
                                 class="orders-mobile-status-pill"
                                 ${!isFinalized ? 'disabled' : ''}
-                                onclick="event.stopPropagation(); app.togglePaymentStatus(${originalIndex})"
-                                style="background:${statusBg}; color:white; border:none; padding:6px 10px; border-radius:999px; cursor:${!isFinalized ? 'not-allowed' : 'pointer'}; font-size:11px; font-weight:700; white-space:nowrap;">
+                                style="background:${statusBg}; color:white; border:none; padding:6px 10px; border-radius:999px; cursor:default; font-size:11px; font-weight:700; white-space:nowrap;">
                                 ${escapeHtml(statusText)}
                             </button>
                         </div>
