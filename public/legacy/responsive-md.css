@@ -60,17 +60,18 @@
 
   /* Fix thao tác: tránh flex-wrap làm lệch nhịp/dồn trống */
   .page-customers .customer-action-group{
-    flex-direction:column!important;
+    flex-direction:row!important;
     flex-wrap:nowrap!important;
-    align-items:flex-end!important;
-    gap:6px!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    gap:8px!important;
   }
   .page-customers #customers-table td.customer-cell-actions{
     padding:8px 4px!important;
     width:auto!important;
     min-width:110px!important;
     white-space:nowrap!important;
-    vertical-align:top!important;
+    vertical-align:middle!important;
     text-align:right!important;
   }
   .page-customers #customers-table td.customer-cell-actions button{
