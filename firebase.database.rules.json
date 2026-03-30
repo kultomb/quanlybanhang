@@ -6,7 +6,7 @@
       ".indexOn": ["paymentStatus", "paymentRef"],
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid && ( !data.exists() ? ( newData.child('paymentStatus').val() === 'pending' || ( newData.child('paymentStatus').val() === 'active' && newData.child('registrationTrial').val() === true && newData.child('trialExpiresAt').isNumber() && newData.child('trialExpiresAt').val() > 0 && newData.child('shopSlug').val().matches(/^try-[a-z0-9-]{1,28}$/) ) ) : newData.child('paymentStatus').val() === data.child('paymentStatus').val() )",
+        ".write": "auth != null && auth.uid === $uid && ( !data.exists() ? ( newData.child('paymentStatus').val() === 'pending' || ( newData.child('paymentStatus').val() === 'active' && newData.child('registrationTrial').val() === true && newData.child('trialExpiresAt').isNumber() && newData.child('trialExpiresAt').val() > 0 && newData.child('shopSlug').val().matches(/^try-[a-z0-9-]{1,28}$/) ) ) : ( newData.child('paymentStatus').val() === data.child('paymentStatus').val() && ( !data.child('shopSlug').exists() || newData.child('shopSlug').val() === data.child('shopSlug').val() ) ) )",
         "registrationTrial": {
           ".validate": "!newData.exists() || newData.isBoolean()"
         },
@@ -17,7 +17,7 @@
     },
     "shops": {
       "$shopSlug": {
-        ".read": "auth != null && (!data.exists() || data.child('ownerUid').val() === auth.uid)",
+        ".read": "auth != null && data.child('ownerUid').val() === auth.uid",
         ".write": "auth != null && ( (!data.exists() && newData.child('ownerUid').val() === auth.uid) || (data.exists() && data.child('ownerUid').val() === auth.uid) )",
         "trialShop": {
           ".validate": "!newData.exists() || newData.isBoolean()"
@@ -26,7 +26,7 @@
     },
     "trialShops": {
       "$shopSlug": {
-        ".read": "auth != null && (!data.exists() || data.child('ownerUid').val() === auth.uid)",
+        ".read": "auth != null && data.child('ownerUid').val() === auth.uid",
         ".write": "auth != null && ( (!data.exists() && newData.child('ownerUid').val() === auth.uid) || (data.exists() && data.child('ownerUid').val() === auth.uid) )",
         "trial": {
           ".validate": "!newData.exists() || newData.val() === true"
@@ -44,14 +44,14 @@
     },
     "backups": {
       "$shopKey": {
-        ".read": "auth != null && $shopKey === ('shop_' + root.child('users/' + auth.uid + '/shopSlug').val())",
-        ".write": "auth != null && $shopKey === ('shop_' + root.child('users/' + auth.uid + '/shopSlug').val())"
+        ".read": "auth != null && root.child('shops/' + $shopKey.replace('shop_', '') + '/ownerUid').val() === auth.uid",
+        ".write": "auth != null && root.child('shops/' + $shopKey.replace('shop_', '') + '/ownerUid').val() === auth.uid"
       }
     },
     "trial_backups": {
       "$shopKey": {
-        ".read": "auth != null && $shopKey === ('shop_' + root.child('users/' + auth.uid + '/shopSlug').val())",
-        ".write": "auth != null && $shopKey === ('shop_' + root.child('users/' + auth.uid + '/shopSlug').val())"
+        ".read": "auth != null && root.child('trialShops/' + $shopKey.replace('shop_', '') + '/ownerUid').val() === auth.uid",
+        ".write": "auth != null && root.child('trialShops/' + $shopKey.replace('shop_', '') + '/ownerUid').val() === auth.uid"
       }
     }
   }

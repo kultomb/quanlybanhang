@@ -6268,19 +6268,6 @@ class HamobileBanhang {
                             <div class="activity-time">${(this.demoData.orders || []).length}</div>
                         </div>
                     </div>
-                    
-                    <div style="background: #fef2f2; border: 2px solid #fecaca; padding: 20px; border-radius: 12px; margin-top: 20px;">
-                        <h3 style="margin-bottom: 12px; color: #991b1b; display: flex; align-items: center; gap: 8px;">
-                            <span>🔄</span> Reset doanh thu & đơn hàng
-                        </h3>
-                        <p style="font-size: 13px; color: #7f1d1d; margin-bottom: 16px;">
-                            Dùng khi chuyển từ chế độ demo sang vận hành thật. Xóa toàn bộ đơn hàng và đưa doanh thu về 0. Công nợ khách hàng cũng được reset.
-                        </p>
-                        <button onclick="app.confirmResetSalesData()" 
-                                style="background: #dc2626; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
-                            Reset doanh thu về 0
-                        </button>
-                    </div>
                 </div>
                 
                 <!-- Phần lịch sử hoạt động -->
@@ -13131,63 +13118,6 @@ class HamobileBanhang {
 
     deleteOrderFromSales(index) {
         this.deleteOrder(index, 'sales');
-    }
-
-    confirmResetSalesData() {
-        const ordersCount = (this.demoData.orders || []).length;
-        const salesCount = (this.demoData.sales || []).length;
-        const totalItems = ordersCount + salesCount;
-        if (totalItems === 0) {
-            this.showNotification('Không có dữ liệu để reset', 'info');
-            return;
-        }
-        const msg = `Bạn có chắc muốn reset Tổng doanh thu và Đơn hoàn thành về 0?\n\n` +
-            `Toàn bộ ${totalItems} đơn hàng/dữ liệu demo sẽ bị xóa. ` +
-            `Doanh thu từ các ngày demo sẽ không được tính nữa.\n\nKhông thể hoàn tác. Tiếp tục?`;
-        if (confirm(msg)) {
-            void this.resetSalesData();
-        }
-    }
-
-    async resetSalesData() {
-        (this.demoData.debtPayments || []).splice(0);
-        // Hoàn trả số lượng đã bán về tồn kho trước khi xóa đơn
-        const products = this.demoData.products || [];
-        (this.demoData.orders || []).forEach(order => {
-            if (order.stockRestored) return;
-            (order.products || []).forEach(op => {
-                const p = products.find(pr => pr.id === (op.id || op.productId));
-                if (!p || !(op.quantity > 0)) return;
-                p.stock = (p.stock || 0) + op.quantity;
-            });
-            order.stockRestored = true;
-        });
-        (this.demoData.sales || []).forEach(sale => {
-            (sale.itemDetails || []).forEach(item => {
-                const p = products.find(pr => pr.id === item.productId);
-                if (p && item.quantity) {
-                    p.stock = (p.stock || 0) + item.quantity;
-                }
-            });
-        });
-        this.demoData.orders = [];
-        this.demoData.sales = [];
-        (this.demoData.customers || []).forEach(c => { c.debt = 0; });
-        window.FirebaseStorage.setData(this.demoData);
-        this.saveToLocalStorage();
-        const cfg = window.FirebaseStorage.getConfig();
-        if (cfg) {
-            const company = window.FirebaseStorage.getCompany() || {};
-            const meta = window.FirebaseStorage._cache.meta || {};
-            const ok = await window.FirebaseStorage.save({ data: this.demoData, company, meta });
-            if (!ok) {
-                this.showNotification('Đã reset cục bộ; không ghi được lên đám mây — thử đồng bộ lại', 'warning');
-                this.loadPage('settings');
-                return;
-            }
-        }
-        this.showNotification('Đã reset doanh thu, đơn hàng và hoàn trả tồn kho sản phẩm', 'success');
-        this.loadPage('settings');
     }
 
     togglePaymentStatus(index) {

@@ -6400,19 +6400,6 @@ class HamobileBanhang {
                             <div class="activity-time">${(this.demoData.orders || []).length}</div>
                         </div>
                     </div>
-                    
-                    <div style="background: #fef2f2; border: 2px solid #fecaca; padding: 20px; border-radius: 12px; margin-top: 20px;">
-                        <h3 style="margin-bottom: 12px; color: #991b1b; display: flex; align-items: center; gap: 8px;">
-                            <span>🔄</span> Xóa dữ liệu demo
-                        </h3>
-                        <p style="font-size: 13px; color: #7f1d1d; margin-bottom: 16px;">
-                            Dùng khi chuyển từ chế độ demo sang vận hành thật. Thao tác này sẽ xóa toàn bộ dữ liệu demo của shop hiện tại.
-                        </p>
-                        <button onclick="app.confirmResetSalesData()" 
-                                style="background: #dc2626; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
-                            Xóa toàn bộ dữ liệu demo
-                        </button>
-                    </div>
                 </div>
                 
                 <!-- Phần lịch sử hoạt động -->
@@ -13285,63 +13272,6 @@ class HamobileBanhang {
 
     deleteOrderFromSales(index) {
         this.deleteOrder(index, 'sales');
-    }
-
-    confirmResetSalesData() {
-        const counts = {
-            customers: (this.demoData.customers || []).length,
-            suppliers: (this.demoData.suppliers || []).length,
-            products: (this.demoData.products || []).length,
-            categories: (this.demoData.categories || []).length,
-            orders: (this.demoData.orders || []).length,
-            sales: (this.demoData.sales || []).length,
-            repairs: (this.demoData.repairs || []).length,
-            debtPayments: (this.demoData.debtPayments || []).length,
-            debtors: (this.demoData.debtors || []).length
-        };
-        const totalItems = Object.values(counts).reduce((sum, n) => sum + n, 0);
-        if (totalItems === 0) {
-            this.showNotification('Không có dữ liệu để reset', 'info');
-            return;
-        }
-        const msg = `Bạn có chắc muốn xóa toàn bộ dữ liệu demo của shop này?\n\n` +
-            `Sẽ xóa: ${counts.customers} khách hàng, ${counts.suppliers} nhà cung cấp, ${counts.products} sản phẩm, ` +
-            `${counts.categories} danh mục, ${counts.orders + counts.sales} đơn hàng, ${counts.repairs} sửa chữa và dữ liệu công nợ.\n\n` +
-            `Không thể hoàn tác. Tiếp tục?`;
-        if (confirm(msg)) {
-            void this.resetSalesData();
-        }
-    }
-
-    async resetSalesData() {
-        const company = window.FirebaseStorage.getCompany() || {};
-        const prevMeta = window.FirebaseStorage._cache.meta || {};
-        const meta = Object.assign({}, prevMeta, { system_activity_history: [], schemaVersion: prevMeta.schemaVersion != null ? prevMeta.schemaVersion : 1 });
-        this.demoData.customers = [];
-        this.demoData.suppliers = [];
-        this.demoData.products = [];
-        this.demoData.categories = [];
-        this.demoData.orders = [];
-        this.demoData.sales = [];
-        this.demoData.repairs = [];
-        this.demoData.debtPayments = [];
-        this.demoData.debtors = [];
-        window.FirebaseStorage.setData(this.demoData);
-        window.FirebaseStorage.setCompany(company);
-        window.FirebaseStorage._cache.meta = meta;
-        this.saveToLocalStorage();
-        const cfg = window.FirebaseStorage.getConfig();
-        if (cfg) {
-            const ok = await window.FirebaseStorage.save({ data: this.demoData, company, meta });
-            if (ok) {
-                this.showNotification('Đã xóa dữ liệu và khởi tạo lại shop rỗng trên đám mây', 'success');
-            } else {
-                this.showNotification('Đã xóa trên máy này; không ghi được lên đám mây — kiểm tra mạng và đồng bộ lại', 'warning');
-            }
-        } else {
-            this.showNotification('Đã xóa toàn bộ dữ liệu demo (chưa cấu hình đám mây)', 'success');
-        }
-        this.loadPage('settings');
     }
 
     togglePaymentStatus(index) {
