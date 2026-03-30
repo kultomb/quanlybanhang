@@ -2896,9 +2896,11 @@ class HamobileBanhang {
         const cartHtml = this.renderPOSCart();
         const summary = this.getPOSSummary();
         const realCustomers = (this.demoData.customers || []).filter(c => c.id !== 'KH_LE' && !(c.id && c.id.startsWith('KL_')));
-        const customerOptions = `<div onclick="app.selectPOSCustomer('KH_LE','Khách lẻ')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-weight: 600; color: #059669;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">Khách lẻ</div>` + realCustomers.map(c =>
-            `<div onclick="app.selectPOSCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">${(c.name||'').replace(/</g,'&lt;')}${c.phone ? ' - ' + c.phone : ''}</div>`
-        ).join('');
+        const customerOptions = `<div onclick="app.selectPOSCustomer('KH_LE','Khách lẻ')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-weight: 600; color: #059669;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">Khách lẻ</div>` + realCustomers.map(c => {
+            const debt = this.getActualDebtForCustomer(c);
+            const debtText = debt > 0 ? ` • Nợ: ${debt.toLocaleString('vi-VN')}` : '';
+            return `<div onclick="app.selectPOSCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">${(c.name||'').replace(/</g,'&lt;')}${debtText}</div>`;
+        }).join('');
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const mobileStep = this.posMobileStep || 1;
         // Mobile: Trang 1 = Danh sách SP mới nhất | Trang 2 = Chọn KH + giỏ hàng
@@ -3734,9 +3736,11 @@ class HamobileBanhang {
         );
         const searchHtml = `<input type="text" class="pos-header-customer-search" placeholder="Tìm tên, SĐT..." value="${(term||'').replace(/"/g,'&quot;')}" oninput="app.renderHeaderCustomerDropdown(this.value)" onclick="event.stopPropagation()" style="width:100%;padding:8px 12px;border:none;border-bottom:1px solid #e5e7eb;font-size:13px;box-sizing:border-box;">`;
         const khachLeHtml = `<div onclick="app.selectPOSCustomer('KH_LE','Khách lẻ')" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-weight: 600; color: #059669;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">Khách lẻ</div>`;
-        const listHtml = customers.length ? customers.map(c =>
-            `<div onclick="app.selectPOSCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">${(c.name||'').replace(/</g,'&lt;')}${c.phone ? ' - ' + c.phone : ''}</div>`
-        ).join('') : '<div style="padding: 12px; color: #6b7280; font-size: 13px;">Không tìm thấy</div>';
+        const listHtml = customers.length ? customers.map(c => {
+            const debt = this.getActualDebtForCustomer(c);
+            const debtText = debt > 0 ? ` • Nợ: ${debt.toLocaleString('vi-VN')}` : '';
+            return `<div onclick="app.selectPOSCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">${(c.name||'').replace(/</g,'&lt;')}${debtText}</div>`;
+        }).join('') : '<div style="padding: 12px; color: #6b7280; font-size: 13px;">Không tìm thấy</div>';
         dd.innerHTML = searchHtml + khachLeHtml + listHtml;
     }
     
@@ -3931,9 +3935,7 @@ class HamobileBanhang {
             const debt = this.getActualDebtForCustomer(c);
             const debtStr = debt > 0 ? `Nợ: ${debt.toLocaleString('vi-VN')}` : '';
             const badges = [];
-            if (c.id) badges.push(`<span class="pos-customer-badge">${(c.id+'').replace(/</g,'&lt;')}</span>`);
             if (debtStr) badges.push(`<span class="pos-customer-badge pos-customer-debt">${debtStr}</span>`);
-            if (c.phone) badges.push(`<span class="pos-customer-phone">${(c.phone+'').replace(/</g,'&lt;')}</span>`);
             return `<div class="pos-customer-full-row" onclick="app.selectPOSCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}'); document.getElementById('pos-customer-list-full-modal').remove();">
                 <div class="pos-customer-full-avatar">👤</div>
                 <div class="pos-customer-full-info">
@@ -3963,9 +3965,11 @@ class HamobileBanhang {
         const dd = document.getElementById('pos-customer-dropdown');
         if (!dd) return;
         const khachLeHtml = `<div onclick="app.selectPOSCustomer('KH_LE','Khách lẻ')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6; font-weight: 600; color: #059669;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">Khách lẻ</div>`;
-        const listHtml = customers.length ? customers.map(c =>
-            `<div onclick="app.selectPOSCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">${(c.name||'').replace(/</g,'&lt;')}${c.phone ? ' - ' + c.phone : ''}</div>`
-        ).join('') : '<div style="padding: 12px; color: #6b7280;">Không tìm thấy</div>';
+        const listHtml = customers.length ? customers.map(c => {
+            const debt = this.getActualDebtForCustomer(c);
+            const debtText = debt > 0 ? ` • Nợ: ${debt.toLocaleString('vi-VN')}` : '';
+            return `<div onclick="app.selectPOSCustomer('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">${(c.name||'').replace(/</g,'&lt;')}${debtText}</div>`;
+        }).join('') : '<div style="padding: 12px; color: #6b7280;">Không tìm thấy</div>';
         dd.innerHTML = khachLeHtml + listHtml;
     }
     
@@ -12273,9 +12277,7 @@ class HamobileBanhang {
             const debt = this.getActualDebtForCustomer(c);
             const debtStr = debt > 0 ? `Nợ: ${debt.toLocaleString('vi-VN')}` : '';
             const badges = [];
-            if (c.id) badges.push(`<span class="pos-customer-badge">${escapeHtml((c.id + '')).toString()}</span>`);
             if (debtStr) badges.push(`<span class="pos-customer-badge pos-customer-debt">${escapeHtml(debtStr)}</span>`);
-            if (c.phone) badges.push(`<span class="pos-customer-phone">${escapeHtml((c.phone + '')).toString()}</span>`);
             return `<div class="dropdown-option pos-customer-full-row" data-value="${escapeHtml((c.id + '')).toString()}" 
                          onclick="app.selectCustomer(this, '${(c.id + '').replace(/'/g,"\\'")}', '${(c.name || '').replace(/'/g,"\\'")}')" 
                          onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" style="border-bottom: 1px solid #f3f4f6; cursor: pointer; padding: 10px 12px;">
@@ -12982,9 +12984,9 @@ class HamobileBanhang {
                                 style="padding: 12px 24px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer;">✏️ Sửa</button>
                         <button class="orders-detail-extra-action" onclick="closeModal(this.closest('div[style*=fixed]')); app.showPrintOptionsPopup(${index});"
                                 style="padding: 12px 24px; background: var(--primary-green); color: white; border: none; border-radius: 8px; cursor: pointer;">🖨️ In</button>
-                        <button class="orders-detail-extra-action" onclick="closeModal(this.closest('div[style*=fixed]')); app.cancelOrder(${index});"
+                        <button onclick="closeModal(this.closest('div[style*=fixed]')); app.cancelOrder(${index});"
                                 style="padding: 12px 24px; background: #f59e0b; color: white; border: none; border-radius: 8px; cursor: pointer;">⚠️ Hủy đơn</button>
-                        <button class="orders-detail-extra-action" onclick="closeModal(this.closest('div[style*=fixed]')); app.deleteOrder(${index});"
+                        <button onclick="closeModal(this.closest('div[style*=fixed]')); app.deleteOrder(${index});"
                                 style="padding: 12px 24px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer;">🗑️ Xóa</button>
                         <button onclick="closeModal(this.closest('div[style*=fixed]'))" 
                                 style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Đóng</button>
@@ -13065,9 +13067,7 @@ class HamobileBanhang {
             const debt = this.getActualDebtForCustomer(c);
             const debtStr = debt > 0 ? `Nợ: ${debt.toLocaleString('vi-VN')}` : '';
             const badges = [];
-            if (c.id) badges.push(`<span class="pos-customer-badge">${escapeHtml((c.id + '')).toString()}</span>`);
             if (debtStr) badges.push(`<span class="pos-customer-badge pos-customer-debt">${escapeHtml(debtStr)}</span>`);
-            if (c.phone) badges.push(`<span class="pos-customer-phone">${escapeHtml((c.phone + '')).toString()}</span>`);
             return `<div class="dropdown-option pos-customer-full-row" data-value="${escapeHtml((c.id + '')).toString()}" 
                          onclick="app.selectCustomer(this, '${(c.id + '').replace(/'/g,"\\'")}', '${(c.name || '').replace(/'/g,"\\'")}')" 
                          onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" style="border-bottom: 1px solid #f3f4f6; cursor: pointer; padding: 10px 12px;">

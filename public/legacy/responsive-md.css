@@ -24,6 +24,23 @@
     display:none!important;
   }
 
+  /* Orders table: ẩn luôn <col> tương ứng để table-layout fixed tự phân bổ lại */
+  #orders-table colgroup col:nth-child(5),
+  #orders-table colgroup col:nth-child(6),
+  #orders-table colgroup col:nth-child(7){
+    display:none!important;
+  }
+
+  /* Thu hẹp các cột còn lại để không bị thừa khoảng trống */
+  #orders-table colgroup col:nth-child(1){width:6%!important;}
+  #orders-table colgroup col:nth-child(2){width:11%!important;}
+  #orders-table colgroup col:nth-child(3){width:17%!important;}
+  #orders-table colgroup col:nth-child(4){width:11%!important;}
+  #orders-table colgroup col:nth-child(8){width:14%!important;}
+  #orders-table colgroup col:nth-child(9){width:13%!important;}
+  #orders-table colgroup col:nth-child(10){width:11%!important;}
+  #orders-table colgroup col:nth-child(11){width:17%!important;}
+
   /* Customers table: compact + hide address */
   .page-customers #customers-list > div{overflow-x:hidden!important}
   .page-customers #customers-table{
