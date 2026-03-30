@@ -756,8 +756,17 @@ class HamobileBanhang {
     initializeData() {
         this.demoData = window.FirebaseStorage.getData() || this.demoData;
         const hostedProxy = window.FirebaseStorage.usesCloudProxyApi();
+        const hasCloudConfig = !!(window.FirebaseStorage.getConfig && window.FirebaseStorage.getConfig());
         if (!Array.isArray(this.demoData.customers) || !Array.isArray(this.demoData.products)) {
             if (hostedProxy || window._loadedFromCloud) {
+                if (!this.demoData) this.demoData = {};
+                if (!Array.isArray(this.demoData.customers)) this.demoData.customers = [];
+                if (!Array.isArray(this.demoData.products)) this.demoData.products = [];
+                if (!Array.isArray(this.demoData.orders)) this.demoData.orders = [];
+                if (!Array.isArray(this.demoData.suppliers)) this.demoData.suppliers = [];
+                if (!Array.isArray(this.demoData.categories)) this.demoData.categories = [];
+                window.FirebaseStorage.setData(this.demoData);
+            } else if (hasCloudConfig) {
                 if (!this.demoData) this.demoData = {};
                 if (!Array.isArray(this.demoData.customers)) this.demoData.customers = [];
                 if (!Array.isArray(this.demoData.products)) this.demoData.products = [];

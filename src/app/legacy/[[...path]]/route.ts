@@ -73,13 +73,29 @@ export async function GET(
     const cookieShop = normalizeShopSlug(getCookieValue(request, SHOP_COOKIE_NAME));
     const sessionShop = await resolveShopSlugFromSession(request);
     const refShop = shopSlugFromLegacyReferer(request);
-    const slug = sessionShop || cookieShop || refShop;
-    const key = slug ? `shop_${slug}` : DEFAULT_BACKUP_KEY;
+    const keyParam = String(url.searchParams.get("key") || "").trim();
+    const shopFromQuery = normalizeShopSlug(url.searchParams.get("shop") || "");
+    /** Thứ tự: phiên đăng nhập > cookie > ?key= (cùng response với index.html) > Referer > ?shop= — tránh fallback shop_autokey khi Referer bị chặn. */
+    let key: string;
+    if (sessionShop) {
+      key = `shop_${sessionShop}`;
+    } else if (cookieShop) {
+      key = `shop_${cookieShop}`;
+    } else if (keyParam && /^shop_[a-z0-9-]+$/.test(keyParam)) {
+      key = keyParam;
+    } else if (refShop) {
+      key = `shop_${refShop}`;
+    } else if (shopFromQuery) {
+      key = `shop_${shopFromQuery}`;
+    } else {
+      key = DEFAULT_BACKUP_KEY;
+    }
     const body = `window.FIREBASE_CONFIG=${JSON.stringify({ url: DEFAULT_RTDB_URL, key })};`;
     return new Response(body, {
       headers: {
         "content-type": "application/javascript; charset=utf-8",
         "cache-control": "no-store",
+        vary: "Cookie",
       },
     });
   }
@@ -99,6 +115,9 @@ export async function GET(
       else if (urlShop) backupKey = `shop_${urlShop}`;
       const injectedConfig =
         `<script>window.FIREBASE_CONFIG = { url: '${DEFAULT_RTDB_URL}', key: '${backupKey}' };</script>`;
+      const keyQs = encodeURIComponent(backupKey);
+      const shopQs = urlShop ? `&shop=${encodeURIComponent(urlShop)}` : "";
+      const scriptWithKey = `<script src="firebase-config.js?key=${keyQs}${shopQs}"></script>`;
       let content = raw.replace(
         "<script>window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || { url: '', key: '' };</script>",
         injectedConfig,
@@ -106,10 +125,12 @@ export async function GET(
       if (content === raw) {
         content = raw.replace("</head>", `${injectedConfig}\n</head>`);
       }
+      content = content.replace('<script src="firebase-config.js"></script>', scriptWithKey);
       return new Response(content, {
         headers: {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
+          vary: "Cookie",
         },
       });
     }
