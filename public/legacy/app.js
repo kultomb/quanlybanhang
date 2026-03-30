@@ -13636,16 +13636,6 @@ class HamobileBanhang {
                         </div>
                     </div>
 
-                    <div style="background: #fff7ed; border: 2px solid #fdba74; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
-                        <div style="display: flex; align-items: center; gap: 8px; color: #ea580c;">
-                            <span>⚠️</span>
-                            <strong>Lưu ý:</strong>
-                        </div>
-                        <div style="margin-top: 8px; color: #9a3412;">
-                            Thao tác này sẽ cập nhật công nợ của khách hàng và không thể hoàn tác.
-                        </div>
-                    </div>
-                    
                     <div style="display: flex; gap: 12px; justify-content: flex-end;">
                         <button type="button" onclick="closeModal(this.closest('div[style*=fixed]'))" 
                                 style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer; font-weight: 600;">Hủy</button>
