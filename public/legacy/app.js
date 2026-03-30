@@ -7077,12 +7077,25 @@ class HamobileBanhang {
         const sortedCustomerOrders = this.sortOrdersByDate(customerOrders);
         const ordersTable = sortedCustomerOrders.length > 0 ? sortedCustomerOrders.map((order, orderIndex) => {
             const originalOrderIndex = this.demoData.orders.findIndex(o => o.id === order.id);
+            const paidAmount = (order.amountPaid != null
+                ? order.amountPaid
+                : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0));
+            const remainingDebt = Math.max(0, (order.total || 0) - paidAmount);
             return `
             <tr style="border-bottom: 1px solid #e5e7eb;">
                 <td data-label="Mã ĐH" style="padding: 8px; font-weight: 600;">${order.id}</td>
                 <td data-label="Ngày/Giờ" style="padding: 8px;">${order.date} ${order.time}</td>
 <td data-label="Tổng tiền" style="padding: 8px; font-weight: 600; color: var(--primary-blue);">${order.total.toLocaleString('vi-VN')} VNĐ</td>
-                                <td data-label="Đã trả / Còn nợ" style="padding: 8px; font-size: 12px;">${(order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0)).toLocaleString('vi-VN')} đ trả · Nợ ${Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0))).toLocaleString('vi-VN')} đ</td>
+                                <td data-label="Đã trả / Còn nợ" style="padding: 8px; font-size: 12px; line-height: 1.45;">
+                                    <div style="margin-bottom: 8px;">
+                                        <div style="color:#065f46; font-weight:700;">Đã trả:</div>
+                                        <div style="color:#047857; font-weight:700; font-size:13px;">${paidAmount.toLocaleString('vi-VN')} đ</div>
+                                    </div>
+                                    <div>
+                                        <div style="color:#92400e; font-weight:700;">Còn nợ:</div>
+                                        <div style="color:#b45309; font-weight:700; font-size:13px;">${remainingDebt.toLocaleString('vi-VN')} đ</div>
+                                    </div>
+                                </td>
                                 <td data-label="Trạng thái" style="padding: 8px;">
                                     <span style="padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
                                         ${order.status === 'Hoàn thành' ? 'background: #dcfce7; color: #166534;' : ''}
