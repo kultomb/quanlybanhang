@@ -325,6 +325,9 @@
   }
   .customer-details-orders-table td:not([data-label])::before{display:none!important}
 
+  /* Mobile: bỏ cụm thống kê mua hàng ở popup chi tiết khách hàng */
+  .customer-details-purchase-stats{display:none!important}
+
   /* Ẩn các nút In/Hủy/Xóa trong popup chi tiết đơn trên mobile */
   .orders-detail-extra-action{display:none!important}
 }

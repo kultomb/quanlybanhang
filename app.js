@@ -7014,7 +7014,7 @@ class HamobileBanhang {
                     </div>
                     
                     <!-- Thống kê mua hàng -->
-                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px;">
+                    <div class="customer-details-purchase-stats" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px;">
                         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 18px; font-weight: bold; margin-bottom: 4px;">${customerOrders.length}</div>
                             <div style="font-size: 12px; opacity: 0.9;">Tổng đơn hàng</div>
