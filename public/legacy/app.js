@@ -10715,7 +10715,12 @@ class HamobileBanhang {
                         <h3 style="margin:0;">Chọn loại giấy in tem mã</h3>
                         <button type="button" onclick="document.getElementById('print-label-modal').remove()" style="border:none;background:none;font-size:24px;cursor:pointer;">×</button>
                     </div>
-                    <input id="label-print-qty" type="hidden" value="${defaultQty}">
+                    <div style="display:flex; align-items:center; gap:10px; margin: 8px 0 12px; padding: 8px 10px; background:#f8fafc; border: 1px solid #e5e7eb; border-radius: 10px;">
+                        <span style="font-size:13px; font-weight:700; color:#334155;">Số tem cần in:</span>
+                        <input id="label-print-qty" type="number" min="1" step="1" max="${defaultQty}" value="${defaultQty}"
+                            style="width:120px; padding:8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size:13px; font-weight:700; color:#111827;"
+                            onchange="app.renderPrintLabelPreview('${productId}')"/>
+                    </div>
                     <input id="label-print-template" type="hidden" value="${defaultTemplateId}">
                     <label style="display:flex; align-items:center; gap:8px; margin: 8px 0 12px; font-size:13px; color:#334155; font-weight:600;">
                         <input id="label-print-hide-price" type="checkbox" ${this._labelHidePrice ? 'checked' : ''} onchange="app.setLabelHidePrice(this.checked)">
@@ -10756,6 +10761,7 @@ class HamobileBanhang {
         const isImei = !!(product.hasImei && Array.isArray(product.imeis) && product.imeis.length > 0);
         const template = this.getLabelPrintTemplates().find(t => t.id === templateId) || this.getLabelPrintTemplates()[0];
         const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+        const maxQty = Math.max(1, parseInt(qtyInput.max, 10) || qty);
         const labels = this.getPrintableLabelItems(product, qty);
         const printType = isImei ? 'imei' : 'barcode';
         const pageSize = this.getTemplatePageSize(template);
@@ -10769,6 +10775,9 @@ class HamobileBanhang {
                     </div>
                     <div style="background:#94a3b8; color:#fff; padding:8px 12px; display:flex; justify-content:center; gap:10px; align-items:center;">
                         <button type="button" onclick="app.changeLabelSheetPage(-1)" style="background:none;border:none;color:#fff;cursor:pointer;">◀</button>
+                        <input id="label-sheet-qty" type="number" min="1" step="1" max="${maxQty}" value="${qty}"
+                            style="width:90px; padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.7); background:#fff; color:#111827; font-weight:800; font-size:13px;"
+                            onchange="app.updateLabelSheetQty(this.value)">
                         <span id="label-sheet-page-indicator">1/${totalPages}</span>
                         <button type="button" onclick="app.changeLabelSheetPage(1)" style="background:none;border:none;color:#fff;cursor:pointer;">▶</button>
                         <button type="button" onclick="app.printLabelSheetAllPages()" style="margin-left:12px;background:none;border:none;color:#fff;cursor:pointer;">🖨 In</button>
@@ -10778,7 +10787,7 @@ class HamobileBanhang {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', html);
-        this._labelSheetState = { productId, template, labels, pageSize, page: 1, totalPages, printType };
+        this._labelSheetState = { productId, template, labels, pageSize, page: 1, totalPages, printType, maxQty };
         this.renderLabelSheetPage();
     }
 
@@ -10928,6 +10937,26 @@ class HamobileBanhang {
                 }).join('')}
             </div>
         `;
+    }
+
+    updateLabelSheetQty(nextQty) {
+        const st = this._labelSheetState;
+        if (!st) return;
+        const product = this.demoData.products.find(p => p.id === st.productId);
+        if (!product) return;
+        let q = Math.max(1, parseInt(nextQty, 10) || 1);
+        if (typeof st.maxQty === 'number' && Number.isFinite(st.maxQty)) q = Math.min(st.maxQty, q);
+
+        const qtyInput = document.getElementById('label-print-qty');
+        if (qtyInput) qtyInput.value = String(q);
+
+        const qtySheetInput = document.getElementById('label-sheet-qty');
+        if (qtySheetInput) qtySheetInput.value = String(q);
+
+        st.labels = this.getPrintableLabelItems(product, q);
+        st.totalPages = Math.max(1, Math.ceil(st.labels.length / st.pageSize));
+        st.page = 1;
+        this.renderLabelSheetPage();
     }
 
     changeLabelSheetPage(delta) {
