@@ -348,6 +348,19 @@
     max-width:96vw!important;
     padding:16px!important;
     border-radius:12px!important;
+    font-size:13px!important;
+  }
+  .edit-order-modal h3{font-size:22px!important; margin-bottom:16px!important}
+  .edit-order-modal label{font-size:13px!important}
+  .edit-order-modal input,
+  .edit-order-modal select,
+  .edit-order-modal textarea{
+    font-size:13px!important;
+    padding:10px!important;
+  }
+  .edit-order-modal textarea{min-height:84px!important}
+  .edit-order-modal div[style*="font-size: 12px; color: #6b7280"]{
+    font-size:11px!important;
   }
   .edit-order-customer-row{
     flex-direction:column!important;
@@ -360,36 +373,41 @@
   .edit-order-product-header{display:none!important}
   .edit-order-field-label{
     display:block!important;
-    font-size:10px!important;
+    font-size:9px!important;
     font-weight:800!important;
     color:#6b7280!important;
-    margin-bottom:4px!important;
+    margin-bottom:3px!important;
     text-transform:uppercase!important;
     letter-spacing:.02em!important;
   }
   .edit-order-product-row{
-    display:flex!important;
-    flex-wrap:wrap!important;
-    gap:8px!important;
-    padding:10px!important;
+    display:grid!important;
+    grid-template-columns: 1.25fr 0.8fr 0.7fr!important;
+    grid-template-areas:
+      "name price qty"
+      "discount discount remove"!important;
+    gap:6px!important;
+    padding:8px!important;
     border:1px solid #e5e7eb!important;
-    border-radius:10px!important;
-    background:#f9fafb!important;
-    margin-bottom:10px!important;
+    border-radius:8px!important;
+    background:#f8fafc!important;
+    margin-bottom:6px!important;
     align-items:stretch!important;
   }
+  .edit-order-field-name{grid-area:name!important}
+  .edit-order-field-price{grid-area:price!important}
+  .edit-order-field-qty{grid-area:qty!important}
+  .edit-order-field-discount{grid-area:discount!important}
+  .edit-order-field-remove{grid-area:remove!important}
   .edit-order-product-name{
-    flex:1 1 100%!important;
     width:100%!important;
   }
   .edit-order-product-price,
   .edit-order-product-qty{
-    flex:1 1 calc(50% - 4px)!important;
-    width:calc(50% - 4px)!important;
+    width:100%!important;
     min-width:0!important;
   }
   .edit-order-product-discount{
-    flex:1 1 100%!important;
     width:100%!important;
     min-width:0!important;
   }
@@ -397,7 +415,8 @@
     width:100%!important;
     display:flex!important;
     justify-content:flex-end!important;
-    align-items:center!important;
+    align-items:flex-end!important;
+    padding-top:12px!important;
   }
   .page-customers .customer-action-group button,
   .customer-details-orders-table td button,
@@ -407,10 +426,23 @@
     border-radius:6px!important;
   }
   .edit-order-modal .edit-order-product-remove button{
-    width:34px!important;
-    height:32px!important;
+    width:30px!important;
+    height:30px!important;
     padding:0!important;
   }
+  .edit-order-product-row input,
+  .edit-order-product-row select{
+    font-size:11px!important;
+    padding:7px!important;
+    border-radius:6px!important;
+  }
+  .edit-order-product-row .edit-order-product-discount select{
+    width:46px!important;
+    flex:0 0 46px!important;
+    padding:7px 2px!important;
+    font-size:11px!important;
+  }
+  .edit-order-product-name option{font-size:11px!important}
 
   /* Ẩn các nút In/Hủy/Xóa trong popup chi tiết đơn trên mobile */
   .orders-detail-extra-action{display:none!important}
