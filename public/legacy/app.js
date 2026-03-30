@@ -7079,23 +7079,23 @@ class HamobileBanhang {
             const originalOrderIndex = this.demoData.orders.findIndex(o => o.id === order.id);
             return `
             <tr style="border-bottom: 1px solid #e5e7eb;">
-                <td style="padding: 8px; font-weight: 600;">${order.id}</td>
-                <td style="padding: 8px;">${order.date} ${order.time}</td>
-<td style="padding: 8px; font-weight: 600; color: var(--primary-blue);">${order.total.toLocaleString('vi-VN')} VNĐ</td>
-                                <td style="padding: 8px; font-size: 12px;">${(order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0)).toLocaleString('vi-VN')} đ trả · Nợ ${Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0))).toLocaleString('vi-VN')} đ</td>
-                                <td style="padding: 8px;">
+                <td data-label="Mã ĐH" style="padding: 8px; font-weight: 600;">${order.id}</td>
+                <td data-label="Ngày/Giờ" style="padding: 8px;">${order.date} ${order.time}</td>
+<td data-label="Tổng tiền" style="padding: 8px; font-weight: 600; color: var(--primary-blue);">${order.total.toLocaleString('vi-VN')} VNĐ</td>
+                                <td data-label="Đã trả / Còn nợ" style="padding: 8px; font-size: 12px;">${(order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0)).toLocaleString('vi-VN')} đ trả · Nợ ${Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0))).toLocaleString('vi-VN')} đ</td>
+                                <td data-label="Trạng thái" style="padding: 8px;">
                                     <span style="padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
                                         ${order.status === 'Hoàn thành' ? 'background: #dcfce7; color: #166534;' : ''}
                                         ${order.status === 'Đang xử lý' ? 'background: #fef3c7; color: #92400e;' : ''}
                                         ${order.status === 'Hủy' ? 'background: #fee2e2; color: #dc2626;' : ''}
                                     ">${order.status}</span>
                                 </td>
-                                <td style="padding: 8px;">
+                                <td data-label="Thanh toán" style="padding: 8px;">
                                     <span style="padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
                                         ${order.paymentStatus === 'Đã thanh toán' ? 'background: #dcfce7; color: #166534;' : 'background: #fef3c7; color: #92400e;'}
                                     ">${order.paymentStatus}</span>
                                 </td>
-                <td style="padding: 8px;">
+                <td data-label="Thao tác" style="padding: 8px;">
                     <button onclick="app.viewOrderDetails(${originalOrderIndex})" 
                             style="background: var(--primary-blue); color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
                         Chi tiết
@@ -7162,7 +7162,7 @@ class HamobileBanhang {
                             <span>📊</span> Lịch sử đơn hàng (${customerOrders.length})
                         </h4>
                         <div style="overflow-x: auto; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
-                            <table style="width: 100%; border-collapse: collapse;">
+                            <table class="customer-details-orders-table" style="width: 100%; border-collapse: collapse;">
                                 <thead style="background: #f8fafc;">
                                     <tr>
                                         <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Mã ĐH</th>

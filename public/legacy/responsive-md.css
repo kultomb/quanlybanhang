@@ -224,15 +224,106 @@
     cursor:not-allowed;
   }
 
-  /* Customers mobile: chỉ hiện tên, liên hệ, công nợ; tuỳ chọn theo dropdown */
+  /* Customers mobile: 3 cột hàng trên + nút thao tác nằm hàng dưới */
+  .page-customers #customers-table thead{display:none!important}
   .page-customers #customers-table td.customer-cell-address{display:none!important}
-  .page-customers #customers-table td.customer-cell-actions{display:none!important}
   .page-customers .customer-meta-lines{display:none!important}
-  /* Tránh lặp nhãn "Khách hàng" làm tăng chiều cao card */
-  .page-customers #customers-table td.customer-cell-main::before{display:none!important}
-  /* Dropdown nằm trong ô "Tên", chỉ mở khi bấm */
-  .page-customers .customer-mobile-actions-dropdown{margin-top:8px}
-  .page-customers .customer-mobile-actions-dropdown button{width:100%; box-sizing:border-box}
+  /* Không dùng dropdown nữa: hiển thị nút trực tiếp ở hàng dưới */
+  .page-customers .customer-mobile-actions-dropdown{display:none!important}
+
+  .page-customers #customers-table tbody tr[data-customer-index]{
+    display:grid!important;
+    grid-template-columns: 1fr 1fr 1fr!important;
+    grid-auto-rows:auto!important;
+    gap: 8px 10px!important;
+    padding: 12px 12px!important;
+    border: 1px solid #e5e7eb!important;
+    border-radius: 12px!important;
+    background:#fff!important;
+    margin-bottom: 12px!important;
+    overflow:hidden!important;
+    box-sizing:border-box!important;
+  }
+  .page-customers #customers-table tbody td{
+    border-bottom:none!important;
+    padding:0!important;
+    vertical-align:top!important;
+    font-size:13px!important;
+  }
+  /* Nhãn trên mỗi ô */
+  .page-customers #customers-table tbody td::before{
+    content: attr(data-label);
+    display:block!important;
+    font-size:10px!important;
+    font-weight:800!important;
+    color:#6b7280!important;
+    margin-bottom:4px!important;
+    text-transform:uppercase!important;
+    letter-spacing:.02em!important;
+  }
+  .page-customers #customers-table tbody td:not([data-label])::before{display:none!important}
+  /* Đổi nhãn Khách hàng -> KH theo yêu cầu */
+  .page-customers #customers-table tbody td.customer-cell-main::before{
+    content:'KH'!important;
+  }
+  /* Tắt nhãn ở ô hành động */
+  .page-customers #customers-table tbody td.customer-cell-actions::before{display:none!important}
+
+  /* Ô "Thao tác" nằm cả hàng */
+  .page-customers #customers-table tbody td.customer-cell-actions{
+    grid-column: 1 / -1!important;
+    padding-top: 6px!important;
+    display:block!important;
+  }
+  .page-customers .customer-action-group{
+    display:flex!important;
+    flex-wrap:nowrap!important;
+    gap:8px!important;
+    justify-content:flex-end!important;
+    width:100%!important;
+  }
+  .page-customers .customer-action-group button{
+    padding:6px 10px!important;
+    font-size:12px!important;
+    white-space:nowrap!important;
+  }
+
+  /* Tránh pill công nợ bị wrap/méo trong card */
+  .page-customers #customers-table td.customer-cell-debt span{white-space:nowrap!important}
+
+  /* Popup customer details: bảng lịch sử đơn -> card trên mobile */
+  .customer-details-orders-table thead{display:none!important}
+  .customer-details-orders-table tbody,
+  .customer-details-orders-table tr,
+  .customer-details-orders-table td{
+    display:block!important;
+    width:100%!important;
+  }
+  .customer-details-orders-table tbody tr{
+    border:1px solid #e5e7eb!important;
+    border-radius: 12px!important;
+    background:#fff!important;
+    overflow:hidden!important;
+    margin-bottom: 10px!important;
+  }
+  .customer-details-orders-table td{
+    border-bottom: 1px solid #f3f4f6!important;
+    padding:10px 12px!important;
+    font-size:13px!important;
+    vertical-align:top!important;
+  }
+  .customer-details-orders-table td:last-child{border-bottom:none!important}
+  .customer-details-orders-table td::before{
+    content: attr(data-label);
+    display:block!important;
+    font-size:10px!important;
+    font-weight:800!important;
+    color:#6b7280!important;
+    margin-bottom:4px!important;
+    text-transform:uppercase!important;
+    letter-spacing:.02em!important;
+  }
+  .customer-details-orders-table td:not([data-label])::before{display:none!important}
 
   /* Ẩn các nút In/Hủy/Xóa trong popup chi tiết đơn trên mobile */
   .orders-detail-extra-action{display:none!important}
