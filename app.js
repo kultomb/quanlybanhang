@@ -303,12 +303,14 @@ window.FirebaseStorage = {
         } catch (_) { return false; }
     },
     async save(payload) {
+        const mergedMeta = Object.assign({}, this._cache.meta || {}, payload.meta || {});
+        if (mergedMeta.schemaVersion == null) mergedMeta.schemaVersion = 1;
+        const wv = typeof mergedMeta.writeVersion === 'number' && Number.isFinite(mergedMeta.writeVersion) ? mergedMeta.writeVersion : 0;
         const body = {
             data: payload.data !== undefined ? payload.data : this._cache.data,
             company: payload.company !== undefined ? payload.company : this._cache.company,
-            meta: Object.assign({}, this._cache.meta, payload.meta || {})
+            meta: Object.assign({}, mergedMeta, { clientBaseWriteVersion: wv })
         };
-        if (body.meta && body.meta.schemaVersion == null) body.meta.schemaVersion = 1;
         const api = this._api('app.json');
         if (!api) return false;
         try {
@@ -317,23 +319,34 @@ window.FirebaseStorage = {
                 body: JSON.stringify(body),
                 headers: { 'Content-Type': 'application/json' },
             }));
+            const resText = await res.text();
             if (res.ok) {
+                let saved = null;
+                try {
+                    saved = resText && resText !== 'null' ? JSON.parse(resText) : null;
+                } catch (eParse) {}
                 const d = body.data;
                 const hasBiz = d && (
                     (Array.isArray(d.customers) && d.customers.length > 0) ||
                     (Array.isArray(d.products) && d.products.length > 0) ||
                     (Array.isArray(d.orders) && d.orders.length > 0)
                 );
+                var nextMeta = Object.assign({}, body.meta);
+                delete nextMeta.clientBaseWriteVersion;
+                if (saved && typeof saved === 'object' && saved.meta && typeof saved.meta === 'object' && !Array.isArray(saved.meta)) {
+                    nextMeta = Object.assign({}, nextMeta, saved.meta);
+                }
                 if (hasBiz) {
-                    body.meta = Object.assign({}, body.meta, { cloud_initialized: 'true' });
+                    nextMeta = Object.assign({}, nextMeta, { cloud_initialized: 'true' });
                 }
                 this._cache.data = body.data;
                 this._cache.company = body.company;
-                this._cache.meta = body.meta;
+                this._cache.meta = nextMeta;
+                delete this._cache.meta.clientBaseWriteVersion;
                 haEnsurePosDataArraysInPlace(this._cache.data);
                 const backupsApi = this._api('backups.json');
                 if (backupsApi) {
-                    const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: body.meta };
+                    const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: this._cache.meta };
                     fetch(backupsApi, await this._proxyFetchInit({
                         method: 'PUT',
                         body: JSON.stringify(backupPayload),

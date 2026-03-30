@@ -50,8 +50,11 @@ function webhookSecretOk(request: Request) {
   const expectedSecret = String(process.env.PAYMENT_WEBHOOK_SECRET || "").trim();
   const hasAuth = expectedApiKeys.length > 0 || !!expectedSecret;
   if (!hasAuth) {
-    // Dev convenience only — production must set PAYMENT_WEBHOOK_API_KEY and/or PAYMENT_WEBHOOK_SECRET
-    return process.env.NODE_ENV !== "production";
+    /** Production: never open. Local test: set PAYMENT_WEBHOOK_ALLOW_INSECURE_LOCAL=1 explicitly. */
+    const allowInsecureLocal =
+      process.env.NODE_ENV !== "production" &&
+      String(process.env.PAYMENT_WEBHOOK_ALLOW_INSECURE_LOCAL || "").trim() === "1";
+    return allowInsecureLocal;
   }
 
   const authHeader = String(request.headers.get("authorization") || "").trim();

@@ -9,6 +9,7 @@
         missing_shop_context: 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
         unauthorized: 'Không thể xác thực tài khoản. Vui lòng đăng nhập lại.',
         stale_data: 'Dữ liệu vừa được cập nhật ở nơi khác. Vui lòng tải lại để tiếp tục.',
+        missing_write_version: 'Phiên bản dữ liệu không khớp. Vui lòng tải lại trang rồi thử lưu lại.',
         demo_seed_forbidden: 'Không thể tạo dữ liệu mẫu vì cửa hàng đã có dữ liệu.',
         network_error: 'Kết nối không ổn định. Vui lòng kiểm tra mạng.',
         unknown_error: 'Có lỗi xảy ra. Vui lòng thử lại.',
@@ -108,8 +109,12 @@
 
         var code = 'unknown_error';
         if (status === 401) code = 'unauthorized';
-        else if (status === 403) {
+        else if (status === 400) {
+            if (serverError === 'missing_write_version') code = 'missing_write_version';
+            else code = 'unknown_error';
+        } else if (status === 403) {
             if (serverError === 'missing_shop_slug') code = 'missing_shop_context';
+            else if (serverError === 'delete_forbidden') code = 'unknown_error';
             else code = 'unknown_error';
         } else if (status === 409) {
             if (serverError === 'stale_data') code = 'stale_data';

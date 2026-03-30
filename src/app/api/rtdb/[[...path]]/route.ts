@@ -12,7 +12,9 @@
  *   (resolve + tự ghi lại nếu chỉ tìm thấy qua `shops/` hoặc `trialShops/`) để không đọc/ghi nhầm kho.
  * - 403 JSON: `missing_shop_slug`, `trial_slug_mismatch`, `production_trial_prefix_forbidden`, `trial_expired`,
  *   `trial_backup_required`, `production_backup_required`.
- * - 409 JSON: `demo_seed_forbidden`, `stale_data` (optimistic lock: `meta.clientBaseWriteVersion` vs `meta.writeVersion`).
+ * - 400 JSON: `missing_write_version` nếu PUT `app` thiếu `meta.clientBaseWriteVersion` (số hợp lệ).
+ * - 403 JSON: `delete_forbidden` — DELETE chỉ whitelist `…/snapshots/{timestamp}`.
+ * - 409 JSON: `demo_seed_forbidden`, `stale_data` (`meta.clientBaseWriteVersion` bắt buộc và phải khớp `meta.writeVersion` trên server).
  *
  * Khác ví dụ Firestore (doc users/{uid} với field products[]): đây là RTDB + một file JSON backup; hành vi đúng
  * vẫn là: chỉ seed demo khi cloud thật sự trống và user xác nhận (xem initAsync trong app.js).
@@ -61,6 +63,17 @@ function jsonError(status: number, error: string, message: string) {
       "cache-control": "no-store",
     },
   });
+}
+
+/** Chỉ cho phép xóa từng file snapshot rolling (legacy), không xóa app/data cả nhánh. */
+function isAllowedBackupDeletePath(segments: string[], allowedShopKey: string): boolean {
+  if (segments.length !== 4) return false;
+  const [root, shopKey, bucket, snapLeaf] = segments;
+  if (root !== "backups" && root !== "trial_backups") return false;
+  if (shopKey !== allowedShopKey) return false;
+  if (bucket !== "snapshots") return false;
+  if (!/^\d+$/.test(String(snapLeaf || ""))) return false;
+  return true;
 }
 
 /** Một dòng JSON — dễ grep log hosting (uid / shop / path). */
@@ -248,6 +261,21 @@ async function proxy(
     const leaf = segments[segments.length - 1] || "";
     let valueToSet = value;
     if (leaf === "app" && value && typeof value === "object" && !Array.isArray(value)) {
+      let working = value as Record<string, unknown>;
+      const meta0 = working.meta;
+      const clientBase =
+        meta0 && typeof meta0 === "object" && !Array.isArray(meta0)
+          ? (meta0 as { clientBaseWriteVersion?: unknown }).clientBaseWriteVersion
+          : undefined;
+      if (typeof clientBase !== "number" || !Number.isFinite(clientBase)) {
+        logRtdb("MISSING_WRITE_VERSION", { uid: decoded.uid, shop: allowedShopKey, path: targetPath });
+        return jsonError(
+          400,
+          "missing_write_version",
+          "Thiếu phiên bản đồng bộ. Vui lòng tải lại trang rồi lưu lại.",
+        );
+      }
+
       const existingSnap = await dbRef.get();
       const existingVal = existingSnap.val();
       const srvNorm = normalizePosBackupJsonForGet(existingVal) as { meta?: Record<string, unknown> };
@@ -256,8 +284,6 @@ async function proxy(
           ? srvNorm.meta.writeVersion
           : 0;
 
-      let working = value as Record<string, unknown>;
-      const meta0 = working.meta;
       const isDemoSeed = !!(
         meta0 &&
         typeof meta0 === "object" &&
@@ -281,26 +307,19 @@ async function proxy(
         working = stripDemoSeedFlagFromPayload(working) as Record<string, unknown>;
       }
 
-      const clientMeta = working.meta;
-      const clientBase =
-        clientMeta && typeof clientMeta === "object" && !Array.isArray(clientMeta)
-          ? (clientMeta as { clientBaseWriteVersion?: unknown }).clientBaseWriteVersion
-          : undefined;
-      if (typeof clientBase === "number" && Number.isFinite(clientBase)) {
-        if (clientBase !== srvWrite) {
-          logRtdb("STALE_WRITE_REJECTED", {
-            uid: decoded.uid,
-            shop: allowedShopKey,
-            path: targetPath,
-            clientBaseWriteVersion: clientBase,
-            serverWriteVersion: srvWrite,
-          });
-          return jsonError(
-            409,
-            "stale_data",
-            "Dữ liệu trên server đã thay đổi (có thể do tab khác đang mở). Hãy tải lại trang để đồng bộ trước khi lưu.",
-          );
-        }
+      if (clientBase !== srvWrite) {
+        logRtdb("STALE_WRITE_REJECTED", {
+          uid: decoded.uid,
+          shop: allowedShopKey,
+          path: targetPath,
+          clientBaseWriteVersion: clientBase,
+          serverWriteVersion: srvWrite,
+        });
+        return jsonError(
+          409,
+          "stale_data",
+          "Dữ liệu trên server đã thay đổi (có thể do tab khác đang mở). Hãy tải lại trang để đồng bộ trước khi lưu.",
+        );
       }
 
       const merged = JSON.parse(JSON.stringify(working)) as Record<string, unknown>;
@@ -315,10 +334,8 @@ async function proxy(
       delete incomingMeta.clientBaseWriteVersion;
       delete incomingMeta.isDemoSeed;
 
-      if (typeof clientBase === "number" && Number.isFinite(clientBase)) {
-        incomingMeta.writeVersion = srvWrite + 1;
-        incomingMeta.updatedAt = Date.now();
-      }
+      incomingMeta.writeVersion = srvWrite + 1;
+      incomingMeta.updatedAt = Date.now();
 
       merged.meta = { ...existingMeta, ...incomingMeta };
       valueToSet = merged;
@@ -331,6 +348,10 @@ async function proxy(
   }
 
   if (method === "DELETE") {
+    if (!isAllowedBackupDeletePath(segments, allowedShopKey)) {
+      logRtdb("delete_forbidden", { uid: decoded.uid, shop: allowedShopKey, path: targetPath });
+      return jsonError(403, "delete_forbidden", "Không được phép xóa đường dẫn này.");
+    }
     logRtdb("delete", { uid: decoded.uid, shop: allowedShopKey, path: targetPath });
     await dbRef.remove();
     return new Response("null", {
