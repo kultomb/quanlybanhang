@@ -7161,7 +7161,7 @@ class HamobileBanhang {
                         <h4 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
                             <span>📊</span> Lịch sử đơn hàng (${customerOrders.length})
                         </h4>
-                        <div style="overflow-x: auto; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <div class="customer-details-orders-wrap" style="overflow-x: auto; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
                             <table class="customer-details-orders-table" style="width: 100%; border-collapse: collapse;">
                                 <thead style="background: #f8fafc;">
                                     <tr>

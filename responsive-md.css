@@ -298,6 +298,14 @@
   .page-customers #customers-table td.customer-cell-debt span{white-space:nowrap!important}
 
   /* Popup customer details: bảng lịch sử đơn -> card trên mobile */
+  .customer-details-orders-wrap{
+    overflow-x:hidden!important;
+  }
+  .customer-details-orders-table{
+    min-width:0!important;
+    width:100%!important;
+    table-layout:fixed!important;
+  }
   .customer-details-orders-table thead{display:none!important}
   .customer-details-orders-table tbody,
   .customer-details-orders-table tr,
