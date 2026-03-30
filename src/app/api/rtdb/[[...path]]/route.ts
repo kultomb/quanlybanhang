@@ -12,6 +12,7 @@
  *   (resolve + tự ghi lại nếu chỉ tìm thấy qua `shops/` hoặc `trialShops/`) để không đọc/ghi nhầm kho.
  * - 403 JSON: `missing_shop_slug`, `trial_slug_mismatch`, `production_trial_prefix_forbidden`, `trial_expired`,
  *   `trial_backup_required`, `production_backup_required`.
+ * - 409 JSON: `demo_seed_forbidden`, `stale_data` (optimistic lock: `meta.clientBaseWriteVersion` vs `meta.writeVersion`).
  *
  * Khác ví dụ Firestore (doc users/{uid} với field products[]): đây là RTDB + một file JSON backup; hành vi đúng
  * vẫn là: chỉ seed demo khi cloud thật sự trống và user xác nhận (xem initAsync trong app.js).
@@ -62,6 +63,38 @@ function jsonError(status: number, error: string, message: string) {
   });
 }
 
+/** Một dòng JSON — dễ grep log hosting (uid / shop / path). */
+function logRtdb(event: string, data: Record<string, unknown>) {
+  try {
+    console.log(JSON.stringify({ source: "rtdb_proxy", event, ts: Date.now(), ...data }));
+  } catch {
+    // ignore
+  }
+}
+
+/** Chặn ghi demo đè dữ liệu thật (PUT app có meta.isDemoSeed). */
+function shouldRejectDemoSeedOverwrite(existingVal: unknown): boolean {
+  const norm = normalizePosBackupJsonForGet(existingVal) as {
+    data?: { orders?: unknown };
+    meta?: Record<string, unknown>;
+  };
+  const orders = norm?.data?.orders;
+  if (Array.isArray(orders) && orders.length > 0) return true;
+  const m = norm?.meta;
+  if (m && String(m.cloud_initialized) === "true") return true;
+  return false;
+}
+
+function stripDemoSeedFlagFromPayload(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const meta = (value as { meta?: unknown }).meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return value;
+  const copy = JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+  const mc = copy.meta as Record<string, unknown>;
+  delete mc.isDemoSeed;
+  return copy;
+}
+
 /**
  * Chặn cross-mode: trial ↔ slug có tiền tố; hết hạn trial.
  * Dùng isEffectiveTrialAccount (cờ true/false ưu tiên, chưa set thì suy từ slug).
@@ -102,17 +135,24 @@ async function proxy(
   request: Request,
   context: { params: Promise<{ path?: string[] }> },
 ) {
+  const method = request.method.toUpperCase();
+  const { path } = await context.params;
+  const fullPath = (path || []).join("/");
+
   const jar = await cookies();
   const token = idTokenFromRequest(request, jar.get(COOKIE_NAME)?.value || "");
-  if (!token) return new Response("Unauthorized", { status: 401 });
+  if (!token) {
+    logRtdb("auth_missing_token", { method, path: fullPath || "/" });
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   const decoded = await adminAuth()
     .verifyIdToken(token)
     .catch(() => null);
-  if (!decoded?.uid) return new Response("Unauthorized", { status: 401 });
-
-  const { path } = await context.params;
-  const fullPath = (path || []).join("/");
+  if (!decoded?.uid) {
+    logRtdb("auth_invalid_token", { method, path: fullPath || "/" });
+    return new Response("Unauthorized", { status: 401 });
+  }
   if (!fullPath.startsWith("backups/")) {
     return new Response("Forbidden path", { status: 403 });
   }
@@ -159,12 +199,18 @@ async function proxy(
     );
   }
   const targetPath = segments.join("/");
+  logRtdb("request", {
+    method,
+    uid: decoded.uid,
+    shop: allowedShopKey,
+    path: targetPath,
+    trial: trialUser,
+  });
   const db = adminDb();
   if (trialUser) {
     await liftLegacyTrialBackupToTrialBackups(db, allowedShopKey);
   }
   const dbRef = db.ref(targetPath);
-  const method = request.method.toUpperCase();
   if (method === "GET") {
     const snap = await dbRef.get();
     const reqUrl = new URL(request.url);
@@ -199,14 +245,93 @@ async function proxy(
         return jsonError(400, "invalid_json", "Body không phải JSON hợp lệ.");
       }
     }
-    await dbRef.set(value);
-    return new Response(JSON.stringify(value ?? null), {
+    const leaf = segments[segments.length - 1] || "";
+    let valueToSet = value;
+    if (leaf === "app" && value && typeof value === "object" && !Array.isArray(value)) {
+      const existingSnap = await dbRef.get();
+      const existingVal = existingSnap.val();
+      const srvNorm = normalizePosBackupJsonForGet(existingVal) as { meta?: Record<string, unknown> };
+      const srvWrite =
+        typeof srvNorm?.meta?.writeVersion === "number" && Number.isFinite(srvNorm.meta.writeVersion)
+          ? srvNorm.meta.writeVersion
+          : 0;
+
+      let working = value as Record<string, unknown>;
+      const meta0 = working.meta;
+      const isDemoSeed = !!(
+        meta0 &&
+        typeof meta0 === "object" &&
+        !Array.isArray(meta0) &&
+        (meta0 as { isDemoSeed?: unknown }).isDemoSeed === true
+      );
+      if (isDemoSeed) {
+        if (shouldRejectDemoSeedOverwrite(existingVal)) {
+          logRtdb("DEMO_SEED_BLOCKED", {
+            uid: decoded.uid,
+            shop: allowedShopKey,
+            path: targetPath,
+            reason: "has_real_orders_or_cloud_initialized",
+          });
+          return jsonError(
+            409,
+            "demo_seed_forbidden",
+            "Từ chối ghi dữ liệu mẫu: shop đã có dữ liệu thật (đơn hàng hoặc đã khởi tạo trên đám mây).",
+          );
+        }
+        working = stripDemoSeedFlagFromPayload(working) as Record<string, unknown>;
+      }
+
+      const clientMeta = working.meta;
+      const clientBase =
+        clientMeta && typeof clientMeta === "object" && !Array.isArray(clientMeta)
+          ? (clientMeta as { clientBaseWriteVersion?: unknown }).clientBaseWriteVersion
+          : undefined;
+      if (typeof clientBase === "number" && Number.isFinite(clientBase)) {
+        if (clientBase !== srvWrite) {
+          logRtdb("STALE_WRITE_REJECTED", {
+            uid: decoded.uid,
+            shop: allowedShopKey,
+            path: targetPath,
+            clientBaseWriteVersion: clientBase,
+            serverWriteVersion: srvWrite,
+          });
+          return jsonError(
+            409,
+            "stale_data",
+            "Dữ liệu trên server đã thay đổi (có thể do tab khác đang mở). Hãy tải lại trang để đồng bộ trước khi lưu.",
+          );
+        }
+      }
+
+      const merged = JSON.parse(JSON.stringify(working)) as Record<string, unknown>;
+      const existingMeta =
+        srvNorm.meta && typeof srvNorm.meta === "object" && !Array.isArray(srvNorm.meta)
+          ? { ...srvNorm.meta }
+          : {};
+      const incomingMeta =
+        merged.meta && typeof merged.meta === "object" && !Array.isArray(merged.meta)
+          ? { ...(merged.meta as Record<string, unknown>) }
+          : {};
+      delete incomingMeta.clientBaseWriteVersion;
+      delete incomingMeta.isDemoSeed;
+
+      if (typeof clientBase === "number" && Number.isFinite(clientBase)) {
+        incomingMeta.writeVersion = srvWrite + 1;
+        incomingMeta.updatedAt = Date.now();
+      }
+
+      merged.meta = { ...existingMeta, ...incomingMeta };
+      valueToSet = merged;
+    }
+    await dbRef.set(valueToSet);
+    return new Response(JSON.stringify(valueToSet ?? null), {
       status: 200,
       headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
     });
   }
 
   if (method === "DELETE") {
+    logRtdb("delete", { uid: decoded.uid, shop: allowedShopKey, path: targetPath });
     await dbRef.remove();
     return new Response("null", {
       status: 200,

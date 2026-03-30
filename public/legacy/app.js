@@ -76,6 +76,29 @@ function haEnsurePosDataArraysInPlace(d) {
 function haIsLoadedPosPackage(pkg) {
     return !!(pkg && pkg.data && typeof pkg.data === 'object' && !Array.isArray(pkg.data));
 }
+/** Khung rỗng (không dữ liệu mẫu) — dùng trước khi load cloud xong. */
+function haEmptyShopDataRecord() {
+    var o = {};
+    for (var i = 0; i < HA_POS_ARRAY_KEYS.length; i++) {
+        o[HA_POS_ARRAY_KEYS[i]] = [];
+    }
+    return o;
+}
+/** Chờ Bearer token cho proxy /api/rtdb (iframe) trước khi fetch — tránh 401 → nhánh fallback. */
+async function haWaitForProxyAuthReady() {
+    var fs = window.FirebaseStorage;
+    if (!fs || typeof fs.usesCloudProxyApi !== 'function' || !fs.usesCloudProxyApi()) return true;
+    var deadline = Date.now() + 16000;
+    while (Date.now() < deadline) {
+        try {
+            var init = await fs._proxyFetchInit({ method: 'GET' });
+            var authz = init.headers && init.headers['Authorization'];
+            if (authz && String(authz).length > 30) return true;
+        } catch (e) {}
+        await new Promise(function (r) { setTimeout(r, 100); });
+    }
+    return false;
+}
 /** Fallback khi parent.__hanghoGetIdToken chưa sẵn sàng hoặc Edge chặn gọi trực tiếp — postMessage cùng origin. */
 async function haRequestIdTokenFromParentViaPostMessage() {
     return new Promise(function(resolve) {
@@ -114,6 +137,11 @@ window.FirebaseStorage = {
     _config: null,
     MAX_ROLLING_SNAPSHOTS: 48,
     getConfig() {
+        try {
+            if (window.__FIREBASE_CONFIG_ERROR && window.__FIREBASE_CONFIG_ERROR.error === 'missing_shop_context') {
+                return null;
+            }
+        } catch (_) {}
         const cfg = window.FIREBASE_CONFIG || {};
         if (this._config && this._config.url) {
             const wUrl = String(cfg.url || '').trim().replace(/\/+$/, '');
@@ -139,7 +167,10 @@ window.FirebaseStorage = {
         if (url && !key && !proxy) {
             const seg = String(window.location.pathname || '').split('/').filter(Boolean)[0] || '';
             const safeSeg = String(seg).toLowerCase().replace(/[^a-z0-9-]/g, '');
-            key = safeSeg && safeSeg !== 'legacy' ? ('shop_' + safeSeg) : 'shop_autokey';
+            key = safeSeg && safeSeg !== 'legacy' ? ('shop_' + safeSeg) : '';
+        }
+        if (proxy && !key) {
+            return null;
         }
         if (url && key) {
             this._config = { url, key };
@@ -202,10 +233,16 @@ window.FirebaseStorage = {
         return '/api/rtdb/backups/' + encodeURIComponent(c.key) + '/' + path;
     },
     async load() {
-        this.purgeLegacyLocalStorageKeys();
         window._lastFirebaseError = null;
         const api = this._api('app.json');
         if (!api) return this._logLoadTrace(null, 'no_api');
+        if (this.usesCloudProxyApi()) {
+            var authOk = await haWaitForProxyAuthReady();
+            if (!authOk) {
+                window._lastFirebaseError = 'Chưa có phiên đăng nhập (token). Vui lòng đợi vài giây hoặc tải lại trang.';
+                return this._logLoadTrace(null, 'auth_timeout');
+            }
+        }
         try {
             const res = await fetch(api, await this._proxyFetchInit());
             if (!res.ok) {
@@ -234,6 +271,7 @@ window.FirebaseStorage = {
                 this._cache.meta = pkg.meta;
                 window._lastFirebaseError = null;
                 window._loadedFromCloud = true;
+                this.purgeLegacyLocalStorageKeys();
                 return this._logLoadTrace(this._cache, 'cloud_norm');
             }
             if (json != null && typeof json === 'object' && !Array.isArray(json)) {
@@ -274,6 +312,7 @@ window.FirebaseStorage = {
                 this._cache.meta = legPkg.meta;
                 window._lastFirebaseError = null;
                 window._loadedFromCloud = true;
+                this.purgeLegacyLocalStorageKeys();
                 return this._logLoadTrace(this._cache, 'legacy_data_json');
             }
             if (legJson != null && typeof legJson === 'object' && !Array.isArray(legJson) && !window._lastFirebaseError) {
@@ -306,6 +345,7 @@ window.FirebaseStorage = {
         this._cache.meta = pkg.meta;
         window._lastFirebaseError = null;
         window._loadedFromCloud = true;
+        this.purgeLegacyLocalStorageKeys();
         return true;
     },
     isLikelyBundledDemoData(data) {
@@ -318,12 +358,14 @@ window.FirebaseStorage = {
         } catch (_) { return false; }
     },
     async save(payload) {
+        const mergedMeta = Object.assign({}, this._cache.meta || {}, payload.meta || {});
+        if (mergedMeta.schemaVersion == null) mergedMeta.schemaVersion = 1;
+        var wv = typeof mergedMeta.writeVersion === 'number' && Number.isFinite(mergedMeta.writeVersion) ? mergedMeta.writeVersion : 0;
         const body = {
             data: payload.data !== undefined ? payload.data : this._cache.data,
             company: payload.company !== undefined ? payload.company : this._cache.company,
-            meta: Object.assign({}, this._cache.meta, payload.meta || {})
+            meta: Object.assign({}, mergedMeta, { clientBaseWriteVersion: wv })
         };
-        if (body.meta && body.meta.schemaVersion == null) body.meta.schemaVersion = 1;
         const api = this._api('app.json');
         if (!api) return false;
         try {
@@ -332,23 +374,38 @@ window.FirebaseStorage = {
                 body: JSON.stringify(body),
                 headers: { 'Content-Type': 'application/json' },
             }));
+            const resText = await res.text();
             if (res.ok) {
+                let saved = null;
+                try {
+                    saved = resText && resText !== 'null' ? JSON.parse(resText) : null;
+                } catch (eParse) {}
                 const d = body.data;
                 const hasBiz = d && (
                     (Array.isArray(d.customers) && d.customers.length > 0) ||
                     (Array.isArray(d.products) && d.products.length > 0) ||
                     (Array.isArray(d.orders) && d.orders.length > 0)
                 );
+                var nextMeta = Object.assign({}, body.meta);
+                delete nextMeta.clientBaseWriteVersion;
+                if (Object.prototype.hasOwnProperty.call(nextMeta, 'isDemoSeed')) {
+                    nextMeta = Object.assign({}, nextMeta);
+                    delete nextMeta.isDemoSeed;
+                }
+                if (saved && typeof saved === 'object' && saved.meta && typeof saved.meta === 'object' && !Array.isArray(saved.meta)) {
+                    nextMeta = Object.assign({}, nextMeta, saved.meta);
+                }
                 if (hasBiz) {
-                    body.meta = Object.assign({}, body.meta, { cloud_initialized: 'true' });
+                    nextMeta = Object.assign({}, nextMeta, { cloud_initialized: 'true' });
                 }
                 this._cache.data = body.data;
                 this._cache.company = body.company;
-                this._cache.meta = body.meta;
+                this._cache.meta = nextMeta;
+                delete this._cache.meta.clientBaseWriteVersion;
                 haEnsurePosDataArraysInPlace(this._cache.data);
                 const backupsApi = this._api('backups.json');
                 if (backupsApi) {
-                    const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: body.meta };
+                    const backupPayload = { lastSync: new Date().toISOString(), data: body.data, company: body.company, meta: this._cache.meta };
                     fetch(backupsApi, await this._proxyFetchInit({
                         method: 'PUT',
                         body: JSON.stringify(backupPayload),
@@ -356,6 +413,17 @@ window.FirebaseStorage = {
                     })).catch(() => {});
                 }
                 return true;
+            }
+            if (res.status === 409) {
+                var msg409 = 'Không thể lưu (xung đột phiên bản hoặc dữ liệu mẫu bị chặn).';
+                try {
+                    if (resText) {
+                        var jb = JSON.parse(resText);
+                        if (jb && typeof jb.message === 'string' && jb.message.trim()) msg409 = jb.message.trim();
+                    }
+                } catch (e409) {}
+                window._lastFirebaseError = msg409;
+                return false;
             }
         } catch (e) { console.warn('Firebase save:', e); }
         return false;
@@ -486,7 +554,7 @@ class HamobileBanhang {
         this.productsPage = 1;
         this.productsPerPage = 50;
         this.inventoryStatusFilter = 'all'; // 'all' | 'low' | 'warning' | 'good'
-        this.demoData = this.generateDemoData(); // Tạm dùng demo cho đến khi load xong
+        this.demoData = haEmptyShopDataRecord();
         this._ready = false;
         this._saveDebounceTimer = null;
         this._saveDebounceMs = 500;
@@ -496,6 +564,26 @@ class HamobileBanhang {
     async initAsync() {
         const content = document.getElementById('main-content');
         if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang tải dữ liệu...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
+        var missCtx = window.__FIREBASE_CONFIG_ERROR;
+        if (missCtx && missCtx.error === 'missing_shop_context') {
+            var missMsg = escapeHtml(String(missCtx.message || 'Vui lòng đăng nhập và mở bán hàng từ bảng điều khiển cửa hàng.'));
+            var missRedir = String(missCtx.redirect || '/login').trim() || '/login';
+            if (content) {
+                content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;">' +
+                    '<h2>Không mở được từ liên kết này</h2>' +
+                    '<p style="margin: 16px 0; color: #6b7280; line-height: 1.55;">' + missMsg + '</p>' +
+                    '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+                    '<button type="button" id="ha-miss-shop-primary" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Đăng nhập / Về app</button>' +
+                    '<button type="button" id="ha-miss-shop-reload" style="padding:12px 24px;border:1px solid #d1d5db;background:#fff;border-radius:8px;cursor:pointer;">Tải lại</button>' +
+                    '</div></div>';
+                var bp = document.getElementById('ha-miss-shop-primary');
+                var br = document.getElementById('ha-miss-shop-reload');
+                if (bp) bp.onclick = function() { window.location.href = missRedir; };
+                if (br) br.onclick = function() { window.location.reload(); };
+            }
+            window.app = this;
+            return;
+        }
         const cfg = window.FirebaseStorage.getConfig();
         const localHadData = false;
         if (!cfg) {
@@ -623,7 +711,7 @@ class HamobileBanhang {
                 if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Khởi tạo dữ liệu mới cho khóa sao lưu này...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
                 self.demoData = self.generateDemoData();
                 window.FirebaseStorage.setData(self.demoData);
-                const saved = await window.FirebaseStorage.save({ data: self.demoData });
+                const saved = await window.FirebaseStorage.save({ data: self.demoData, meta: { isDemoSeed: true } });
                 if (saved) {
                     self._ready = true;
                     self.clearOldDataIfNeeded();
@@ -908,8 +996,26 @@ class HamobileBanhang {
         if (!window.FirebaseStorage.getData()) return false;
         return false;
     }
+
+    /** Gợi ý một lần / phiên: shop mới chưa cloud_initialized — tránh nhầm với demo. */
+    maybeShowCloudOnboardingHint() {
+        try {
+            if (!window.FirebaseStorage.usesCloudProxyApi()) return;
+            if (window.FirebaseStorage.getMeta('cloud_initialized') === 'true') return;
+            if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('ha_onboarding_hint') === '1') return;
+            if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('ha_onboarding_hint', '1');
+            var self = this;
+            window.setTimeout(function() {
+                self.showNotification(
+                    'Chào mừng — dữ liệu shop có thể mới hoặc chưa lưu lần đầu lên đám mây. Thêm sản phẩm và bán thử; mọi thay đổi sẽ đồng bộ khi bạn lưu.',
+                    'info',
+                );
+            }, 700);
+        } catch (_) {}
+    }
     
     init() {
+        this.maybeShowCloudOnboardingHint();
         this.setupNavigation();
         this.setupEventListeners();
         this.checkStorageRisk();

@@ -5,7 +5,6 @@ import { normalizeShopSlug, resolveUserShopSlugWithHeal } from "@/lib/backend/us
 
 const LEGACY_ROOT = path.resolve(process.cwd(), "public", "legacy");
 const DEFAULT_RTDB_URL = "/api/rtdb";
-const DEFAULT_BACKUP_KEY = process.env.NEXT_PUBLIC_DEFAULT_BACKUP_KEY || "shop_autokey";
 const SHOP_COOKIE_NAME = "ha_shop_slug";
 const SESSION_COOKIE_NAME = "ha_session_token";
 
@@ -75,8 +74,8 @@ export async function GET(
     const refShop = shopSlugFromLegacyReferer(request);
     const keyParam = String(url.searchParams.get("key") || "").trim();
     const shopFromQuery = normalizeShopSlug(url.searchParams.get("shop") || "");
-    /** Thứ tự: phiên đăng nhập > cookie > ?key= (cùng response với index.html) > Referer > ?shop= — tránh fallback shop_autokey khi Referer bị chặn. */
-    let key: string;
+    /** Thứ tự: phiên đăng nhập > cookie > ?key= > Referer > ?shop= — không fallback key mặc định (tránh đọc/ghi nhầm kho). */
+    let key = "";
     if (sessionShop) {
       key = `shop_${sessionShop}`;
     } else if (cookieShop) {
@@ -87,10 +86,25 @@ export async function GET(
       key = `shop_${refShop}`;
     } else if (shopFromQuery) {
       key = `shop_${shopFromQuery}`;
-    } else {
-      key = DEFAULT_BACKUP_KEY;
     }
-    const body = `window.FIREBASE_CONFIG=${JSON.stringify({ url: DEFAULT_RTDB_URL, key })};`;
+    if (!key) {
+      /** 200 + JS: trình duyệt vẫn “load” script; client đọc __FIREBASE_CONFIG_ERROR (JSON-safe). */
+      const errPayload = {
+        error: "missing_shop_context",
+        message:
+          "Vui lòng đăng nhập và mở bán hàng từ bảng điều khiển cửa hàng — không mở trực tiếp đường dẫn /legacy khi chưa có phiên hoặc thiếu mã shop.",
+        redirect: "/login",
+      };
+      const body = `window.__FIREBASE_CONFIG_ERROR=${JSON.stringify(errPayload)};window.FIREBASE_CONFIG=Object.assign({},window.FIREBASE_CONFIG||{},{url:${JSON.stringify(DEFAULT_RTDB_URL)},key:""});`;
+      return new Response(body, {
+        headers: {
+          "content-type": "application/javascript; charset=utf-8",
+          "cache-control": "no-store",
+          vary: "Cookie",
+        },
+      });
+    }
+    const body = `window.__FIREBASE_CONFIG_ERROR=undefined;window.FIREBASE_CONFIG=${JSON.stringify({ url: DEFAULT_RTDB_URL, key })};`;
     return new Response(body, {
       headers: {
         "content-type": "application/javascript; charset=utf-8",
@@ -108,10 +122,10 @@ export async function GET(
       const cookieShop = normalizeShopSlug(getCookieValue(request, SHOP_COOKIE_NAME));
       const sessionShop = await resolveShopSlugFromSession(request);
       const requestedKey = String(url.searchParams.get("key") || "").trim();
-      let backupKey = DEFAULT_BACKUP_KEY;
+      let backupKey = "";
       if (sessionShop) backupKey = `shop_${sessionShop}`;
       else if (cookieShop) backupKey = `shop_${cookieShop}`;
-      else if (requestedKey) backupKey = requestedKey;
+      else if (requestedKey && /^shop_[a-z0-9-]+$/.test(requestedKey)) backupKey = requestedKey;
       else if (urlShop) backupKey = `shop_${urlShop}`;
       const injectedConfig =
         `<script>window.FIREBASE_CONFIG = { url: '${DEFAULT_RTDB_URL}', key: '${backupKey}' };</script>`;
