@@ -225,6 +225,12 @@
   }
 
   /* Customers mobile: 3 cột hàng trên + nút thao tác nằm hàng dưới */
+  .page-customers #customers-list > div{overflow-x:hidden!important}
+  .page-customers #customers-table{
+    min-width:0!important;
+    width:100%!important;
+    table-layout:fixed!important;
+  }
   .page-customers #customers-table thead{display:none!important}
   .page-customers #customers-table td.customer-cell-address{display:none!important}
   .page-customers .customer-meta-lines{display:none!important}
