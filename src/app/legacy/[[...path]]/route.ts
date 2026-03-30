@@ -18,6 +18,7 @@ const ALLOWED_FILES = new Set([
   "index.html",
   "styles.css",
   "app.js",
+  "app-errors.js",
   "firebase-config.js",
 ]);
 

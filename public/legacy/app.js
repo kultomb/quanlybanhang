@@ -216,11 +216,12 @@ window.FirebaseStorage = {
     _logLoadTrace(result, hint) {
         try {
             const c = this.getConfig();
+            const last = window.__LAST_ERROR;
             haLegacyDebugLog('LOAD_SOURCE', {
                 hint: hint || '',
                 hasData: !!(result && result.data && typeof result.data === 'object' && !Array.isArray(result.data)),
                 fromCloud: !!window._loadedFromCloud,
-                lastError: window._lastFirebaseError || null,
+                lastErrorCode: last && last.code ? last.code : null,
                 usesProxy: this.usesCloudProxyApi(),
                 backupKeyTail: c ? String(c.key || '').slice(-8) : '',
             });
@@ -233,92 +234,131 @@ window.FirebaseStorage = {
         return '/api/rtdb/backups/' + encodeURIComponent(c.key) + '/' + path;
     },
     async load() {
+        window._haSyncLoadFailed = false;
         window._lastFirebaseError = null;
         const api = this._api('app.json');
-        if (!api) return this._logLoadTrace(null, 'no_api');
+        if (!api) {
+            if (typeof handleAppError === 'function') {
+                handleAppError('unknown_error', { phase: 'load', reason: 'no_sync_path' }, { silent: true });
+            }
+            window._haSyncLoadFailed = true;
+            return this._logLoadTrace(null, 'no_api');
+        }
         if (this.usesCloudProxyApi()) {
             var authOk = await haWaitForProxyAuthReady();
             if (!authOk) {
-                window._lastFirebaseError = 'Chưa có phiên đăng nhập (token). Vui lòng đợi vài giây hoặc tải lại trang.';
+                if (typeof handleAppError === 'function') {
+                    handleAppError('unauthorized', { phase: 'load', reason: 'auth_not_ready' }, { silent: true });
+                }
+                window._haSyncLoadFailed = true;
                 return this._logLoadTrace(null, 'auth_timeout');
             }
         }
         try {
             const res = await fetch(api, await this._proxyFetchInit());
+            const resText = await res.text();
             if (!res.ok) {
-                let detail = res.statusText || '';
-                try {
-                    const t = await res.text();
-                    if (t) {
-                        try {
-                            const j = JSON.parse(t);
-                            if (j && typeof j.message === 'string' && j.message.trim()) detail = j.message.trim();
-                        } catch (_) {
-                            if (t.length < 420) detail = t;
-                        }
-                    }
-                } catch (_) {}
-                window._lastFirebaseError = res.status === 403
-                    ? 'Không truy cập được kho dữ liệu (403). ' + (detail || 'Kiểm tra users/{uid}/shopSlug và đăng nhập lại (tab thường, cookie).')
-                    : 'Không thể kết nối dữ liệu đám mây (' + res.status + '). ' + (detail || 'Vui lòng thử lại.');
+                var parsedErr =
+                    typeof haParseSyncHttpError === 'function'
+                        ? haParseSyncHttpError(res.status, resText)
+                        : { code: 'unknown_error', serverError: '', serverMessage: '', requestId: undefined };
+                if (typeof handleAppError === 'function') {
+                    handleAppError(parsedErr.code, {
+                        phase: 'load',
+                        status: res.status,
+                        serverError: parsedErr.serverError,
+                        serverMessage: parsedErr.serverMessage,
+                        requestId: parsedErr.requestId,
+                        resource: 'app',
+                    }, { silent: true });
+                }
+                window._haSyncLoadFailed = true;
                 return this._logLoadTrace(null, 'http_' + res.status);
             }
-            const json = await res.json();
+            var json = null;
+            try {
+                json = resText ? JSON.parse(resText) : null;
+            } catch (parseEx) {
+                if (typeof handleAppError === 'function') {
+                    handleAppError('unknown_error', { phase: 'load', reason: 'invalid_body', resource: 'app' }, { silent: true });
+                }
+                window._haSyncLoadFailed = true;
+            }
             const pkg = haNormalizeBackupPackage(json);
             if (pkg) {
                 this._cache.data = pkg.data;
                 this._cache.company = pkg.company;
                 this._cache.meta = pkg.meta;
-                window._lastFirebaseError = null;
+                window._haSyncLoadFailed = false;
                 window._loadedFromCloud = true;
                 this.purgeLegacyLocalStorageKeys();
                 return this._logLoadTrace(this._cache, 'cloud_norm');
             }
             if (json != null && typeof json === 'object' && !Array.isArray(json)) {
-                window._lastFirebaseError = 'Không đọc được gói dữ liệu app.json (JSON không hỗ trợ).';
+                if (typeof handleAppError === 'function') {
+                    handleAppError('unknown_error', { phase: 'load', reason: 'unreadable_package', resource: 'app' }, { silent: true });
+                }
+                window._haSyncLoadFailed = true;
             }
         } catch (e) {
-            window._lastFirebaseError = 'Kết nối tạm thời gián đoạn. Vui lòng thử lại.';
+            if (typeof handleAppError === 'function') {
+                handleAppError('network_error', { phase: 'load', cause: e && e.message ? e.message : String(e) }, { silent: true });
+            }
+            window._haSyncLoadFailed = true;
             console.warn('Firebase load:', e);
         }
         try {
             const legacyApi = this._api('data.json');
             const legRes = await fetch(legacyApi, await this._proxyFetchInit());
+            const legText = await legRes.text();
             if (!legRes.ok) {
-                let detail = legRes.statusText || '';
-                try {
-                    const t = await legRes.text();
-                    if (t) {
-                        try {
-                            const j = JSON.parse(t);
-                            if (j && typeof j.message === 'string' && j.message.trim()) detail = j.message.trim();
-                        } catch (_) {
-                            if (t.length < 420) detail = t;
-                        }
+                if (!window._haSyncLoadFailed) {
+                    var p2 =
+                        typeof haParseSyncHttpError === 'function'
+                            ? haParseSyncHttpError(legRes.status, legText)
+                            : { code: 'unknown_error', serverError: '', serverMessage: '', requestId: undefined };
+                    if (typeof handleAppError === 'function') {
+                        handleAppError(p2.code, {
+                            phase: 'load',
+                            status: legRes.status,
+                            serverError: p2.serverError,
+                            serverMessage: p2.serverMessage,
+                            requestId: p2.requestId,
+                            resource: 'legacy',
+                        }, { silent: true });
                     }
-                } catch (_) {}
-                if (!window._lastFirebaseError) {
-                    window._lastFirebaseError = legRes.status === 403
-                        ? 'Không truy cập được kho dữ liệu (403, data.json). ' + (detail || 'Kiểm tra users/{uid}/shopSlug và đăng nhập lại (tab thường, cookie).')
-                        : 'Không thể kết nối dữ liệu đám mây (' + legRes.status + ', data.json). ' + (detail || 'Vui lòng thử lại.');
                 }
+                window._haSyncLoadFailed = true;
                 return this._logLoadTrace(null, 'legacy_http_fail');
             }
-            const legJson = await legRes.json();
+            var legJson = null;
+            try {
+                legJson = legText ? JSON.parse(legText) : null;
+            } catch (le) {
+                if (!window._haSyncLoadFailed && typeof handleAppError === 'function') {
+                    handleAppError('unknown_error', { phase: 'load', reason: 'invalid_body', resource: 'legacy' }, { silent: true });
+                }
+                window._haSyncLoadFailed = true;
+            }
             const legPkg = haNormalizeBackupPackage(legJson);
             if (legPkg) {
                 this._cache.data = legPkg.data;
                 this._cache.company = legPkg.company;
                 this._cache.meta = legPkg.meta;
-                window._lastFirebaseError = null;
+                window._haSyncLoadFailed = false;
                 window._loadedFromCloud = true;
                 this.purgeLegacyLocalStorageKeys();
                 return this._logLoadTrace(this._cache, 'legacy_data_json');
             }
-            if (legJson != null && typeof legJson === 'object' && !Array.isArray(legJson) && !window._lastFirebaseError) {
-                window._lastFirebaseError = 'Không đọc được gói dữ liệu data.json (JSON không hỗ trợ).';
+            if (legJson != null && typeof legJson === 'object' && !Array.isArray(legJson) && !window._haSyncLoadFailed) {
+                if (typeof handleAppError === 'function') {
+                    handleAppError('unknown_error', { phase: 'load', reason: 'unreadable_package', resource: 'legacy' }, { silent: true });
+                }
+                window._haSyncLoadFailed = true;
             }
-        } catch (e) { console.warn('Firebase legacy load:', e); }
+        } catch (e) {
+            console.warn('Firebase legacy load:', e);
+        }
         window._loadedFromCloud = false;
         return this._logLoadTrace(null, 'empty');
     },
@@ -343,6 +383,7 @@ window.FirebaseStorage = {
         this._cache.data = pkg.data;
         this._cache.company = pkg.company;
         this._cache.meta = pkg.meta;
+        window._haSyncLoadFailed = false;
         window._lastFirebaseError = null;
         window._loadedFromCloud = true;
         this.purgeLegacyLocalStorageKeys();
@@ -367,7 +408,12 @@ window.FirebaseStorage = {
             meta: Object.assign({}, mergedMeta, { clientBaseWriteVersion: wv })
         };
         const api = this._api('app.json');
-        if (!api) return false;
+        if (!api) {
+            if (typeof handleAppError === 'function') {
+                handleAppError('unknown_error', { phase: 'save', reason: 'no_sync_path' }, { ui: 'toast' });
+            }
+            return false;
+        }
         try {
             const res = await fetch(api, await this._proxyFetchInit({
                 method: 'PUT',
@@ -414,18 +460,26 @@ window.FirebaseStorage = {
                 }
                 return true;
             }
-            if (res.status === 409) {
-                var msg409 = 'Không thể lưu (xung đột phiên bản hoặc dữ liệu mẫu bị chặn).';
-                try {
-                    if (resText) {
-                        var jb = JSON.parse(resText);
-                        if (jb && typeof jb.message === 'string' && jb.message.trim()) msg409 = jb.message.trim();
-                    }
-                } catch (e409) {}
-                window._lastFirebaseError = msg409;
-                return false;
+            var pSave =
+                typeof haParseSyncHttpError === 'function'
+                    ? haParseSyncHttpError(res.status, resText)
+                    : { code: 'unknown_error', serverError: '', serverMessage: '', requestId: undefined };
+            if (typeof handleAppError === 'function') {
+                handleAppError(pSave.code, {
+                    phase: 'save',
+                    status: res.status,
+                    serverError: pSave.serverError,
+                    serverMessage: pSave.serverMessage,
+                    requestId: pSave.requestId,
+                }, { ui: 'toast', durationMs: 7000 });
             }
-        } catch (e) { console.warn('Firebase save:', e); }
+            return false;
+        } catch (e) {
+            if (typeof handleAppError === 'function') {
+                handleAppError('network_error', { phase: 'save', cause: e && e.message ? e.message : String(e) }, { ui: 'toast' });
+            }
+            console.warn('Firebase save:', e);
+        }
         return false;
     },
     async pushRollingSnapshot(backupObj) {
@@ -566,20 +620,25 @@ class HamobileBanhang {
         if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang tải dữ liệu...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
         var missCtx = window.__FIREBASE_CONFIG_ERROR;
         if (missCtx && missCtx.error === 'missing_shop_context') {
-            var missMsg = escapeHtml(String(missCtx.message || 'Vui lòng đăng nhập và mở bán hàng từ bảng điều khiển cửa hàng.'));
             var missRedir = String(missCtx.redirect || '/login').trim() || '/login';
-            if (content) {
-                content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;">' +
-                    '<h2>Không mở được từ liên kết này</h2>' +
-                    '<p style="margin: 16px 0; color: #6b7280; line-height: 1.55;">' + missMsg + '</p>' +
-                    '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
-                    '<button type="button" id="ha-miss-shop-primary" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Đăng nhập / Về app</button>' +
-                    '<button type="button" id="ha-miss-shop-reload" style="padding:12px 24px;border:1px solid #d1d5db;background:#fff;border-radius:8px;cursor:pointer;">Tải lại</button>' +
-                    '</div></div>';
-                var bp = document.getElementById('ha-miss-shop-primary');
-                var br = document.getElementById('ha-miss-shop-reload');
-                if (bp) bp.onclick = function() { window.location.href = missRedir; };
-                if (br) br.onclick = function() { window.location.reload(); };
+            if (content && typeof handleAppError === 'function') {
+                handleAppError(
+                    'missing_shop_context',
+                    { url: typeof location !== 'undefined' ? location.href : '', redirect: missRedir, source: 'embed_config' },
+                    {
+                        ui: 'fullscreen',
+                        container: content,
+                        title: 'Không thể mở cửa hàng',
+                        primaryLabel: 'Đăng nhập lại',
+                        onPrimary: function () {
+                            window.location.href = missRedir;
+                        },
+                        secondaryLabel: 'Tải lại',
+                        onSecondary: function () {
+                            window.location.reload();
+                        },
+                    },
+                );
             }
             window.app = this;
             return;
@@ -587,7 +646,21 @@ class HamobileBanhang {
         const cfg = window.FirebaseStorage.getConfig();
         const localHadData = false;
         if (!cfg) {
-            if (content) content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 560px; margin: 0 auto;"><h2>⚠️ Đang khởi tạo dữ liệu</h2><p style="margin: 16px 0; color: #6b7280;">Hệ thống chưa sẵn sàng đồng bộ dữ liệu. Vui lòng thử lại sau vài giây.</p><button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button></div>';
+            if (content && typeof handleAppError === 'function') {
+                handleAppError(
+                    'unknown_error',
+                    { reason: 'sync_not_configured' },
+                    {
+                        ui: 'fullscreen',
+                        container: content,
+                        title: 'Chưa sẵn sàng',
+                        primaryLabel: 'Thử lại',
+                        onPrimary: function () {
+                            if (window.app) window.app.initAsync();
+                        },
+                    },
+                );
+            }
             window.app = this;
             return;
         }
@@ -645,7 +718,7 @@ class HamobileBanhang {
             window.companyAssets.logo = loaded.company?.logo || null;
             window.companyAssets.qr = loaded.company?.qrCode || loaded.company?.qr || null;
             this.migrateProductData();
-        } else if (!window._lastFirebaseError) {
+        } else if (!window._haSyncLoadFailed) {
             // Có thể DB trống — xác minh lại (tránh ghi demo đè dữ liệu thật khi mạng/Firebase trả về tạm thời sai)
             if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Đang xác minh dữ liệu...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
             await new Promise(function(r) { setTimeout(r, 400); });
@@ -688,15 +761,14 @@ class HamobileBanhang {
                     return;
                 }
             }
-            if (window._lastFirebaseError) {
-                const errMsg = escapeHtml('Không tải được dữ liệu. Vui lòng thử lại.');
-                if (content) {
-                    content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
-                        '<h2>⚠️ Không tải được dữ liệu</h2>' +
-                        '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
-                        '<div style="display:grid;gap:12px;margin-top:20px;">' +
-                        '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
-                        '</div></div>';
+            if (window._haSyncLoadFailed) {
+                if (content && typeof haShowFullscreenFromLastError === 'function') {
+                    var selfRef = this;
+                    haShowFullscreenFromLastError(content, {
+                        onPrimary: function () {
+                            selfRef.initAsync();
+                        },
+                    });
                 }
                 window.app = this;
                 return;
@@ -706,28 +778,37 @@ class HamobileBanhang {
             window.app = this;
             const self = this;
             const runSeed = async function() {
-                const w = window.confirm('CẢNH BÁO: Bạn sắp ghi DỮ LIỆU MẪU (demo) lên đám mây cho tài khoản / kho hiện tại.\n\nChỉ bấm OK nếu đây là shop mới và bạn CHẮC CHẮN không có dữ liệu thật trên máy khác hoặc bản sao lưu.\n\nNếu shop đã bán hàng thật: bấm Hủy, rồi dùng «Thử tải lại» hoặc đăng nhập lại (tab thường, không chặn cookie).');
-                if (!w) return;
-                if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Khởi tạo dữ liệu mới cho khóa sao lưu này...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
-                self.demoData = self.generateDemoData();
-                window.FirebaseStorage.setData(self.demoData);
-                const saved = await window.FirebaseStorage.save({ data: self.demoData, meta: { isDemoSeed: true } });
-                if (saved) {
-                    self._ready = true;
-                    self.clearOldDataIfNeeded();
-                    self.init();
-                } else {
-                    window._lastFirebaseError = 'Không thể lưu dữ liệu lên đám mây. Vui lòng thử lại.';
-                    if (content) {
-                        content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
-                            '<h2>⚠️ Không lưu được dữ liệu</h2>' +
-                            '<p style="margin: 16px 0; color: #6b7280;">' + window._lastFirebaseError + '</p>' +
-                            '<div style="display:grid;gap:12px;margin-top:20px;">' +
-                            '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
-                            '</div></div>';
-                    }
-                    window.app = self;
-                }
+                if (typeof haShowConfirmModal !== 'function') return;
+                haShowConfirmModal({
+                    title: 'Tạo dữ liệu mẫu?',
+                    message:
+                        'Chỉ xác nhận nếu đây là cửa hàng mới và bạn chắc chắn chưa có dữ liệu bán hàng thật trên thiết bị khác. Nếu đã có dữ liệu thật, hãy hủy và dùng «Thử tải lại» hoặc đăng nhập lại.',
+                    confirmLabel: 'Tạo dữ liệu mẫu',
+                    cancelLabel: 'Hủy',
+                    onConfirm: async function () {
+                        if (content) {
+                            content.innerHTML =
+                                '<div style="padding: 48px; text-align: center;"><p>Đang tạo dữ liệu mẫu...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
+                        }
+                        self.demoData = self.generateDemoData();
+                        window.FirebaseStorage.setData(self.demoData);
+                        const saved = await window.FirebaseStorage.save({ data: self.demoData, meta: { isDemoSeed: true } });
+                        if (saved) {
+                            self._ready = true;
+                            self.clearOldDataIfNeeded();
+                            self.init();
+                        } else if (content && typeof haShowFullscreenFromLastError === 'function') {
+                            haShowFullscreenFromLastError(content, {
+                                title: 'Không lưu được',
+                                onPrimary: function () {
+                                    self.initAsync();
+                                },
+                            });
+                            window.app = self;
+                        }
+                    },
+                    onCancel: function () {},
+                });
             };
             const btnSeed = document.getElementById('btn-confirm-demo-seed');
             const btnRetry = document.getElementById('btn-retry-load');
@@ -735,14 +816,13 @@ class HamobileBanhang {
             if (btnRetry) btnRetry.onclick = function() { self.initAsync(); };
             return;
         } else {
-            const errMsg = escapeHtml('Không tải được dữ liệu. Vui lòng thử lại.');
-            if (content) {
-                content.innerHTML = '<div class="fade-in" style="padding: 48px; max-width: 520px; margin: 0 auto;">' +
-                    '<h2>⚠️ Không tải được dữ liệu</h2>' +
-                    '<p style="margin: 16px 0; color: #6b7280;">' + errMsg + '</p>' +
-                    '<div style="display:grid;gap:12px;margin-top:20px;">' +
-                    '<button onclick="app.initAsync()" style="padding:12px 24px;background:var(--primary-blue);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Thử lại</button>' +
-                    '</div></div>';
+            if (content && typeof haShowFullscreenFromLastError === 'function') {
+                var selfBr = this;
+                haShowFullscreenFromLastError(content, {
+                    onPrimary: function () {
+                        selfBr.initAsync();
+                    },
+                });
             }
             window.app = this;
             return;
@@ -7967,7 +8047,7 @@ class HamobileBanhang {
             if (!app.demoData.repairs) app.demoData.repairs = [];
             window.FirebaseStorage.setData(app.demoData);
             const ok = await window.FirebaseStorage.save({ data: app.demoData });
-            if (!ok && window.app) {
+            if (!ok && window.app && typeof handleAppError !== 'function') {
                 window.app.showNotification('Lỗi lưu dữ liệu. Vui lòng thử lại.', 'error');
             }
         }, app._saveDebounceMs);
@@ -8009,7 +8089,7 @@ class HamobileBanhang {
             if (ok && this.currentPage === 'settings') {
                 const el = document.getElementById('firebase-sync-status');
                 if (el) el.textContent = 'Đồng bộ lúc: ' + new Date().toLocaleString('vi-VN');
-            } else if (!ok && window.app) {
+            } else if (!ok && window.app && typeof handleAppError !== 'function') {
                 window.app.showNotification('Lỗi đồng bộ dữ liệu. Vui lòng thử lại.', 'error');
             }
         });
@@ -8017,7 +8097,14 @@ class HamobileBanhang {
     
     async testFirebaseConnection() {
         const cfg = this.getFirebaseConfig();
-        if (!cfg) { this.showNotification('Hệ thống chưa sẵn sàng. Vui lòng thử lại.', 'error'); return; }
+        if (!cfg) {
+            if (typeof handleAppError === 'function') {
+                handleAppError('unknown_error', { phase: 'settings_test', reason: 'no_config' }, { ui: 'toast' });
+            } else {
+                this.showNotification('Hệ thống chưa sẵn sàng. Vui lòng thử lại.', 'error');
+            }
+            return;
+        }
         const apiUrl = '/api/rtdb/backups/' + encodeURIComponent(cfg.key) + '/app.json';
         this.showNotification('Đang kiểm tra dữ liệu...', 'info');
         const init = await window.FirebaseStorage._proxyFetchInit({ method: 'GET' });
@@ -8026,16 +8113,33 @@ class HamobileBanhang {
                 if (res.ok) {
                     this.showNotification('Kết nối thành công. Đang đồng bộ dữ liệu...', 'success');
                     this.syncToFirebase();
+                } else if (typeof handleAppError === 'function') {
+                    var pt = typeof haParseSyncHttpError === 'function' ? haParseSyncHttpError(res.status, t) : { code: 'unknown_error', serverMessage: '', serverError: '', requestId: undefined };
+                    handleAppError(pt.code, {
+                        phase: 'settings_test',
+                        status: res.status,
+                        serverMessage: pt.serverMessage,
+                        serverError: pt.serverError,
+                        requestId: pt.requestId,
+                    }, { ui: 'toast' });
                 } else {
                     this.showNotification('Hệ thống từ chối yêu cầu. Vui lòng thử lại.', 'error');
                 }
             }))
             .catch(err => {
                 const m = err.message || '';
-                if (m.includes('Failed to fetch') || m.includes('CORS')) {
-                    this.showNotification('Lỗi mạng. Vui lòng thử lại.', 'error');
+                if (typeof handleAppError === 'function') {
+                    if (m.includes('Failed to fetch') || m.includes('CORS')) {
+                        handleAppError('network_error', { phase: 'settings_test', cause: m }, { ui: 'toast' });
+                    } else {
+                        handleAppError('unknown_error', { phase: 'settings_test', cause: m }, { ui: 'toast' });
+                    }
                 } else {
-                    this.showNotification('Đã có lỗi xảy ra. Vui lòng thử lại.', 'error');
+                    if (m.includes('Failed to fetch') || m.includes('CORS')) {
+                        this.showNotification('Lỗi mạng. Vui lòng thử lại.', 'error');
+                    } else {
+                        this.showNotification('Đã có lỗi xảy ra. Vui lòng thử lại.', 'error');
+                    }
                 }
             });
     }

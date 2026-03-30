@@ -1,0 +1,333 @@
+/**
+ * Centralized POS error handling: friendly Vietnamese UI + full technical debug.
+ * @see handleAppError(errorCode, debugData, options)
+ */
+(function (global) {
+    'use strict';
+
+    var USER_MESSAGES = {
+        missing_shop_context: 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
+        unauthorized: 'Không thể xác thực tài khoản. Vui lòng đăng nhập lại.',
+        stale_data: 'Dữ liệu vừa được cập nhật ở nơi khác. Vui lòng tải lại để tiếp tục.',
+        demo_seed_forbidden: 'Không thể tạo dữ liệu mẫu vì cửa hàng đã có dữ liệu.',
+        network_error: 'Kết nối không ổn định. Vui lòng kiểm tra mạng.',
+        unknown_error: 'Có lỗi xảy ra. Vui lòng thử lại.',
+    };
+
+    /** Backend / internal codes → canonical user-facing code */
+    var CODE_ALIASES = {
+        missing_shop_slug: 'missing_shop_context',
+        missing_shop_context: 'missing_shop_context',
+    };
+
+    function normalizeCode(code) {
+        var c = String(code || '').trim();
+        if (!c) return 'unknown_error';
+        return CODE_ALIASES[c] || c;
+    }
+
+    function userMessageFor(code) {
+        var n = normalizeCode(code);
+        return USER_MESSAGES[n] || USER_MESSAGES.unknown_error;
+    }
+
+    function haEscapeHtml(str) {
+        if (str == null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function removeErrorModal() {
+        var el = document.getElementById('ha-app-error-modal');
+        if (el) el.remove();
+    }
+
+    /** Thay window.confirm — không dùng alert/confirm gốc. */
+    function haShowConfirmModal(opts) {
+        removeErrorModal();
+        var title = opts.title || 'Xác nhận';
+        var message = opts.message || '';
+        var okLabel = opts.confirmLabel || 'Xác nhận';
+        var cancelLabel = opts.cancelLabel || 'Hủy';
+        var id = 'ha-app-error-modal';
+        var html =
+            '<div id="' +
+            id +
+            '" class="ha-app-error-modal" role="dialog" aria-modal="true">' +
+            '<div class="ha-app-error-modal__backdrop"></div>' +
+            '<div class="ha-app-error-modal__card">' +
+            '<h2 class="ha-app-error-modal__title">' +
+            haEscapeHtml(title) +
+            '</h2>' +
+            '<p class="ha-app-error-modal__msg">' +
+            haEscapeHtml(message) +
+            '</p>' +
+            '<div class="ha-app-error-modal__actions">' +
+            '<button type="button" class="ha-app-error-modal__btn ha-app-error-modal__btn--secondary" id="ha-app-confirm-cancel">' +
+            haEscapeHtml(cancelLabel) +
+            '</button>' +
+            '<button type="button" class="ha-app-error-modal__btn ha-app-error-modal__btn--primary" id="ha-app-confirm-ok">' +
+            haEscapeHtml(okLabel) +
+            '</button>' +
+            '</div></div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+        var btnOk = document.getElementById('ha-app-confirm-ok');
+        var btnCancel = document.getElementById('ha-app-confirm-cancel');
+        if (btnOk) {
+            btnOk.onclick = function () {
+                removeErrorModal();
+                if (typeof opts.onConfirm === 'function') opts.onConfirm();
+            };
+        }
+        if (btnCancel) {
+            btnCancel.onclick = function () {
+                removeErrorModal();
+                if (typeof opts.onCancel === 'function') opts.onCancel();
+            };
+        }
+    }
+
+    /**
+     * Parse HTTP body for debug (never show raw to user).
+     * @returns {{ code: string, serverError: string, serverMessage: string, requestId?: string }}
+     */
+    function haParseSyncHttpError(status, rawText) {
+        var j = null;
+        try {
+            j = rawText ? JSON.parse(rawText) : null;
+        } catch (_) {
+            j = null;
+        }
+        var serverMessage = j && typeof j.message === 'string' ? j.message : '';
+        var serverError = j && j.error != null ? String(j.error) : '';
+        var requestId = j && j.requestId != null ? String(j.requestId) : undefined;
+
+        var code = 'unknown_error';
+        if (status === 401) code = 'unauthorized';
+        else if (status === 403) {
+            if (serverError === 'missing_shop_slug') code = 'missing_shop_context';
+            else code = 'unknown_error';
+        } else if (status === 409) {
+            if (serverError === 'stale_data') code = 'stale_data';
+            else if (serverError === 'demo_seed_forbidden') code = 'demo_seed_forbidden';
+            else code = 'unknown_error';
+        } else if (status >= 500 || status === 0) code = 'network_error';
+
+        return {
+            code: code,
+            serverError: serverError,
+            serverMessage: serverMessage,
+            requestId: requestId,
+            rawSnippet: rawText && rawText.length > 800 ? rawText.slice(0, 800) : rawText,
+        };
+    }
+
+    function showErrorModal(opts) {
+        removeErrorModal();
+        var title = opts.title || 'Thông báo';
+        var message = opts.message || '';
+        var primaryLabel = opts.primaryLabel || 'Đóng';
+        var secondaryLabel = opts.secondaryLabel || '';
+        var id = 'ha-app-error-modal';
+        var html =
+            '<div id="' +
+            id +
+            '" class="ha-app-error-modal" role="alertdialog" aria-modal="true" aria-labelledby="ha-app-error-title">' +
+            '<div class="ha-app-error-modal__backdrop"></div>' +
+            '<div class="ha-app-error-modal__card">' +
+            '<h2 id="ha-app-error-title" class="ha-app-error-modal__title">' +
+            haEscapeHtml(title) +
+            '</h2>' +
+            '<p class="ha-app-error-modal__msg">' +
+            haEscapeHtml(message) +
+            '</p>' +
+            '<div class="ha-app-error-modal__actions">' +
+            (secondaryLabel
+                ? '<button type="button" class="ha-app-error-modal__btn ha-app-error-modal__btn--secondary" id="ha-app-error-secondary">' +
+                  haEscapeHtml(secondaryLabel) +
+                  '</button>'
+                : '') +
+            '<button type="button" class="ha-app-error-modal__btn ha-app-error-modal__btn--primary" id="ha-app-error-primary">' +
+            haEscapeHtml(primaryLabel) +
+            '</button>' +
+            '</div></div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+        var root = document.getElementById(id);
+        var btnP = document.getElementById('ha-app-error-primary');
+        var btnS = document.getElementById('ha-app-error-secondary');
+        if (btnP) {
+            btnP.onclick = function () {
+                removeErrorModal();
+                if (typeof opts.onPrimary === 'function') opts.onPrimary();
+            };
+        }
+        if (btnS) {
+            btnS.onclick = function () {
+                removeErrorModal();
+                if (typeof opts.onSecondary === 'function') opts.onSecondary();
+            };
+        }
+        if (root) {
+            var backdrop = root.querySelector('.ha-app-error-modal__backdrop');
+            if (backdrop) {
+                backdrop.onclick = function () {
+                    removeErrorModal();
+                    if (typeof opts.onDismiss === 'function') opts.onDismiss();
+                };
+            }
+        }
+    }
+
+    function showToastError(message, durationMs) {
+        var gApp = global.app;
+        if (gApp && typeof gApp.showNotification === 'function') {
+            gApp.showNotification(message, 'error', durationMs != null ? durationMs : 6500);
+            return;
+        }
+        showErrorModal({
+            title: 'Thông báo',
+            message: message,
+            primaryLabel: 'Đóng',
+            onPrimary: function () {},
+        });
+    }
+
+    function renderFullscreen(container, opts) {
+        if (!container) return;
+        var title = opts.title || 'Không thể tải dữ liệu';
+        var message = opts.message || '';
+        var pHtml = haEscapeHtml(message);
+        var b1 = opts.primaryLabel || 'Thử lại';
+        var b2 = opts.secondaryLabel || '';
+        var id1 = 'ha-fs-err-p';
+        var id2 = 'ha-fs-err-s';
+        container.innerHTML =
+            '<div class="ha-app-error-full fade-in">' +
+            '<div class="ha-app-error-full__inner">' +
+            '<h2 class="ha-app-error-full__title">' +
+            haEscapeHtml(title) +
+            '</h2>' +
+            '<p class="ha-app-error-full__text">' +
+            pHtml +
+            '</p>' +
+            '<div class="ha-app-error-full__actions">' +
+            (b2
+                ? '<button type="button" class="ha-app-error-full__btn ha-app-error-full__btn--ghost" id="' +
+                  id2 +
+                  '">' +
+                  haEscapeHtml(b2) +
+                  '</button>'
+                : '') +
+            '<button type="button" class="ha-app-error-full__btn ha-app-error-full__btn--primary" id="' +
+            id1 +
+            '">' +
+            haEscapeHtml(b1) +
+            '</button>' +
+            '</div></div></div>';
+        var elp = document.getElementById(id1);
+        var els = document.getElementById(id2);
+        if (elp && typeof opts.onPrimary === 'function') elp.onclick = opts.onPrimary;
+        if (els && typeof opts.onSecondary === 'function') els.onclick = opts.onSecondary;
+    }
+
+    /**
+     * @param {string} errorCode
+     * @param {Record<string, unknown>} [debugData]
+     * @param {{
+     *   silent?: boolean,
+     *   skipLog?: boolean,
+     *   ui?: 'toast' | 'modal' | 'fullscreen',
+     *   container?: HTMLElement,
+     *   title?: string,
+     *   primaryLabel?: string,
+     *   onPrimary?: () => void,
+     *   secondaryLabel?: string,
+     *   onSecondary?: () => void,
+     *   durationMs?: number
+     * }} [options]
+     */
+    function handleAppError(errorCode, debugData, options) {
+        options = options || {};
+        var n = normalizeCode(errorCode);
+        var debug = debugData && typeof debugData === 'object' ? debugData : {};
+
+        if (!options.skipLog) {
+            console.error('[APP_ERROR]', Object.assign({ code: n }, debug));
+            global.__LAST_ERROR = {
+                code: n,
+                debug: debugData != null && typeof debugData === 'object' ? debugData : debug,
+                time: Date.now(),
+            };
+        }
+
+        if (options.silent) return;
+
+        var message = userMessageFor(n);
+        var ui = options.ui || 'toast';
+
+        if (ui === 'fullscreen' && options.container) {
+            renderFullscreen(options.container, {
+                title: options.title || 'Không thể tiếp tục',
+                message: message,
+                primaryLabel: options.primaryLabel,
+                onPrimary: options.onPrimary,
+                secondaryLabel: options.secondaryLabel,
+                onSecondary: options.onSecondary,
+            });
+        } else if (ui === 'modal') {
+            showErrorModal({
+                title: options.title || 'Thông báo',
+                message: message,
+                primaryLabel: options.primaryLabel || 'Đóng',
+                onPrimary: options.onPrimary,
+                secondaryLabel: options.secondaryLabel,
+                onSecondary: options.onSecondary,
+            });
+        } else {
+            showToastError(message, options.durationMs);
+        }
+    }
+
+    /** Màn hình lỗi tải dữ liệu — không log lần 2 (đã log lúc fetch). */
+    function haShowFullscreenFromLastError(container, opts) {
+        opts = opts || {};
+        var le = global.__LAST_ERROR;
+        var code = (le && le.code) || 'unknown_error';
+        var dbg = (le && le.debug) || {};
+        var needLogin = code === 'unauthorized' || code === 'missing_shop_context';
+        handleAppError(code, dbg, {
+            skipLog: true,
+            silent: false,
+            ui: 'fullscreen',
+            container: container,
+            title: opts.title || 'Không tải được dữ liệu',
+            primaryLabel: opts.primaryLabel || 'Thử lại',
+            onPrimary: opts.onPrimary,
+            secondaryLabel:
+                opts.secondaryLabel !== undefined
+                    ? opts.secondaryLabel
+                    : needLogin
+                      ? 'Đăng nhập lại'
+                      : '',
+            onSecondary:
+                opts.onSecondary !== undefined
+                    ? opts.onSecondary
+                    : needLogin
+                      ? function () {
+                            window.location.href = '/login';
+                        }
+                      : undefined,
+        });
+    }
+
+    global.handleAppError = handleAppError;
+    global.haParseSyncHttpError = haParseSyncHttpError;
+    global.haUserMessageForAppError = userMessageFor;
+    global.haRenderAppErrorFullscreen = renderFullscreen;
+    global.haShowConfirmModal = haShowConfirmModal;
+    global.haShowFullscreenFromLastError = haShowFullscreenFromLastError;
+})(typeof window !== 'undefined' ? window : globalThis);
