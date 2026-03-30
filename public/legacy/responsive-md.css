@@ -67,8 +67,9 @@
   }
   .page-customers #customers-table td.customer-cell-actions{
     padding:8px 4px!important;
-    width:110px!important;
-    white-space:normal!important;
+    width:auto!important;
+    min-width:110px!important;
+    white-space:nowrap!important;
     vertical-align:top!important;
     text-align:right!important;
   }
@@ -77,15 +78,27 @@
     font-size:12px!important;
     white-space:nowrap!important;
   }
+  /* Debt pill (Công nợ) không được wrap ở tablet */
+  .page-customers #customers-table td.customer-cell-debt span{
+    white-space:nowrap!important;
+  }
+
+  /* Cột "Thao tác" header phải căn giống cell bên dưới */
+  .page-customers #customers-table th:nth-child(5){
+    text-align:right!important;
+    vertical-align:top!important;
+    white-space:nowrap!important;
+  }
 
   /* Quan trọng: ẩn luôn <col> của cột "Địa chỉ" trong colgroup */
   .page-customers #customers-table colgroup col:nth-child(3){
     display:none!important;
   }
-  /* Thu hẹp cột thao tác để tránh thừa khoảng trống */
-  .page-customers #customers-table colgroup col:nth-child(5){
-    width:110px!important;
-  }
+  /* Re-balance các cột hiển thị sau khi ẩn "Địa chỉ" */
+  .page-customers #customers-table colgroup col:nth-child(1){width:37%!important;}
+  .page-customers #customers-table colgroup col:nth-child(2){width:24%!important;}
+  .page-customers #customers-table colgroup col:nth-child(4){width:16%!important;}
+  .page-customers #customers-table colgroup col:nth-child(5){width:23%!important;}
 }
 
 /* Mobile: convert orders table to card-like blocks */
