@@ -27,6 +27,18 @@ function normalizeCompact(v: unknown) {
   return normalizeText(v).replace(/[^A-Z0-9]/g, "");
 }
 
+function escapeRegExp(v: string) {
+  return String(v || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function contentHasExactRef(content: string, paymentRef: string) {
+  const c = normalizeText(content);
+  const r = normalizeText(paymentRef);
+  if (!c || !r) return false;
+  const rx = new RegExp(`(^|[^A-Z0-9-])${escapeRegExp(r)}([^A-Z0-9-]|$)`);
+  return rx.test(c);
+}
+
 function toAmount(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -64,10 +76,9 @@ function webhookSecretOk(request: Request) {
     : "";
 
   const gotHeader = request.headers.get("x-webhook-secret") || "";
-  const gotQuery = new URL(request.url).searchParams.get("secret") || "";
 
   if (gotApiKey && expectedApiKeys.includes(gotApiKey)) return true;
-  if (expectedSecret && (gotHeader === expectedSecret || gotQuery === expectedSecret)) return true;
+  if (expectedSecret && gotHeader === expectedSecret) return true;
   return false;
 }
 
@@ -78,33 +89,26 @@ function findPaymentMatch(
   paymentCode: string,
   paymentCodeCompact: string,
   transferContent: string,
-  transferContentCompact: string,
   amount: number,
   required: number,
 ): { uid: string; matchedRef: string } | null {
   if (!users) return null;
-  let matchedUid = "";
-  let matchedRef = "";
-  Object.entries(users).some(([uid, value]) => {
+  const candidates: Array<{ uid: string; matchedRef: string }> = [];
+  Object.entries(users).forEach(([uid, value]) => {
     const payRef = normalizeText(value.paymentRef);
     const payRefCompact = normalizeCompact(payRef);
-    if (!payRef) return false;
+    if (!payRef) return;
     const matchedByCode = paymentCode ? paymentCode === payRef : false;
     const matchedByCodeCompact = paymentCodeCompact
       ? paymentCodeCompact === payRefCompact
       : false;
-    const matchedByContent = transferContent.includes(payRef);
-    const matchedByContentCompact = payRefCompact
-      ? transferContentCompact.includes(payRefCompact)
-      : false;
-    if (!matchedByCode && !matchedByCodeCompact && !matchedByContent && !matchedByContentCompact)
-      return false;
-    if (amount < required) return false;
-    matchedUid = uid;
-    matchedRef = payRef;
-    return true;
+    const matchedByContent = contentHasExactRef(transferContent, payRef);
+    if (!matchedByCode && !matchedByCodeCompact && !matchedByContent) return;
+    if (amount < required) return;
+    candidates.push({ uid, matchedRef: payRef });
   });
-  return matchedUid ? { uid: matchedUid, matchedRef } : null;
+  if (candidates.length !== 1) return null;
+  return candidates[0];
 }
 
 export async function POST(request: Request) {
@@ -122,7 +126,6 @@ export async function POST(request: Request) {
     const transferContent = normalizeText(
       payload.transferContent || payload.content || payload.description,
     );
-    const transferContentCompact = normalizeCompact(transferContent);
     const paymentCode = normalizeText(payload.code);
     const paymentCodeCompact = normalizeCompact(paymentCode);
     const amount = toAmount(payload.transferAmount ?? payload.amount);
@@ -156,7 +159,6 @@ export async function POST(request: Request) {
       paymentCode,
       paymentCodeCompact,
       transferContent,
-      transferContentCompact,
       amount,
       required,
     );
@@ -167,7 +169,6 @@ export async function POST(request: Request) {
         paymentCode,
         paymentCodeCompact,
         transferContent,
-        transferContentCompact,
         amount,
         required,
       );

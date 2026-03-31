@@ -2,6 +2,7 @@ import { adminAuth, adminDb } from "@/lib/backend/server";
 import { emptyPosAppJsonPayload } from "@/lib/backend/pos-backup-normalize";
 import { getShopPaths } from "@/lib/backend/shop-paths";
 import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
+import { randomBytes } from "crypto";
 import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -11,6 +12,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
+
+function createPaymentRef(prefix: "PAY" | "DEMO", slug: string) {
+  const slugPart = String(slug || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 8)
+    .padEnd(4, "X");
+  const nonce = randomBytes(8).toString("hex").toUpperCase();
+  return `${prefix}-${slugPart}-${nonce}`;
+}
 
 export async function POST(request: Request) {
   try {
@@ -64,9 +75,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "shop_exists" }, { status: 409 });
     }
 
-    const paymentRef = isTrial
-      ? `DEMO-${slug.toUpperCase()}-${Date.now().toString().slice(-6)}`
-      : `PAY-${slug.toUpperCase()}-${Date.now().toString().slice(-6)}`;
+    const paymentRef = createPaymentRef(isTrial ? "DEMO" : "PAY", slug);
 
     const trialExpiresAt = Date.now() + TRIAL_DURATION_MS;
 

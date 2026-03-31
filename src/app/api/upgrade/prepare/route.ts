@@ -1,6 +1,7 @@
 import { adminAuth, adminDb } from "@/lib/backend/server";
 import { getShopPaths } from "@/lib/backend/shop-paths";
 import { normalizeShopSlug, resolveUserShopContext } from "@/lib/backend/userShopSlug";
+import { randomBytes } from "crypto";
 import {
   getTrialShopPrefix,
   isEffectiveTrialAccount,
@@ -9,6 +10,16 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function createUpgradePaymentRef(targetSlug: string) {
+  const slugPart = String(targetSlug || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 8)
+    .padEnd(4, "X");
+  const nonce = randomBytes(8).toString("hex").toUpperCase();
+  return `PAY-${slugPart}-${nonce}`;
+}
 
 export async function POST(request: Request) {
   try {
@@ -62,7 +73,7 @@ export async function POST(request: Request) {
 
     const userSnap = await db.ref(`users/${uid}`).get();
     const u = (userSnap.val() || {}) as { email?: string };
-    const paymentRef = `PAY-${targetSlug.toUpperCase().replace(/-/g, "")}-${Date.now().toString().slice(-6)}`;
+    const paymentRef = createUpgradePaymentRef(targetSlug);
 
     await db.ref(`users/${uid}`).update({
       paymentStatus: "pending_upgrade",

@@ -24,6 +24,9 @@ export async function GET(request: Request) {
         const ctx = await resolveUserShopContext(u.uid);
         const slug = ctx.shopSlug || "";
         const isTrial = isEffectiveTrialAccount(ctx.registrationTrial, slug);
+        const paySnap = await db.ref(`users/${u.uid}/paymentStatus`).get();
+        const paymentStatus = String(paySnap.val() || "").trim();
+        const accountType = isTrial ? "trial" : paymentStatus === "active" ? "production" : "pending_payment";
         const lastSnap = await db.ref(`users/${u.uid}/lastSeen`).get();
         const raw = lastSnap.val();
         const lastSeen = typeof raw === "number" && Number.isFinite(raw) ? raw : null;
@@ -35,7 +38,8 @@ export async function GET(request: Request) {
           email: u.email ?? null,
           emailVerified: u.emailVerified,
           disabled: u.disabled,
-          accountType: isTrial ? "trial" : "production" as const,
+          accountType,
+          paymentStatus: paymentStatus || null,
           shopName: ctx.shopDisplayName || null,
           shopSlug: slug || null,
           registrationTrial: ctx.registrationTrial,

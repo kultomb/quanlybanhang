@@ -23,7 +23,8 @@ export type AdminUserRow = {
   uid: string;
   email: string | null;
   disabled: boolean;
-  accountType: "trial" | "production";
+  accountType: "trial" | "production" | "pending_payment";
+  paymentStatus?: string | null;
   shopName?: string | null;
   shopSlug: string | null;
   online: boolean;
@@ -42,7 +43,9 @@ function formatLastLoginVi(iso: string | null): string {
 }
 
 function accountTypeLabel(t: AdminUserRow["accountType"]): string {
-  return t === "trial" ? "Dùng thử" : "Chính thức";
+  if (t === "trial") return "Dùng thử";
+  if (t === "pending_payment") return "Chờ thanh toán";
+  return "Chính thức";
 }
 
 export default function AdminAccountsClient() {
@@ -429,7 +432,7 @@ export default function AdminAccountsClient() {
                     <td className="adm-td adm-email">{u.email || "—"}</td>
                     <td className="adm-td">
                       <span
-                        className={`adm-badge ${u.accountType === "trial" ? "adm-badge--trial" : "adm-badge--prod"}`}
+                        className={`adm-badge ${u.accountType === "trial" || u.accountType === "pending_payment" ? "adm-badge--trial" : "adm-badge--prod"}`}
                       >
                         {accountTypeLabel(u.accountType)}
                       </span>
