@@ -70,6 +70,7 @@ function LoginContent() {
   const [resetSending, setResetSending] = useState(false);
   const [resetSuccess, setResetSuccess] = useState("");
   const [resetError, setResetError] = useState("");
+  const [authBootstrapping, setAuthBootstrapping] = useState(true);
   const turnstileSiteKey = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "").trim();
   const isPasswordChangedNotice = String(searchParams.get("reason") || "") === "password-changed";
 
@@ -93,9 +94,27 @@ function LoginContent() {
   }
 
   useEffect(() => {
+    let active = true;
+    void auth
+      .authStateReady()
+      .catch(() => undefined)
+      .finally(() => {
+        if (!active) return;
+        if (!auth.currentUser) setAuthBootstrapping(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     let forcingLogout = false;
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user || submittingRef.current) return;
+      if (!user || submittingRef.current) {
+        if (!user) setAuthBootstrapping(false);
+        return;
+      }
+      setAuthBootstrapping(true);
       const profile = await resolveUserProfile(user.uid);
       if (!hasValidShopSlug(profile.shopSlug)) {
         if (forcingLogout) return;
@@ -338,7 +357,32 @@ function LoginContent() {
           />
         </label>
 
-        {forgotPasswordMode ? (
+        {authBootstrapping ? (
+          <div
+            style={{
+              display: "grid",
+              gap: 10,
+              justifyItems: "center",
+              textAlign: "center",
+              padding: "8px 0",
+            }}
+          >
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: "50%",
+                border: "3px solid #bbf7d0",
+                borderTopColor: "#059669",
+                animation: "spin 0.9s linear infinite",
+              }}
+            />
+            <div style={{ color: "#065f46", fontSize: 14, fontWeight: 600 }}>
+              Đang khôi phục phiên đăng nhập…
+            </div>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        ) : forgotPasswordMode ? (
           <>
             {resetError ? (
               <div
