@@ -24,6 +24,7 @@ export type AdminUserRow = {
   email: string | null;
   disabled: boolean;
   accountType: "trial" | "production";
+  shopName?: string | null;
   shopSlug: string | null;
   online: boolean;
   lastSeen: number | null;
@@ -168,8 +169,9 @@ export default function AdminAccountsClient() {
       if (statusFilter === "offline" && r.online) return false;
       if (!q) return true;
       const email = (r.email || "").toLowerCase();
+      const shopName = (r.shopName || "").toLowerCase();
       const shop = (r.shopSlug || "").toLowerCase();
-      return email.includes(q) || shop.includes(q);
+      return email.includes(q) || shopName.includes(q) || shop.includes(q);
     });
   }, [rows, search, statusFilter]);
 
@@ -435,7 +437,7 @@ export default function AdminAccountsClient() {
                     <td className="adm-td adm-shop">
                       <span className="adm-shop-inner">
                         <Store />
-                        {u.shopSlug || "—"}
+                        {u.shopName || u.shopSlug || "—"}
                       </span>
                     </td>
                     <td className="adm-td adm-lastlogin">{formatLastLoginVi(u.lastSignInTime)}</td>

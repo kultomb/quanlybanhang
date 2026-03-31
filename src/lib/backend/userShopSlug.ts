@@ -13,6 +13,7 @@ export function normalizeShopSlug(value: string) {
 
 export type UserShopContext = {
   shopSlug: string;
+  shopDisplayName: string | null;
   /** true/false nếu đã set; null = bản ghi cũ chưa có field */
   registrationTrial: boolean | null;
   trialExpiresAt: number | null;
@@ -57,6 +58,8 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
   const snap = await adminDb().ref(`users/${uid}`).get();
   const v = (snap.val() || {}) as Record<string, unknown>;
   const rtdbSlug = normalizeShopSlug(String(v.shopSlug || ""));
+  const displayRaw = String(v.shopDisplayName || v.shopName || "").trim();
+  const shopDisplayName = displayRaw || null;
 
   const rt = v.registrationTrial;
   let registrationTrial: boolean | null = null;
@@ -117,7 +120,7 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
     void lazySyncFirestoreFromRtdb(uid, slug, String(v.email || ""));
   }
 
-  return { shopSlug: slug, registrationTrial, trialExpiresAt };
+  return { shopSlug: slug, shopDisplayName, registrationTrial, trialExpiresAt };
 }
 
 export async function resolveUserShopSlugWithHeal(uid: string): Promise<string> {

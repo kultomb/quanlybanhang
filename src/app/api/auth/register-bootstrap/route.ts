@@ -23,6 +23,7 @@ export async function POST(request: Request) {
     const idToken = String(body?.idToken || "").trim();
     const emailTrimmed = String(body?.email || "").trim();
     const rawShop = String(body?.shopSlugInput ?? "").trim();
+    const shopDisplayName = rawShop.replace(/\s+/g, " ").trim();
     const isTrial = body?.isTrial === true;
 
     if (!idToken) {
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
       uid,
       email: emailTrimmed,
       shopSlug: slug,
+      ...(shopDisplayName ? { shopDisplayName } : {}),
       paymentStatus: isTrial ? "active" : "pending",
       paymentRef,
       createdAt: admin.database.ServerValue.TIMESTAMP,
@@ -84,6 +86,7 @@ export async function POST(request: Request) {
 
     const shopPayload: Record<string, unknown> = {
       slug,
+      ...(shopDisplayName ? { displayName: shopDisplayName } : {}),
       ownerUid: uid,
       ownerEmail: emailTrimmed,
       createdAt: admin.database.ServerValue.TIMESTAMP,
@@ -118,6 +121,7 @@ export async function POST(request: Request) {
         {
           shopId,
           shopSlug: slug,
+          ...(shopDisplayName ? { shopDisplayName } : {}),
           ownerId: uid,
           updatedAt: FieldValue.serverTimestamp(),
         },

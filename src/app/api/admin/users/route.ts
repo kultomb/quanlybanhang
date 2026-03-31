@@ -36,6 +36,7 @@ export async function GET(request: Request) {
           emailVerified: u.emailVerified,
           disabled: u.disabled,
           accountType: isTrial ? "trial" : "production" as const,
+          shopName: ctx.shopDisplayName || null,
           shopSlug: slug || null,
           registrationTrial: ctx.registrationTrial,
           trialExpiresAt: ctx.trialExpiresAt,

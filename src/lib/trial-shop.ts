@@ -20,7 +20,12 @@ export function getTrialShopPrefix(): string {
 }
 
 export function normalizeShopSlugInput(value: string): string {
-  return value
+  const ascii = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "d");
+  return ascii
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "-")
