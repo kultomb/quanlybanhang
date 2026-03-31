@@ -271,6 +271,9 @@
 
         if (options.silent) return;
 
+        // UX decision: stale_data is handled silently to avoid blocking red toast noise.
+        if (n === 'stale_data') return;
+
         var message = userMessageFor(n);
         var ui = options.ui || 'toast';
 

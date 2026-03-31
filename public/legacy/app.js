@@ -1144,18 +1144,8 @@ class HamobileBanhang {
         this.updatePendingSyncIndicator(window.FirebaseStorage.hasPendingSync());
     }
     updatePendingSyncIndicator(pending) {
-        const p = pending !== undefined ? !!pending : !!(window.FirebaseStorage && window.FirebaseStorage.hasPendingSync && window.FirebaseStorage.hasPendingSync());
-        let el = document.getElementById('pending-sync-indicator');
-        if (p) {
-            if (!el) {
-                el = document.createElement('div');
-                el.id = 'pending-sync-indicator';
-                el.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:9999;background:#f59e0b;color:white;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
-                el.textContent = '⏳ Đang chờ đồng bộ (sẽ tự đồng bộ khi có mạng)';
-                document.body.appendChild(el);
-            }
-            el.style.display = 'block';
-        } else if (el) el.style.display = 'none';
+        const el = document.getElementById('pending-sync-indicator');
+        if (el) el.remove();
     }
     async checkStorageRisk() {
         const hasFirebase = !!(window.FirebaseStorage && window.FirebaseStorage.getConfig && window.FirebaseStorage.getConfig());
