@@ -11,7 +11,8 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { auth } from "@/lib/backend/client";
+import { auth, rtdb } from "@/lib/backend/client";
+import { get, ref } from "firebase/database";
 
 type AccountBarProps = {
   shop?: string;
@@ -26,10 +27,21 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [open, setOpen] = useState(false);
+  const [shopDisplayName, setShopDisplayName] = useState("");
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       setEmail(user?.email || "");
+      if (user?.uid) {
+        try {
+          const snap = await get(ref(rtdb, `users/${user.uid}/shopDisplayName`));
+          setShopDisplayName(snap.exists() ? String(snap.val() || "").trim() : "");
+        } catch {
+          setShopDisplayName("");
+        }
+      } else {
+        setShopDisplayName("");
+      }
       setLoading(false);
     });
     return () => unsub();
@@ -61,9 +73,10 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
   }, []);
 
   const displayShop = useMemo(() => {
+    if (shopDisplayName) return shopDisplayName;
     if (!shop) return "Tài khoản";
     return shop;
-  }, [shop]);
+  }, [shop, shopDisplayName]);
 
   async function handleLogout() {
     await signOut(auth);
@@ -160,7 +173,7 @@ export default function AccountBar({ shop, docked = false }: AccountBarProps) {
               textOverflow: "ellipsis",
               textAlign: "left",
             }}
-            title={`${shop || "Tài khoản"}${email ? ` • ${email}` : ""}${loading ? " — Đang đồng bộ..." : ""}`}
+            title={`${displayShop || "Tài khoản"}${email ? ` • ${email}` : ""}${loading ? " — Đang đồng bộ..." : ""}`}
           >
             {displayShop}
           </span>

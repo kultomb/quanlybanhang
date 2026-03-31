@@ -8,11 +8,13 @@ import {
   signOut,
   updatePassword,
 } from "firebase/auth";
+import { get, ref } from "firebase/database";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { revokeAllFirebaseSessionsThenSignOut } from "@/lib/client-auth";
 import { SIGNUP_PASSWORD_HINT, validateSignupPassword } from "@/lib/password-policy";
+import { rtdb } from "@/lib/backend/client";
 
 type AccountPageProps = {
   shop?: string;
@@ -21,6 +23,7 @@ type AccountPageProps = {
 export default function AccountPage({ shop }: AccountPageProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [shopDisplayName, setShopDisplayName] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -32,8 +35,18 @@ export default function AccountPage({ shop }: AccountPageProps) {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       setEmail(user?.email || "");
+      if (user?.uid) {
+        try {
+          const snap = await get(ref(rtdb, `users/${user.uid}/shopDisplayName`));
+          setShopDisplayName(snap.exists() ? String(snap.val() || "").trim() : "");
+        } catch {
+          setShopDisplayName("");
+        }
+      } else {
+        setShopDisplayName("");
+      }
       setAuthLoading(false);
     });
     return () => unsub();
@@ -160,6 +173,12 @@ export default function AccountPage({ shop }: AccountPageProps) {
             <div style={{ background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", padding: 14 }}>
               <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>SHOP</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "#047857" }}>{shop || "-"}</div>
+            </div>
+            <div style={{ background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", padding: 14 }}>
+              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>TÊN HIỂN THỊ</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#0f172a" }}>
+                {authLoading ? "Đang tải..." : shopDisplayName || shop || "-"}
+              </div>
             </div>
           </div>
         </section>
