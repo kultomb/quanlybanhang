@@ -2109,7 +2109,7 @@ select.edit-order-inp{
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
   padding:12px;
-  padding-bottom:8px;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px));
 }
 .debts-m-section{
   margin-bottom:12px;
@@ -2330,9 +2330,11 @@ select.edit-order-inp{
 }
 .debts-m-footer{
   flex-shrink:0;
-  position:sticky;
+  position:fixed;
+  left:0;
+  right:0;
   bottom:0;
-  z-index:4;
+  z-index:10070;
   display:flex;
   gap:10px;
   padding:12px;

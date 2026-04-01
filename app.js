@@ -1553,6 +1553,9 @@ class HamobileBanhang {
             el.style.setProperty('position', 'fixed', 'important');
             el.style.setProperty('left', 'auto', 'important');
             el.style.setProperty('top', 'auto', 'important');
+            // Fallback first for browsers that do not support env()/max().
+            el.style.setProperty('right', '16px', 'important');
+            el.style.setProperty('bottom', '24px', 'important');
             el.style.setProperty('right', 'max(16px, env(safe-area-inset-right, 0px))', 'important');
             el.style.setProperty('bottom', 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 12px))', 'important');
             el.style.setProperty('z-index', '10050', 'important');
