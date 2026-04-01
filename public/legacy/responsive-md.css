@@ -385,7 +385,7 @@
   .orders-mobile-item-product{
     font-size:12px;
     font-weight:600;
-    color:#8e8e93;
+    color:#059669;
     letter-spacing:0.02em;
     overflow:hidden;
     text-overflow:ellipsis;
@@ -432,6 +432,9 @@
     margin-bottom: 12px!important;
     overflow:hidden!important;
     box-sizing:border-box!important;
+  }
+  .page-customers #customers-table tbody tr[data-customer-index].customer-search-hidden{
+    display:none!important;
   }
   .page-customers #customers-table tbody td{
     border-bottom:none!important;

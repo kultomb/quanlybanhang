@@ -25,7 +25,7 @@ import { getBackupDbRoot } from "@/lib/backend/shop-paths";
 import { normalizePosBackupJsonForGet } from "@/lib/backend/pos-backup-normalize";
 import { liftLegacyTrialBackupToTrialBackups } from "@/lib/backend/trialUpgrade";
 import { resolveUserShopContext, type UserShopContext } from "@/lib/backend/userShopSlug";
-import { getTrialShopPrefix, isEffectiveTrialAccount } from "@/lib/trial-shop";
+import { getEffectiveTrialExpiresAt, getTrialShopPrefix, isEffectiveTrialAccount } from "@/lib/trial-shop";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -113,7 +113,7 @@ function stripDemoSeedFlagFromPayload(value: unknown): unknown {
  * Dùng isEffectiveTrialAccount (cờ true/false ưu tiên, chưa set thì suy từ slug).
  */
 function assertTrialProductionRtdbAccess(ctx: UserShopContext): Response | null {
-  const { shopSlug, registrationTrial, trialExpiresAt } = ctx;
+  const { shopSlug, registrationTrial, trialExpiresAt, createdAt } = ctx;
   if (!shopSlug) return null;
 
   const p = getTrialShopPrefix();
@@ -134,7 +134,8 @@ function assertTrialProductionRtdbAccess(ctx: UserShopContext): Response | null 
       "Tên cửa hàng không phù hợp với tài khoản đã kích hoạt. Vui lòng liên hệ hỗ trợ.",
     );
   }
-  if (isTrial && trialExpiresAt != null && Date.now() > trialExpiresAt) {
+  const effectiveTrialExpiresAt = getEffectiveTrialExpiresAt(trialExpiresAt, createdAt);
+  if (isTrial && effectiveTrialExpiresAt != null && Date.now() > effectiveTrialExpiresAt) {
     return jsonError(
       403,
       "trial_expired",

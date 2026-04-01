@@ -4,6 +4,7 @@
  * Để tách HOÀN TOÀN khỏi CSDL production: dùng Firebase project / .env.local riêng (xem /trial).
  */
 export const DEFAULT_TRIAL_PREFIX = "try";
+export const TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** Đổi prefix: cập nhật regex `shopSlug` trong firebase.database.rules.json (nhánh kích hoạt trial không qua CK). */
 export function getTrialShopPrefix(): string {
@@ -51,6 +52,26 @@ export function isEffectiveTrialAccount(
   if (registrationTrial === true) return true;
   if (registrationTrial === false) return false;
   return slugLooksTrial;
+}
+
+/**
+ * Chuẩn hóa hạn dùng thử:
+ * - Ưu tiên `trialExpiresAt` nếu có.
+ * - Nếu có `createdAt`, chặn vượt quá window dùng thử chuẩn (3 ngày) để tránh dữ liệu cũ 7 ngày.
+ */
+export function getEffectiveTrialExpiresAt(
+  trialExpiresAt: number | null | undefined,
+  createdAt?: number | null | undefined,
+): number | null {
+  const te = Number(trialExpiresAt);
+  const ce = Number(createdAt);
+  const hasTe = Number.isFinite(te) && te > 0;
+  const hasCe = Number.isFinite(ce) && ce > 0;
+  if (!hasTe && !hasCe) return null;
+  if (hasTe && !hasCe) return te;
+  const cap = ce + TRIAL_DURATION_MS;
+  if (!hasTe) return cap;
+  return Math.min(te, cap);
 }
 
 /** Giữ sessionStorage sau login / redirect để UI trial không “mất” giữa các lần tải. */

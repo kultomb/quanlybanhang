@@ -17,6 +17,7 @@ export type UserShopContext = {
   /** true/false nếu đã set; null = bản ghi cũ chưa có field */
   registrationTrial: boolean | null;
   trialExpiresAt: number | null;
+  createdAt: number | null;
 };
 
 async function lazySyncFirestoreFromRtdb(uid: string, slug: string, ownerEmail: string) {
@@ -69,6 +70,9 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
   const te = v.trialExpiresAt;
   const n = typeof te === "number" ? te : Number(te);
   const trialExpiresAt = Number.isFinite(n) && n > 0 ? n : null;
+  const c = v.createdAt;
+  const createdNum = typeof c === "number" ? c : Number(c);
+  const createdAt = Number.isFinite(createdNum) && createdNum > 0 ? createdNum : null;
 
   let slug = "";
   let firestoreUserDocExists = false;
@@ -120,7 +124,7 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
     void lazySyncFirestoreFromRtdb(uid, slug, String(v.email || ""));
   }
 
-  return { shopSlug: slug, shopDisplayName, registrationTrial, trialExpiresAt };
+  return { shopSlug: slug, shopDisplayName, registrationTrial, trialExpiresAt, createdAt };
 }
 
 export async function resolveUserShopSlugWithHeal(uid: string): Promise<string> {

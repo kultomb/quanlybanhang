@@ -2184,13 +2184,22 @@ class HamobileBanhang {
     }
     getOrderSearchText(order) {
         if (!order) return '';
+        const orderLevelImeis = [
+            ...(Array.isArray(order.imeis) ? order.imeis : []),
+            ...(Array.isArray(order.imeiList) ? order.imeiList : []),
+            ...(Array.isArray(order.soldImeis) ? order.soldImeis : []),
+            order.imei
+        ].filter(Boolean).join(' ');
         const productsText = (order.products || []).map(p => [
             p && p.id,
             p && p.productId,
             p && p.code,
             p && p.sku,
             p && p.name,
-            p && p.productName
+            p && p.productName,
+            p && p.imei,
+            ...(Array.isArray(p && p.imeis) ? p.imeis : []),
+            ...(Array.isArray(p && p.soldImeis) ? p.soldImeis : [])
         ].filter(Boolean).join(' ')).join(' ');
         return [
             order.id,
@@ -2198,7 +2207,8 @@ class HamobileBanhang {
             order.customerName,
             order.phone,
             order.address,
-            productsText
+            productsText,
+            orderLevelImeis
         ].filter(Boolean).join(' ');
     }
     orderMatchesSearch(order, query) {
@@ -8359,21 +8369,31 @@ class HamobileBanhang {
     
     searchCustomers(query) {
         this.customersSearchQuery = query || '';
-        const rows = document.querySelectorAll('#customers-table tbody tr[data-customer-index]');
+        const tbody = document.querySelector('#customers-table tbody');
+        const rows = Array.from(document.querySelectorAll('#customers-table tbody tr[data-customer-index]'));
         const q = (query || '').trim();
         let visibleCount = 0;
+        const matchedRows = [];
+        const unmatchedRows = [];
         rows.forEach(row => {
             const idx = parseInt(row.getAttribute('data-customer-index'), 10);
             const customer = this.demoData.customers[idx];
             const isVisible = !!customer && this.customerMatchesSearch(customer, q);
-            row.style.display = isVisible ? '' : 'none';
-            if (isVisible) visibleCount++;
+            row.classList.toggle('customer-search-hidden', !isVisible);
+            if (isVisible) {
+                visibleCount++;
+                matchedRows.push(row);
+            } else {
+                unmatchedRows.push(row);
+            }
         });
+        if (tbody && rows.length > 0) {
+            [...matchedRows, ...unmatchedRows].forEach(r => tbody.appendChild(r));
+        }
         const title = document.getElementById('customers-list-title');
         if (title) {
             title.innerHTML = `<span>👥</span> Danh sách khách hàng (${visibleCount}${visibleCount !== this.demoData.customers.length ? '/' + this.demoData.customers.length : ''})`;
         }
-        const tbody = document.querySelector('#customers-table tbody');
         let emptyRow = document.getElementById('customers-empty-search-row');
         if (tbody && rows.length > 0) {
             if (!emptyRow) {
@@ -12999,7 +13019,10 @@ class HamobileBanhang {
             const debtStr = debt > 0 ? `Nợ: ${debt.toLocaleString('vi-VN')}` : '';
             const badges = [];
             if (debtStr) badges.push(`<span class="pos-customer-badge pos-customer-debt">${escapeHtml(debtStr)}</span>`);
-            return `<div class="dropdown-option pos-customer-full-row" data-value="${escapeHtml((c.id + '')).toString()}" 
+            const customerSearch = [
+                c.id, c.name, c.phone, c.email, c.address, c.companyName, c.department
+            ].filter(Boolean).join(' ').toLowerCase();
+            return `<div class="dropdown-option pos-customer-full-row" data-value="${escapeHtml((c.id + '')).toString()}" data-search="${escapeHtml(customerSearch)}" 
                          onclick="app.selectCustomer(this, '${(c.id + '').replace(/'/g,"\\'")}', '${(c.name || '').replace(/'/g,"\\'")}')" 
                          onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" style="border-bottom: 1px solid #f3f4f6; cursor: pointer; padding: 10px 12px;">
                         <div class="pos-customer-full-avatar">👤</div>
@@ -13434,12 +13457,13 @@ class HamobileBanhang {
     }
     
     filterDropdownItems(searchInput, type) {
-        const searchTerm = searchInput.value.toLowerCase();
+        const searchTerm = (searchInput.value || '').trim().toLowerCase();
         const dropdown = searchInput.closest('.custom-dropdown');
+        if (!dropdown) return;
         const options = dropdown.querySelectorAll('.dropdown-option');
         
         options.forEach(option => {
-            const text = option.textContent.toLowerCase();
+            const text = String(option.getAttribute('data-search') || option.textContent || '').toLowerCase();
             if (text.includes(searchTerm)) {
                 option.style.display = 'block';
             } else {
@@ -13967,7 +13991,10 @@ class HamobileBanhang {
             const debtStr = debt > 0 ? `Nợ: ${debt.toLocaleString('vi-VN')}` : '';
             const badges = [];
             if (debtStr) badges.push(`<span class="pos-customer-badge pos-customer-debt">${escapeHtml(debtStr)}</span>`);
-            return `<div class="dropdown-option pos-customer-full-row" data-value="${escapeHtml((c.id + '')).toString()}" 
+            const customerSearch = [
+                c.id, c.name, c.phone, c.email, c.address, c.companyName, c.department
+            ].filter(Boolean).join(' ').toLowerCase();
+            return `<div class="dropdown-option pos-customer-full-row" data-value="${escapeHtml((c.id + '')).toString()}" data-search="${escapeHtml(customerSearch)}" 
                          onclick="app.selectCustomer(this, '${(c.id + '').replace(/'/g,"\\'")}', '${(c.name || '').replace(/'/g,"\\'")}')" 
                          onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" style="border-bottom: 1px solid #f3f4f6; cursor: pointer; padding: 10px 12px;">
                         <div class="pos-customer-full-avatar">👤</div>
@@ -14930,33 +14957,18 @@ class HamobileBanhang {
             return;
         }
 
-        const rows = document.querySelectorAll('#orders-table tbody tr[data-order-index]');
-        let visibleCount = 0;
-        rows.forEach(row => {
-            const idx = parseInt(row.getAttribute('data-order-index'), 10);
-            const order = this.demoData.orders[idx];
-            const isVisible = !!order && this.orderMatchesPeriod(order, this.ordersFilterPeriod || 'last7') && this.orderMatchesSearch(order, q);
-            row.style.display = isVisible ? '' : 'none';
-            if (isVisible) visibleCount++;
-        });
         const tbody = document.querySelector('#orders-table tbody');
-        let emptyRow = document.getElementById('orders-empty-search-row');
-        if (tbody && rows.length > 0) {
-            if (!emptyRow) {
-                emptyRow = document.createElement('tr');
-                emptyRow.id = 'orders-empty-search-row';
-                emptyRow.innerHTML = '<td colspan="11" style="padding: 24px; text-align: center; color: #6b7280;">Không tìm thấy đơn hàng phù hợp.</td>';
-                emptyRow.style.display = 'none';
-                tbody.appendChild(emptyRow);
-            }
-            emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+        const per = this.ordersFilterPeriod || 'last7';
+        const allOrders = this.demoData.orders || [];
+        const periodOrders = allOrders.filter(o => o && this.orderMatchesPeriod(o, per));
+        const visibleOrders = periodOrders.filter(o => this.orderMatchesSearch(o, q));
+        const visibleCount = visibleOrders.length;
+        if (tbody) {
+            tbody.innerHTML = this.getOrderTableRowsHtml(visibleOrders, allOrders);
         }
         const title = document.getElementById('orders-list-title');
         if (title) {
-            const per = this.ordersFilterPeriod || 'last7';
             const periodText = this.getOrdersListTitleSuffix(this.ordersFilterPeriod);
-            const allOrders = this.demoData.orders || [];
-            const periodOrders = allOrders.filter(o => this.orderMatchesPeriod(o, per));
             title.innerHTML = `<span>📋</span> Danh sách đơn hàng${periodText} (${visibleCount}${visibleCount !== periodOrders.length ? '/' + periodOrders.length : ''})`;
         }
         this.updateOrdersFilterButtonsUI();

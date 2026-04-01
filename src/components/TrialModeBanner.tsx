@@ -5,7 +5,12 @@ import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { useEffect, useState } from "react";
 import { auth, rtdb } from "@/lib/backend/client";
-import { getTrialShopPrefix, isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
+import {
+  getEffectiveTrialExpiresAt,
+  getTrialShopPrefix,
+  isEffectiveTrialAccount,
+  syncTrialUiSessionFlag,
+} from "@/lib/trial-shop";
 
 type TrialModeBannerProps = {
   /** Slug trong URL — chỉ hiện banner khi khớp shop của user (tránh nhầm). */
@@ -35,6 +40,7 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
             shopSlug?: string;
             registrationTrial?: unknown;
             trialExpiresAt?: unknown;
+            createdAt?: unknown;
           };
           const userSlug = String(v.shopSlug || "").trim();
           if (!userSlug || userSlug !== shopSlug) {
@@ -49,7 +55,8 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
           setVisible(trial);
           const te = v.trialExpiresAt;
           const n = typeof te === "number" ? te : Number(te);
-          setExpiresAt(Number.isFinite(n) && n > 0 ? n : null);
+          const ce = typeof v.createdAt === "number" ? v.createdAt : Number(v.createdAt);
+          setExpiresAt(getEffectiveTrialExpiresAt(Number.isFinite(n) && n > 0 ? n : null, Number.isFinite(ce) && ce > 0 ? ce : null));
         })
         .catch(() => setVisible(false));
     });

@@ -1,7 +1,7 @@
 import { adminAuth, adminDb } from "@/lib/backend/server";
 import { emptyPosAppJsonPayload } from "@/lib/backend/pos-backup-normalize";
 import { getShopPaths } from "@/lib/backend/shop-paths";
-import { applyTrialPrefixToSlug, getTrialShopPrefix } from "@/lib/trial-shop";
+import { applyTrialPrefixToSlug, getTrialShopPrefix, TRIAL_DURATION_MS } from "@/lib/trial-shop";
 import { randomBytes } from "crypto";
 import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
@@ -10,8 +10,6 @@ import { adminFirestore } from "@/lib/firebase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 
 function createPaymentRef(prefix: "PAY" | "DEMO", slug: string) {
   const slugPart = String(slug || "")
