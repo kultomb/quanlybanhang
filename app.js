@@ -482,6 +482,12 @@ class HamobileBanhang {
         this.ordersFilterCustomTo = null;
         /** Mobile đơn hàng: true = mới nhất trước */
         this.ordersMobileSortDesc = true;
+        this.debtsMobileMetric = 'debt';
+        this.debtsMobileDebtTab = 'total';
+        this.debtsMobilePeriod = 'all';
+        this.debtsMobileCustomFrom = null;
+        this.debtsMobileCustomTo = null;
+        this.debtsMobileSortDesc = true;
         this.repairsSearchQuery = '';
         this.repairsFilterPeriod = 'all';
         this.productsCategoryFilter = '';
@@ -4354,6 +4360,122 @@ class HamobileBanhang {
         return list;
     }
 
+    /** Ngày đơn/phiếu còn nợ sớm nhất (YYYY-MM-DD) — để nhóm list & tính số ngày nợ */
+    getCustomerDebtOldestDateStr(customer) {
+        const dates = [];
+        (this.demoData.orders || []).forEach(order => {
+            if (!this._matchCustomer(order, customer)) return;
+            const rem = Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0)));
+            if (rem > 0 && order.date) dates.push(String(order.date).trim());
+        });
+        (this.demoData.repairs || []).forEach(r => {
+            if ((r.status || '') !== 'Đã trả' || !this._matchCustomer(r, customer)) return;
+            const cost = Number(r.repairCost) || 0;
+            const paid = Number(r.amountPaid) || 0;
+            if (cost > paid && r.date) dates.push(String(r.date).trim());
+        });
+        if (!dates.length) return null;
+        dates.sort();
+        return dates[0];
+    }
+
+    formatViDateFromYMD(ymd) {
+        if (!ymd) return '';
+        const m = String(ymd).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+        return String(ymd);
+    }
+
+    getCustomerDebtDays(customer) {
+        const ymd = this.getCustomerDebtOldestDateStr(customer);
+        if (!ymd) return 0;
+        const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return 0;
+        const d0 = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+        const t = this.getVietnamTime();
+        const d1 = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+        return Math.max(0, Math.floor((d1 - d0) / 86400000));
+    }
+
+    /** Tổng giá trị đơn đã chốt (doanh số lịch sử) — hiển thị dòng “Lịch sử giao dịch” */
+    getCustomerLifetimeOrderTotal(customer) {
+        return (this.demoData.orders || []).reduce((s, o) => {
+            if (!this._matchCustomer(o, customer)) return s;
+            if (!this.isOrderFinalizedForRevenue(o)) return s;
+            return s + (Number(o.total) || 0);
+        }, 0);
+    }
+
+    matchesDateByPeriod(dateStr, period, customFrom, customTo) {
+        const d = String(dateStr || '').split('T')[0];
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+        const p = period || 'all';
+        if (p === 'all') return true;
+        const vn = this.getVietnamTime();
+        const todayStr = vn.toISOString().split('T')[0];
+        const yesterday = new Date(vn);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const last7Start = new Date(vn);
+        last7Start.setDate(last7Start.getDate() - 6);
+        const last7StartStr = last7Start.toISOString().split('T')[0];
+        if (p === 'today') return d === todayStr;
+        if (p === 'yesterday') return d === yesterdayStr;
+        if (p === 'last7') return d >= last7StartStr && d <= todayStr;
+        const y = vn.getFullYear();
+        const m = vn.getMonth() + 1;
+        const thisPrefix = `${y}-${String(m).padStart(2, '0')}`;
+        if (p === 'this_month') return d.startsWith(`${thisPrefix}-`);
+        const prev = new Date(vn);
+        prev.setMonth(prev.getMonth() - 1);
+        const lastPrefix = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+        if (p === 'last_month') return d.startsWith(`${lastPrefix}-`);
+        if (p === 'custom') {
+            const from = customFrom || todayStr;
+            const to = customTo || todayStr;
+            return d >= from && d <= to;
+        }
+        return true;
+    }
+
+    getCustomerDebtSummaryByPeriod(customer, period) {
+        const p = period || 'all';
+        const from = this.debtsMobileCustomFrom;
+        const to = this.debtsMobileCustomTo;
+        let orderDebt = 0;
+        let repairDebt = 0;
+        let oldest = null;
+        (this.demoData.orders || []).forEach(order => {
+            if (!this._matchCustomer(order, customer)) return;
+            if (!this.matchesDateByPeriod(order.date, p, from, to)) return;
+            const rem = Math.max(0, (order.total || 0) - (order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0)));
+            if (rem > 0) {
+                orderDebt += rem;
+                const d = String(order.date || '').split('T')[0];
+                if (d && (!oldest || d < oldest)) oldest = d;
+            }
+        });
+        (this.demoData.repairs || []).forEach(r => {
+            if ((r.status || '') !== 'Đã trả' || !this._matchCustomer(r, customer)) return;
+            if (!this.matchesDateByPeriod(r.date, p, from, to)) return;
+            const cost = Number(r.repairCost) || 0;
+            const paid = Number(r.amountPaid) || 0;
+            const rem = Math.max(0, cost - paid);
+            if (rem > 0) {
+                repairDebt += rem;
+                const d = String(r.date || '').split('T')[0];
+                if (d && (!oldest || d < oldest)) oldest = d;
+            }
+        });
+        const sales = (this.demoData.orders || []).reduce((s, o) => {
+            if (!this._matchCustomer(o, customer)) return s;
+            if (!this.isOrderFinalizedForRevenue(o)) return s;
+            if (!this.matchesDateByPeriod(o.date, p, from, to)) return s;
+            return s + (Number(o.total) || 0);
+        }, 0);
+        return { debt: orderDebt + repairDebt, orderDebt, repairDebt, sales, oldest };
+    }
+
     getDebtsContent() {
         const customersWithActualDebt = this.getCustomersWithDebt();
         const totalActualDebt = customersWithActualDebt.reduce((sum, c) => sum + this.getActualDebtForCustomer(c), 0);
@@ -4361,7 +4483,108 @@ class HamobileBanhang {
         const todayPayments = (this.demoData.debtPayments || []).filter(p => p.date === todayStr);
         const todayCollected = todayPayments.reduce((s, p) => s + (p.amount || 0), 0);
         const paymentNames = [...new Set(todayPayments.map(p => p.customerName))].slice(0, 3).join(', ');
-        
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
+        if (isMobile) {
+            const periodSel = this.debtsMobilePeriod || 'all';
+            const debtTab = this.debtsMobileDebtTab || 'total';
+            const sortDesc = this.debtsMobileSortDesc !== false;
+            if (periodSel === 'custom') {
+                const t = todayStr;
+                if (!this.debtsMobileCustomFrom) this.debtsMobileCustomFrom = t;
+                if (!this.debtsMobileCustomTo) this.debtsMobileCustomTo = t;
+            }
+            const enriched = this.getCustomersWithDebt().map(c => {
+                const summary = this.getCustomerDebtSummaryByPeriod(c, periodSel);
+                const oldest = summary.oldest;
+                const days = oldest ? Math.max(0, Math.floor((new Date(this.getVietnamTime().getFullYear(), this.getVietnamTime().getMonth(), this.getVietnamTime().getDate()) - new Date(oldest)) / 86400000)) : 0;
+                return {
+                    customer: c,
+                    debt: summary.debt,
+                    orderDebt: summary.orderDebt,
+                    repairDebt: summary.repairDebt,
+                    sales: summary.sales,
+                    value: debtTab === 'order' ? summary.orderDebt : debtTab === 'repair' ? summary.repairDebt : summary.debt,
+                    oldest: oldest || '0000-00-00',
+                    groupLabel: oldest ? this.formatViDateFromYMD(oldest) : 'Không rõ ngày',
+                    days
+                };
+            }).filter(item => item.value > 0);
+
+            enriched.sort((a, b) => {
+                if (a.oldest !== b.oldest) return sortDesc ? b.oldest.localeCompare(a.oldest) : a.oldest.localeCompare(b.oldest);
+                return String(a.customer?.name || a.customer?.id || '').localeCompare(String(b.customer?.name || b.customer?.id || ''), 'vi', { sensitivity: 'base' });
+            });
+
+            const groupOrder = [];
+            const groupMap = {};
+            enriched.forEach(item => {
+                const key = item.groupLabel;
+                if (!groupMap[key]) {
+                    groupMap[key] = [];
+                    groupOrder.push(key);
+                }
+                groupMap[key].push(item);
+            });
+            const listHtml = enriched.length === 0
+                ? `<p class="debts-mobile-empty">Không có dữ liệu theo bộ lọc đang chọn.</p>`
+                : groupOrder.map(glabel => {
+                    const rows = groupMap[glabel].map(({ customer, value, days, orderDebt, repairDebt }) => `
+                        <button type="button" class="debts-mobile-row" onclick='app.showCustomerDebtDetail(${JSON.stringify(String(customer.id || customer.name || ""))})' aria-label="Chi tiết ${escapeHtml(customer.name)}">
+                            <div class="debts-mobile-row-left">
+                                <span class="debts-mobile-name">${escapeHtml(customer.name || customer.id || '')}</span>
+                            </div>
+                            <div class="debts-mobile-row-right">
+                                <span class="debts-mobile-amount ${debtTab === 'order' ? 'debts-mobile-amount--order' : debtTab === 'repair' ? 'debts-mobile-amount--repair' : ''}">${value.toLocaleString('vi-VN')}</span>
+                                <span class="debts-mobile-days">Số ngày nợ: ${days}</span>
+                            </div>
+                        </button>`).join('');
+                    return `<div class="debts-mobile-group"><div class="debts-mobile-date">${escapeHtml(glabel)}</div>${rows}</div>`;
+                }).join('');
+            const totalOrderDebt = enriched.reduce((s, i) => s + (i.orderDebt || 0), 0);
+            const totalRepairDebt = enriched.reduce((s, i) => s + (i.repairDebt || 0), 0);
+            const totalDebt = totalOrderDebt + totalRepairDebt;
+            const customFromVal = (this.debtsMobileCustomFrom || todayStr).replace(/"/g, '&quot;');
+            const customToVal = (this.debtsMobileCustomTo || todayStr).replace(/"/g, '&quot;');
+
+            return `
+            <div class="debts-mobile-page">
+                <div class="debts-mobile-toolbar">
+                    <button type="button" class="debts-mobile-stat debts-mobile-stat--tab ${debtTab === 'total' ? 'is-active' : ''}" onclick="app.setDebtsMobileDebtTab('total')">
+                        <span class="debts-mobile-stat-label">Tổng nợ</span>
+                        <span class="debts-mobile-stat-value debts-mobile-stat-value--warn">${totalDebt.toLocaleString('vi-VN')}</span>
+                    </button>
+                    <button type="button" class="debts-mobile-stat debts-mobile-stat--tab ${debtTab === 'order' ? 'is-active' : ''}" onclick="app.setDebtsMobileDebtTab('order')">
+                        <span class="debts-mobile-stat-label">Nợ bán hàng</span>
+                        <span class="debts-mobile-stat-value debts-mobile-stat-value--order">${totalOrderDebt.toLocaleString('vi-VN')}</span>
+                    </button>
+                    <button type="button" class="debts-mobile-stat debts-mobile-stat--tab ${debtTab === 'repair' ? 'is-active' : ''}" onclick="app.setDebtsMobileDebtTab('repair')">
+                        <span class="debts-mobile-stat-label">Nợ sửa chữa</span>
+                        <span class="debts-mobile-stat-value debts-mobile-stat-value--repair">${totalRepairDebt.toLocaleString('vi-VN')}</span>
+                    </button>
+                </div>
+                <div class="debts-mobile-controls">
+                    <select class="debts-mobile-pill" onchange="app.setDebtsMobilePeriod(this.value)" aria-label="Khoảng thời gian">
+                        <option value="all" ${periodSel === 'all' ? 'selected' : ''}>Toàn thời gian</option>
+                        <option value="today" ${periodSel === 'today' ? 'selected' : ''}>Hôm nay</option>
+                        <option value="yesterday" ${periodSel === 'yesterday' ? 'selected' : ''}>Hôm qua</option>
+                        <option value="last7" ${periodSel === 'last7' ? 'selected' : ''}>7 ngày qua</option>
+                        <option value="this_month" ${periodSel === 'this_month' ? 'selected' : ''}>Tháng này</option>
+                        <option value="last_month" ${periodSel === 'last_month' ? 'selected' : ''}>Tháng trước</option>
+                        <option value="custom" ${periodSel === 'custom' ? 'selected' : ''}>Tùy chỉnh</option>
+                    </select>
+                    <button type="button" id="debts-mobile-sort-btn" class="debts-mobile-sort-btn" onclick="app.toggleDebtsMobileSort()" title="${sortDesc ? 'Đang: mới nhất trước — bấm để cũ nhất trước' : 'Đang: cũ nhất trước — bấm để mới nhất trước'}" aria-label="Đổi thứ tự thời gian">⇅</button>
+                </div>
+                <div class="debts-mobile-custom-range" style="display:${periodSel === 'custom' ? 'flex' : 'none'}">
+                    <label>Từ <input type="date" id="debts-mobile-custom-from" value="${customFromVal}" onchange="app.applyDebtsMobileCustomRangeFromInputs()"></label>
+                    <label>Đến <input type="date" id="debts-mobile-custom-to" value="${customToVal}" onchange="app.applyDebtsMobileCustomRangeFromInputs()"></label>
+                </div>
+                <div class="debts-mobile-list-wrap">
+                    ${listHtml}
+                </div>
+            </div>`;
+        }
+
         return `
             <div class="fade-in">
                 <div class="stats-grid" style="margin-bottom: 24px;">
@@ -4419,6 +4642,60 @@ class HamobileBanhang {
                 </div>
             </div>
         `;
+    }
+    setDebtsMobileMetric(metric) {
+        this.debtsMobileMetric = metric === 'sales' ? 'sales' : 'debt';
+        this.refreshDebtsView();
+    }
+    setDebtsMobileDebtTab(tab) {
+        this.debtsMobileDebtTab = tab === 'order' || tab === 'repair' ? tab : 'total';
+        this.refreshDebtsView();
+    }
+    setDebtsMobilePeriod(period) {
+        this.debtsMobilePeriod = period || 'all';
+        if (this.debtsMobilePeriod === 'custom') {
+            const t = this.getVietnamTime().toISOString().split('T')[0];
+            if (!this.debtsMobileCustomFrom) this.debtsMobileCustomFrom = t;
+            if (!this.debtsMobileCustomTo) this.debtsMobileCustomTo = t;
+        }
+        this.refreshDebtsView();
+    }
+    applyDebtsMobileCustomRangeFromInputs() {
+        const f = document.getElementById('debts-mobile-custom-from');
+        const t = document.getElementById('debts-mobile-custom-to');
+        if (!f || !t || !f.value || !t.value) return;
+        let from = f.value;
+        let to = t.value;
+        if (from > to) {
+            const tmp = from;
+            from = to;
+            to = tmp;
+            f.value = from;
+            t.value = to;
+        }
+        this.debtsMobileCustomFrom = from;
+        this.debtsMobileCustomTo = to;
+        this.refreshDebtsView();
+    }
+    toggleDebtsMobileSort() {
+        this.debtsMobileSortDesc = !this.debtsMobileSortDesc;
+        const b = document.getElementById('debts-mobile-sort-btn');
+        if (b) {
+            b.title = this.debtsMobileSortDesc
+                ? 'Đang: mới nhất trước — bấm để cũ nhất trước'
+                : 'Đang: cũ nhất trước — bấm để mới nhất trước';
+        }
+        this.refreshDebtsView();
+    }
+    refreshDebtsView() {
+        if (this.currentPage !== 'debts') return this.loadPage('debts');
+        const content = document.getElementById('main-content');
+        if (!content) return this.loadPage('debts');
+        const prevScroll = content.querySelector('.debts-mobile-list-wrap');
+        const prevScrollTop = prevScroll ? prevScroll.scrollTop : 0;
+        content.innerHTML = this.getDebtsContent();
+        const nextScroll = content.querySelector('.debts-mobile-list-wrap');
+        if (nextScroll) nextScroll.scrollTop = prevScrollTop;
     }
     syncCustomerDebtFromOrders() { this.syncCustomerDebt(); }
     syncCustomerDebt(silent) {
@@ -8257,14 +8534,47 @@ class HamobileBanhang {
         }
         return valid;
     }
+
+    async guardOrdersBeforeCloudSave() {
+        const localOrders = Array.isArray(this.demoData.orders) ? this.demoData.orders : [];
+        try {
+            const loaded = await window.FirebaseStorage.load();
+            const remoteOrders = (loaded && loaded.data && Array.isArray(loaded.data.orders)) ? loaded.data.orders : [];
+            if (remoteOrders.length > 0) {
+                const byId = new Map();
+                remoteOrders.forEach((o) => {
+                    const key = String((o && o.id) || '').trim();
+                    if (!key) return;
+                    byId.set(key, o);
+                });
+                localOrders.forEach((o) => {
+                    const key = String((o && o.id) || '').trim();
+                    if (!key) return;
+                    byId.set(key, o);
+                });
+                const merged = Array.from(byId.values());
+                if (merged.length > localOrders.length) {
+                    this.demoData.orders = merged;
+                } else if (localOrders.length === 0) {
+                    this.demoData.orders = remoteOrders;
+                }
+                window.FirebaseStorage.setData(this.demoData);
+                if (window.app && remoteOrders.length > localOrders.length) {
+                    window.app.showNotification('Đã hợp nhất hóa đơn mới nhất từ trình duyệt khác trước khi lưu.', 'info');
+                }
+            }
+        } catch (_) {}
+    }
     
     saveToFirebaseImmediate() {
         if (!this.demoData.debtPayments) this.demoData.debtPayments = [];
         if (!this.demoData.debtors) this.demoData.debtors = [];
         if (!this.demoData.repairs) this.demoData.repairs = [];
-        window.FirebaseStorage.setData(this.demoData);
         const app = this;
-        return window.FirebaseStorage.save({ data: this.demoData }).then(function(ok) {
+        return this.guardOrdersBeforeCloudSave().then(function() {
+            window.FirebaseStorage.setData(app.demoData);
+            return window.FirebaseStorage.save({ data: app.demoData });
+        }).then(function(ok) {
             if (ok && window.FirebaseStorage.getMeta('backup_interval') === '0') {
                 const backupTime = app.getVietnamTime().toISOString();
                 window.FirebaseStorage.setMeta('last_backup_time', backupTime);
@@ -8285,6 +8595,7 @@ class HamobileBanhang {
             if (!app.demoData.debtPayments) app.demoData.debtPayments = [];
             if (!app.demoData.debtors) app.demoData.debtors = [];
             if (!app.demoData.repairs) app.demoData.repairs = [];
+            await app.guardOrdersBeforeCloudSave();
             window.FirebaseStorage.setData(app.demoData);
             const ok = await window.FirebaseStorage.save({ data: app.demoData });
             if (!ok && window.app) {
@@ -11458,18 +11769,26 @@ class HamobileBanhang {
         const form = event.target;
         const formData = new FormData(form);
         
-        const customerId = formData.get('customer');
+        const customerId = String(formData.get('customer') || '').trim();
         const amount = parseInt(formData.get('amount'), 10);
         
-        let customer = this.demoData.customers.find(c => c.id === customerId);
-        if (!customer) customer = this.getCustomersWithDebt().find(c => c.id === customerId);
+        let customer = (this.demoData.customers || []).find(c =>
+            String(c.id || '').trim() === customerId || String(c.name || '').trim() === customerId
+        );
+        if (!customer) customer = this.getCustomersWithDebt().find(c =>
+            String(c.id || '').trim() === customerId || String(c.name || '').trim() === customerId
+        );
         if (customer && amount > 0) {
             const oldDebt = this.getActualDebtForCustomer(customer);
             const todayStr = this.getVietnamTime().toISOString().split('T')[0];
             (this.demoData.debtPayments || []).push({ customerId, customerName: customer.name, amount, date: todayStr });
             
             let remaining = amount;
-            const matchC = (o) => (o.customerId === customerId || o.customerName === customer.name);
+            const matchC = (o) => {
+                const oid = String((o && o.customerId) || '').trim();
+                const oname = String((o && o.customerName) || '').trim();
+                return oid === String(customer.id || '').trim() || oid === customerId || oname === String(customer.name || '').trim();
+            };
             const unpaidOrders = (this.demoData.orders || []).filter(o => matchC(o) && Math.max(0, (o.total || 0) - (o.amountPaid != null ? o.amountPaid : (o.paymentStatus === 'Đã thanh toán' ? o.total : 0))) > 0);
             const unpaidRepairs = (this.demoData.repairs || []).filter(r => {
                 if ((r.status || '') !== 'Đã trả') return false;
@@ -11523,19 +11842,25 @@ class HamobileBanhang {
     
     // Hiển thị form thanh toán với khách hàng được chọn sẵn
     showPaymentFormForCustomer(customerId) {
-        let customer = this.demoData.customers.find(c => c.id === customerId);
-        if (!customer) customer = this.getCustomersWithDebt().find(c => c.id === customerId);
+        const cid = String(customerId || '').trim();
+        let customer = (this.demoData.customers || []).find(c =>
+            String(c.id || '').trim() === cid || String(c.name || '').trim() === cid
+        );
+        if (!customer) customer = this.getCustomersWithDebt().find(c =>
+            String(c.id || '').trim() === cid || String(c.name || '').trim() === cid
+        );
         if (!customer) {
             this.showNotification('Không tìm thấy khách hàng', 'error');
             return;
         }
+        const payCustomerKey = String(customer.id || customer.name || '').trim();
         const actualDebt = this.getActualDebtForCustomer(customer);
         const formHTML = `
             <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
                 <div style="background: white; padding: 32px; border-radius: 12px; width: 500px; max-width: 90vw;" onclick="event.stopPropagation()">
                     <h3 style="margin-bottom: 24px; color: var(--text-primary);">Ghi nhận thanh toán - ${customer.name}</h3>
                     <form onsubmit="app.recordPayment(event)">
-                        <input type="hidden" name="customer" value="${customer.id}">
+                        <input type="hidden" name="customer" value="${escapeHtml(payCustomerKey)}">
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Khách hàng:</label>
                             <input type="text" value="${customer.name} (${customer.id})" disabled style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -11761,12 +12086,176 @@ class HamobileBanhang {
         
         document.body.insertAdjacentHTML('beforeend', orderDetailHTML);
     }
+
+    closeDebtsMobileDetail() {
+        const el = document.getElementById('debts-mobile-detail-root');
+        if (el) el.remove();
+        try { document.body.style.overflow = ''; } catch (_) {}
+    }
+
+    /** Màn chi tiết công nợ dạng app mobile (full screen) */
+    showCustomerDebtDetailMobile(customerId) {
+        const cid = String(customerId || '').trim();
+        let customer = (this.demoData.customers || []).find(c =>
+            String(c.id || '').trim() === cid || String(c.name || '').trim() === cid
+        );
+        if (!customer) customer = this.getCustomersWithDebt().find(c =>
+            String(c.id || '').trim() === cid || String(c.name || '').trim() === cid
+        );
+        if (!customer) {
+            this.showNotification('Không tìm thấy khách hàng', 'error');
+            return;
+        }
+        this.closeDebtsMobileDetail();
+        const actualDebt = this.getActualDebtForCustomer(customer);
+        const historyTotal = this.getCustomerLifetimeOrderTotal(customer);
+        const unpaidOrders = this.demoData.orders.filter(order => {
+            const matchById = String(order.customerId || '').trim() === String(customer.id || '').trim() || String(order.customerId || '').trim() === cid;
+            const matchByName = order.customer === customer.name || order.customerName === customer.name;
+            const isUnpaid = order.paymentStatus === 'Công nợ' || order.status === 'Công nợ';
+            return (matchById || matchByName) && isUnpaid;
+        });
+        const unpaidRepairs = (this.demoData.repairs || []).filter(r => {
+            if ((r.status || '') !== 'Đã trả') return false;
+            const cost = Number(r.repairCost) || 0;
+            const paid = Number(r.amountPaid) || 0;
+            if (cost <= 0 || paid >= cost) return false;
+            return String(r.customerId || '').trim() === String(customer.id || '').trim()
+                || String(r.customerId || '').trim() === cid
+                || r.customerName === customer.name
+                || r.customerId === customer.name
+                || r.customerName === customer.id;
+        });
+        const typeBuy = (customer.type || '') === 'doanh-nghiep' ? 'Doanh nghiệp' : 'Cá nhân';
+        const buyerName = escapeHtml(customer.name || '');
+        const branchTxt = customer.branch ? escapeHtml(String(customer.branch)) : '—';
+        const custIdx = (this.demoData.customers || []).findIndex(c => c.id === customer.id);
+        const editBtn = custIdx >= 0
+            ? `<button type="button" class="debts-m-link" onclick="app.closeDebtsMobileDetail(); app.editCustomer(${custIdx});">Sửa</button>`
+            : '<span class="debts-m-link debts-m-link--disabled">Sửa</span>';
+        const orderCards = unpaidOrders.length
+            ? unpaidOrders.map(order => {
+                const orderIndex = this.demoData.orders.findIndex(o => o.id === order.id);
+                return `<div class="debts-m-line">
+                    <div class="debts-m-line-main">
+                        <span class="debts-m-line-id">${escapeHtml(String(order.id))}</span>
+                        <span class="debts-m-line-date">${escapeHtml(String(order.date || ''))}</span>
+                    </div>
+                    <div class="debts-m-line-row2">
+                        <span class="debts-m-line-amt">${(order.total || 0).toLocaleString('vi-VN')}</span>
+                        <button type="button" class="debts-m-line-btn" onclick="app.closeDebtsMobileDetail(); app.viewOrderDetails(${orderIndex})">Chi tiết</button>
+                    </div>
+                </div>`;
+            }).join('')
+            : '<p class="debts-m-muted">Không có đơn hàng nào đang nợ</p>';
+        const repairCards = unpaidRepairs.length
+            ? unpaidRepairs.map(r => {
+                const repairIndex = this.demoData.repairs.findIndex(x => x === r);
+                const debtAmount = Math.max(0, (Number(r.repairCost) || 0) - (Number(r.amountPaid) ?? 0));
+                return `<div class="debts-m-line">
+                    <div class="debts-m-line-main">
+                        <span class="debts-m-line-id">${escapeHtml(String(r.id || '-'))}</span>
+                        <span class="debts-m-line-date">${escapeHtml(String(r.date || ''))}</span>
+                    </div>
+                    <div class="debts-m-line-row2">
+                        <span class="debts-m-line-amt">${debtAmount.toLocaleString('vi-VN')}</span>
+                        <button type="button" class="debts-m-line-btn" onclick="app.closeDebtsMobileDetail(); app.viewRepairDetails(${repairIndex})">Chi tiết</button>
+                    </div>
+                </div>`;
+            }).join('')
+            : '';
+
+        const html = `
+            <div id="debts-mobile-detail-root" class="debts-mobile-detail-root" role="dialog" aria-modal="true" aria-labelledby="debts-m-detail-title">
+                <header class="debts-m-header">
+                    <button type="button" class="debts-m-back" onclick="app.closeDebtsMobileDetail()" aria-label="Quay lại">←</button>
+                    <h1 id="debts-m-detail-title" class="debts-m-title">Chi tiết công nợ</h1>
+                    <span class="debts-m-header-spacer" aria-hidden="true"></span>
+                </header>
+                <div class="debts-m-scroll">
+                    <section class="debts-m-section">
+                        <div class="debts-m-section-hd">
+                            <span class="debts-m-section-lbl">Thông tin cơ bản</span>
+                            ${editBtn}
+                        </div>
+                        <div class="debts-m-card debts-m-card--basic">
+                            <div class="debts-m-basic-top">
+                                <span class="debts-m-avatar-lg" aria-hidden="true">👤</span>
+                                <div class="debts-m-name-lg">${escapeHtml(customer.name || '')}</div>
+                            </div>
+                            <div class="debts-m-grid2">
+                                <div>
+                                    <div class="debts-m-k">Mã khách hàng</div>
+                                    <div class="debts-m-v">${escapeHtml(String(customer.id || ''))}</div>
+                                </div>
+                                <div>
+                                    <div class="debts-m-k">Chi nhánh</div>
+                                    <div class="debts-m-v">${branchTxt}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="debts-m-section">
+                        <div class="debts-m-card debts-m-card--nav">
+                            <button type="button" class="debts-m-nav-row" onclick="document.getElementById('debts-m-orders-block') && document.getElementById('debts-m-orders-block').scrollIntoView({behavior:'smooth'})">
+                                <span>Lịch sử giao dịch</span>
+                                <span class="debts-m-nav-right">${historyTotal.toLocaleString('vi-VN')} <span class="debts-m-chev">›</span></span>
+                            </button>
+                            <div class="debts-m-divider"></div>
+                            <button type="button" class="debts-m-nav-row" onclick="document.getElementById('debts-m-orders-block') && document.getElementById('debts-m-orders-block').scrollIntoView({behavior:'smooth'})">
+                                <span>Công nợ</span>
+                                <span class="debts-m-nav-right debts-m-nav-debt">${actualDebt.toLocaleString('vi-VN')} <span class="debts-m-chev">›</span></span>
+                            </button>
+                        </div>
+                    </section>
+                    <section class="debts-m-section">
+                        <div class="debts-m-card debts-m-card--links">
+                            <div class="debts-m-link-row"><span class="debts-m-linkfake">Địa chỉ</span><span class="debts-m-linkfake-sub">${escapeHtml(customer.address || '—')}</span></div>
+                            <div class="debts-m-link-row"><span class="debts-m-linkfake">Liên hệ</span><span class="debts-m-linkfake-sub">${escapeHtml(customer.phone || '—')}</span></div>
+                            <div class="debts-m-link-row"><span class="debts-m-linkfake">Nhóm khách hàng</span><span class="debts-m-linkfake-sub">${escapeHtml(customer.group || customer.customerGroup || '—')}</span></div>
+                        </div>
+                    </section>
+                    <section class="debts-m-section">
+                        <div class="debts-m-section-hd">
+                            <span class="debts-m-section-lbl">Thông tin xuất hoá đơn</span>
+                        </div>
+                        <div class="debts-m-card">
+                            <div class="debts-m-invoice-row"><span class="debts-m-k">Loại khách hàng</span><span class="debts-m-v">${typeBuy}</span></div>
+                            <div class="debts-m-invoice-row"><span class="debts-m-k">Tên người mua</span><span class="debts-m-v">${buyerName}</span></div>
+                        </div>
+                    </section>
+                    ${customer.notes ? `<section class="debts-m-section"><div class="debts-m-card"><div class="debts-m-k">Ghi chú</div><div class="debts-m-notes">${escapeHtml(customer.notes)}</div></div></section>` : ''}
+                    <section class="debts-m-section" id="debts-m-orders-block">
+                        <div class="debts-m-section-hd"><span class="debts-m-section-lbl">Đơn hàng đang nợ (${unpaidOrders.length})</span></div>
+                        <div class="debts-m-card debts-m-card--lines">${orderCards}</div>
+                    </section>
+                    ${unpaidRepairs.length ? `<section class="debts-m-section">
+                        <div class="debts-m-section-hd"><span class="debts-m-section-lbl">Phiếu sửa chữa đang nợ (${unpaidRepairs.length})</span></div>
+                        <div class="debts-m-card debts-m-card--lines">${repairCards}</div>
+                    </section>` : ''}
+                </div>
+                <footer class="debts-m-footer">
+                    <button type="button" class="debts-m-btn debts-m-btn--secondary" onclick='app.printDebtReport(${JSON.stringify(String(customer.id || customer.name || ""))});'>In báo cáo</button>
+                    <button type="button" class="debts-m-btn debts-m-btn--primary" onclick='app.showPaymentFormForCustomer(${JSON.stringify(String(customer.id || customer.name || ""))}); app.closeDebtsMobileDetail();'>Ghi nhận thanh toán</button>
+                </footer>
+            </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        try { document.body.style.overflow = 'hidden'; } catch (_) {}
+    }
     
     // Hiển thị chi tiết công nợ khách hàng (đơn hàng + sửa chữa)
     showCustomerDebtDetail(customerId) {
-        let customer = this.demoData.customers.find(c => c.id === customerId);
-        if (!customer) customer = this.getCustomersWithDebt().find(c => c.id === customerId);
-        if (!customer) customer = this.getCustomersWithDebt().find(c => c.id === customerId);
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+        if (isMobile) {
+            return this.showCustomerDebtDetailMobile(customerId);
+        }
+        const cid = String(customerId || '').trim();
+        let customer = (this.demoData.customers || []).find(c =>
+            String(c.id || '').trim() === cid || String(c.name || '').trim() === cid
+        );
+        if (!customer) customer = this.getCustomersWithDebt().find(c =>
+            String(c.id || '').trim() === cid || String(c.name || '').trim() === cid
+        );
         
         if (!customer) {
             this.showNotification('Không tìm thấy khách hàng', 'error');
@@ -11777,7 +12266,7 @@ class HamobileBanhang {
         
         // Đơn hàng chưa thanh toán
         const unpaidOrders = this.demoData.orders.filter(order => {
-            const matchById = order.customerId === customerId;
+            const matchById = String(order.customerId || '').trim() === String(customer.id || '').trim() || String(order.customerId || '').trim() === cid;
             const matchByName = order.customer === customer.name || order.customerName === customer.name;
             const isUnpaid = order.paymentStatus === 'Công nợ' || order.status === 'Công nợ';
             return (matchById || matchByName) && isUnpaid;
@@ -11789,7 +12278,9 @@ class HamobileBanhang {
             const cost = Number(r.repairCost) || 0;
             const paid = Number(r.amountPaid) || 0;
             if (cost <= 0 || paid >= cost) return false;
-            return r.customerId === customerId || r.customerName === customer.name || r.customerId === customer.name || r.customerName === customer.id;
+            return String(r.customerId || '').trim() === String(customer.id || '').trim()
+                || String(r.customerId || '').trim() === cid
+                || r.customerName === customer.name || r.customerId === customer.name || r.customerName === customer.id;
         });
         
         const unpaidOrdersHTML = unpaidOrders.length > 0 ? 
