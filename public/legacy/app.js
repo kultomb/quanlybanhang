@@ -601,7 +601,10 @@ class HamobileBanhang {
         this.productsSearchQuery = '';
         this.suppliersSearchQuery = '';
         this.ordersSearchQuery = '';
-        this.ordersFilterPeriod = 'all';
+        this.ordersFilterPeriod = 'last7';
+        this.ordersFilterCustomFrom = null;
+        this.ordersFilterCustomTo = null;
+        this.ordersMobileSortDesc = true;
         this.repairsSearchQuery = '';
         this.repairsFilterPeriod = 'all';
         this.productsCategoryFilter = '';
@@ -1623,10 +1626,11 @@ class HamobileBanhang {
         document.getElementById('page-title').textContent = titles.title;
         document.getElementById('page-subtitle').textContent = titles.subtitle;
         const mainEl = document.getElementById('main-content');
-        mainEl.classList.remove('page-sales', 'page-customers', 'page-debts');
+        mainEl.classList.remove('page-sales', 'page-customers', 'page-debts', 'page-orders');
         if (pageName === 'sales') mainEl.classList.add('page-sales');
         if (pageName === 'customers') mainEl.classList.add('page-customers');
         if (pageName === 'debts') mainEl.classList.add('page-debts');
+        if (pageName === 'orders') mainEl.classList.add('page-orders');
         mainEl.innerHTML = content;
         if (pageName === 'customers') this.searchCustomers(this.customersSearchQuery || '');
         if (pageName === 'orders') this.searchOrders(this.ordersSearchQuery || '');
@@ -1643,8 +1647,13 @@ class HamobileBanhang {
                 this.restoreLogoAndQR();
             }
 
-            // Trang Bán hàng POS
-            if (pageName === 'sales') { /* POS đã sẵn sàng */ }
+            // Trang Bán hàng POS — gợi ý giảm giá / còn nợ (mobile bước 2 có #pos-amount-paid)
+            if (pageName === 'sales') {
+                try {
+                    this.updatePOSDiscountHint();
+                    this.updatePOSDebtHint();
+                } catch (_) {}
+            }
             if (pageName === 'products') this.ensureProductsFabMobile();
         }, 500);
         }
@@ -2338,12 +2347,70 @@ class HamobileBanhang {
     }
     orderMatchesPeriod(order, period) {
         if (!order) return false;
+        const p = period || 'all';
+        if (p === 'all') return true;
+        const d = order.date;
+        if (!d) return false;
         const vn = this.getVietnamTime();
         const todayStr = vn.toISOString().split('T')[0];
-        const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
-        if (period === 'today') return order.date === todayStr;
-        if (period === 'week') return !!order.date && order.date >= weekStart;
+        const yesterday = new Date(vn);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const last7Start = new Date(vn);
+        last7Start.setDate(last7Start.getDate() - 6);
+        const last7StartStr = last7Start.toISOString().split('T')[0];
+        const weekStart = (() => {
+            const dd = new Date(vn);
+            const day = dd.getDay();
+            dd.setDate(dd.getDate() - day + (day === 0 ? -6 : 1));
+            return dd.toISOString().split('T')[0];
+        })();
+        if (p === 'today') return d === todayStr;
+        if (p === 'yesterday') return d === yesterdayStr;
+        if (p === 'last7') return d >= last7StartStr && d <= todayStr;
+        if (p === 'week') return d >= weekStart;
+        const y = vn.getFullYear();
+        const m = vn.getMonth() + 1;
+        const thisPrefix = `${y}-${String(m).padStart(2, '0')}`;
+        if (p === 'this_month') return d.startsWith(`${thisPrefix}-`);
+        const prev = new Date(vn);
+        prev.setMonth(prev.getMonth() - 1);
+        const lastPrefix = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+        if (p === 'last_month') return d.startsWith(`${lastPrefix}-`);
+        if (p === 'custom') {
+            const from = this.ordersFilterCustomFrom || todayStr;
+            const to = this.ordersFilterCustomTo || todayStr;
+            return d >= from && d <= to;
+        }
         return true;
+    }
+    getOrdersListTitleSuffix(period) {
+        const p = period || 'all';
+        const labels = {
+            today: ' hôm nay',
+            yesterday: ' hôm qua',
+            last7: ' 7 ngày qua',
+            week: ' tuần này',
+            this_month: ' tháng này',
+            last_month: ' tháng trước',
+            custom: ' (tùy chỉnh)',
+            all: ''
+        };
+        return labels[p] || '';
+    }
+    getOrdersPeriodPhrase(period) {
+        const p = period || 'all';
+        const m = {
+            today: 'hôm nay',
+            yesterday: 'hôm qua',
+            last7: '7 ngày qua',
+            week: 'tuần này',
+            this_month: 'tháng này',
+            last_month: 'tháng trước',
+            custom: 'theo khoảng tùy chỉnh',
+            all: 'tất cả'
+        };
+        return m[p] || 'tất cả';
     }
     repairMatchesSearch(repair, query) {
         if (!repair) return false;
@@ -3091,12 +3158,46 @@ class HamobileBanhang {
                         ${cartHtmlStep2}
                     </div>
                 </div>
-                <div class="pos-mobile-footer pos-mobile-footer-fixed" style="flex-shrink: 0; padding: 12px 16px; background: #f8fafc; border-top: 1px solid #e5e7eb;">
+                <div class="pos-mobile-footer pos-mobile-footer-fixed pos-mobile-step2-footer" style="flex-shrink: 0; padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: #f8fafc; border-top: 1px solid #e5e7eb;">
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 10px; font-size: 14px;">
                         <span>Tổng tiền hàng <span id="pos-mobile-count">${(this.posCart.items||[]).reduce((n,i)=>n+(i.quantity||1),0)}</span></span>
                         <span id="pos-mobile-total" style="font-weight: 700; font-size: 18px; color: #059669; flex-shrink: 0;">${summary.toPay.toLocaleString('vi-VN')}</span>
                     </div>
+                    <div class="pos-mobile-step2-checkout" style="font-size: 13px; border-top: 1px solid #e5e7eb; padding-top: 10px; margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; color: #374151;">
+                            <span>Tổng tiền hàng (trước giảm)</span>
+                            <span id="pos-total-goods">${summary.totalGoods.toLocaleString('vi-VN')}</span>
+                        </div>
+                        <div style="padding: 6px 0 4px;">
+                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 6px; font-weight: 500;">Giảm giá (VNĐ / %)</div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select id="pos-discount-type" onchange="app.updatePOSDiscountType(this.value)" style="box-sizing: border-box; min-width: 108px; width: 108px; flex-shrink: 0; padding: 8px 30px 8px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 13px;">
+                                    <option value="vnd" ${(this.posCart.discountType||'vnd')==='vnd'?'selected':''}>VNĐ</option>
+                                    <option value="percent" ${(this.posCart.discountType||'vnd')==='percent'?'selected':''}>%</option>
+                                </select>
+                                <input type="text" id="pos-discount-input" inputmode="numeric" value="${this.posCart.discountType==='percent' && summary.totalGoods>0 ? Math.round(((this.posCart.discount||0)/summary.totalGoods)*100) : this.formatPrice(this.posCart.discount||0)}"
+                                       onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.updatePOSDiscount(this.value)"
+                                       onblur="app.priceInputBlur(this)"
+                                       style="flex: 1; min-width: 0; padding: 8px 10px; border: 2px solid #e5e7eb; border-radius: 8px; text-align: right; font-weight: 600; font-size: 14px;">
+                            </div>
+                            <div id="pos-discount-hint" style="margin-top: 4px; font-size: 11px; color: #6b7280;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 15px;">
+                            <span style="font-weight: 700;">Khách cần trả</span>
+                            <span id="pos-to-pay" style="font-weight: 700; font-size: 18px; color: #059669;">${summary.toPay.toLocaleString('vi-VN')}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0;">
+                            <span style="font-weight: 600; flex-shrink: 0;">Khách thanh toán</span>
+                            <input type="text" id="pos-amount-paid" inputmode="numeric" value="${this.formatPrice(this.posCart.amountPaid != null ? this.posCart.amountPaid : summary.toPay)}"
+                                   onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.updatePOSAmountPaid(this.value)"
+                                   onblur="app.priceInputBlur(this)"
+                                   style="width: 130px; padding: 8px 10px; border: 2px solid #e5e7eb; border-radius: 8px; text-align: right; font-weight: 600; font-size: 14px;">
+                        </div>
+                        <div id="pos-debt-hint" style="display: none; font-size: 12px; color: #dc2626; padding: 4px 0 2px; font-weight: 600;">Còn nợ: <span id="pos-debt-amount">0</span></div>
+                        <p style="font-size: 11px; color: #6b7280; margin: 8px 0 0; line-height: 1.35;">Nhập số nhỏ hơn &quot;Khách cần trả&quot; để ghi công nợ (chỉ khách có tên, không áp dụng Khách lẻ).</p>
+                    </div>
                     <button type="button" class="pos-mobile-btn-pay" onclick="app.submitPOSOrder()" style="width: 100%; padding: 12px; background: var(--header-gradient); color: white; border: none; border-radius: 8px; font-weight: 700;">Thanh toán</button>
+                    ${(this.posCart.customerId || 'KH_LE') !== 'KH_LE' ? `<button type="button" onclick="app.submitPOSOrderAsDebt()" style="width: 100%; margin-top: 8px; padding: 10px; background: white; color: #b45309; border: 2px solid #fbbf24; border-radius: 8px; font-weight: 700; font-size: 14px;">Lưu toàn bộ công nợ</button>` : ''}
                 </div>
             </div>
             `;
@@ -3161,7 +3262,7 @@ class HamobileBanhang {
                             <div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px;">
                                 <div style="margin-bottom: 6px; font-weight: 500;">Giảm giá (VNĐ / %)</div>
                                 <div style="display: flex; gap: 8px; align-items: center;">
-                                    <select id="pos-discount-type" onchange="app.updatePOSDiscountType(this.value)" style="width: 58px; padding: 6px 4px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 12px;">
+                                    <select id="pos-discount-type" onchange="app.updatePOSDiscountType(this.value)" style="box-sizing: border-box; min-width: 104px; width: 104px; padding: 8px 28px 8px 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 12px;">
                                         <option value="vnd" ${(this.posCart.discountType||'vnd')==='vnd'?'selected':''}>VNĐ</option>
                                         <option value="percent" ${(this.posCart.discountType||'vnd')==='percent'?'selected':''}>%</option>
                                     </select>
@@ -3628,7 +3729,7 @@ class HamobileBanhang {
             return;
         }
         const modalHtml = `
-            <div id="pos-barcode-scan-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 2000; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this) app.stopPOSBarcodeScanner()">
+            <div id="pos-barcode-scan-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 2500; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this) app.stopPOSBarcodeScanner()">
                 <div style="width: min(560px, 94vw); background: #0f172a; border-radius: 12px; padding: 12px; color: #e2e8f0;" onclick="event.stopPropagation()">
                     <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <strong>Quét mã vạch để thêm sản phẩm</strong>
@@ -3760,6 +3861,13 @@ class HamobileBanhang {
             this.showNotification('Không tìm thấy sản phẩm từ mã quét', 'warning');
             return;
         }
+        const editPosRoot = typeof document !== 'undefined' && document.getElementById('orders-mobile-edit-root');
+        if (editPosRoot && editPosRoot.classList.contains('orders-mobile-edit-root--pos')) {
+            this.addProductToEditOrderByProductId(p.id);
+            if (statusEl) statusEl.textContent = 'Đã thêm: ' + (p.name || p.id);
+            this.stopPOSBarcodeScanner();
+            return;
+        }
         this.addProductToPOS(p.id);
         if (statusEl) statusEl.textContent = 'Đã thêm: ' + (p.name || p.id);
         this.stopPOSBarcodeScanner();
@@ -3856,6 +3964,10 @@ class HamobileBanhang {
         if (dd) dd.style.display = 'none';
         if (headerName) headerName.textContent = name;
         if (headerDd) headerDd.style.display = 'none';
+        const editHid = document.getElementById('edit-order-customer-select');
+        const editHeaderName = document.getElementById('edit-order-header-customer-name');
+        if (editHid) editHid.value = id;
+        if (editHeaderName) editHeaderName.textContent = name;
     }
     togglePOSHeaderCustomer() {
         const dd = document.getElementById('pos-header-customer-dropdown');
@@ -4039,7 +4151,7 @@ class HamobileBanhang {
         const modal = document.createElement('div');
         modal.id = 'pos-customer-list-full-modal';
         modal.className = 'pos-customer-full-modal';
-        modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 1002; display: flex; flex-direction: column; width: 100%; max-width: 100vw;';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 2200; display: flex; flex-direction: column; width: 100%; max-width: 100vw;';
         const header = document.createElement('div');
         header.className = 'pos-customer-full-header';
         header.style.cssText = 'padding: 10px 12px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 10px; flex-shrink: 0; width: 100%; box-sizing: border-box;';
@@ -4210,6 +4322,10 @@ class HamobileBanhang {
         else if (amountPaid === 0) amountPaid = total;
         amountPaid = Math.min(total, amountPaid);
         const orderDebt = Math.max(0, total - amountPaid);
+        if (orderDebt > 0 && customerId === 'KH_LE') {
+            this.showNotification('Khách lẻ không ghi công nợ. Chọn khách hàng (👤) hoặc nhập đủ số tiền khách trả.', 'error');
+            return;
+        }
         const isPaidFull = orderDebt === 0;
         const orders = this.demoData.orders || [];
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -4480,18 +4596,22 @@ class HamobileBanhang {
     getOrdersContent() {
         if (!this.selectedOrderIds) this.selectedOrderIds = new Set();
         if (this.ordersSearchQuery === undefined) this.ordersSearchQuery = '';
-        if (this.ordersFilterPeriod === undefined) this.ordersFilterPeriod = 'all';
+        if (this.ordersFilterPeriod === undefined || this.ordersFilterPeriod === null) this.ordersFilterPeriod = 'last7';
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const isTablet = typeof window !== 'undefined' && window.innerWidth > 768 && window.innerWidth <= 1024;
         const orders = this.demoData.orders || [];
         const vietnamTime = this.getVietnamTime();
         const todayStr = vietnamTime.toISOString().split('T')[0];
-        const weekStart = (() => { const d = new Date(vietnamTime); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); d.setDate(diff); return d.toISOString().split('T')[0]; })();
         let filtered = orders.filter(o => o && o.id);
-        if (this.ordersFilterPeriod === 'today') filtered = filtered.filter(o => o.date === todayStr);
-        else if (this.ordersFilterPeriod === 'week') filtered = filtered.filter(o => o.date >= weekStart);
+        const periodKey = this.ordersFilterPeriod || 'last7';
+        filtered = filtered.filter(o => this.orderMatchesPeriod(o, periodKey));
         const q = (this.ordersSearchQuery || '').trim();
         if (q) filtered = filtered.filter(o => this.orderMatchesSearch(o, q));
+        const mobileTotal = filtered.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+        const mobileCount = filtered.length;
+        const periodSel = this.ordersFilterPeriod || 'last7';
+        const customFromVal = (this.ordersFilterCustomFrom || todayStr).replace(/"/g, '&quot;');
+        const customToVal = (this.ordersFilterCustomTo || todayStr).replace(/"/g, '&quot;');
         const selectAllChecked = filtered.length > 0 && filtered.every(o => this.selectedOrderIds.has(o.id));
         const ordersTable = this.getOrderTableRowsHtml(filtered, orders);
         const selectedCount = this.selectedOrderIds.size;
@@ -4506,13 +4626,50 @@ class HamobileBanhang {
         return `
             <div class="fade-in">
                 <div class="quick-actions">
-                    <h2 class="section-title">Quản lý đơn hàng</h2>
-                    <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <h3 id="orders-list-title" style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                            <span>📋</span> Danh sách đơn hàng${this.ordersFilterPeriod === 'today' ? ' hôm nay' : this.ordersFilterPeriod === 'week' ? ' tuần này' : ''} (${filtered.length}${filtered.length !== orders.length ? '/' + orders.length : ''})
+                    <h2 class="section-title orders-orders-desktop-only">Quản lý đơn hàng</h2>
+                    <div class="orders-page-card" style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div class="orders-mobile-topbar" aria-label="Đơn hàng (mobile)">
+                            <div class="orders-mobile-topbar-row">
+                                <div class="orders-mobile-topbar-left">
+                                    <h2 class="orders-mobile-title">Đơn hàng</h2>
+                                    <select id="orders-mobile-period-select" class="orders-mobile-period-pill" onchange="app.setOrdersFilterPeriod(this.value)" aria-label="Khoảng thời gian">
+                                        <option value="today" ${periodSel === 'today' ? 'selected' : ''}>Hôm nay</option>
+                                        <option value="yesterday" ${periodSel === 'yesterday' ? 'selected' : ''}>Hôm qua</option>
+                                        <option value="last7" ${periodSel === 'last7' ? 'selected' : ''}>7 ngày qua</option>
+                                        <option value="week" ${periodSel === 'week' ? 'selected' : ''}>Tuần này</option>
+                                        <option value="this_month" ${periodSel === 'this_month' ? 'selected' : ''}>Tháng này</option>
+                                        <option value="last_month" ${periodSel === 'last_month' ? 'selected' : ''}>Tháng trước</option>
+                                        <option value="custom" ${periodSel === 'custom' ? 'selected' : ''}>Tùy chỉnh</option>
+                                        <option value="all" ${periodSel === 'all' ? 'selected' : ''}>Tất cả</option>
+                                    </select>
+                                </div>
+                                <div class="orders-mobile-topbar-right">
+                                    <button type="button" id="orders-mobile-sort-btn" class="orders-mobile-sort-toggle" onclick="app.toggleOrdersMobileSort()" title="${this.ordersMobileSortDesc ? 'Đang: mới nhất trước — bấm để cũ nhất trước' : 'Đang: cũ nhất trước — bấm để mới nhất trước'}" aria-label="Đổi thứ tự thời gian">⇅</button>
+                                </div>
+                            </div>
+                            <div id="orders-mobile-custom-range" class="orders-mobile-custom-range" style="display: ${periodSel === 'custom' ? 'flex' : 'none'};">
+                                <label class="orders-mobile-custom-label">Từ
+                                    <input type="date" id="orders-mobile-custom-from" class="orders-mobile-custom-date" value="${customFromVal}" onchange="app.applyOrdersCustomRangeFromInputs()">
+                                </label>
+                                <label class="orders-mobile-custom-label">Đến
+                                    <input type="date" id="orders-mobile-custom-to" class="orders-mobile-custom-date" value="${customToVal}" onchange="app.applyOrdersCustomRangeFromInputs()">
+                                </label>
+                            </div>
+                            <details class="orders-mobile-summary" open>
+                                <summary class="orders-mobile-summary-summary">
+                                    <span class="orders-mobile-summary-chevron" aria-hidden="true"></span>
+                                    <span class="orders-mobile-summary-label">Tổng tiền hàng</span>
+                                    <strong id="orders-mobile-summary-amount" class="orders-mobile-summary-amount">${mobileTotal.toLocaleString('vi-VN')}</strong>
+                                </summary>
+                                <div id="orders-mobile-summary-count" class="orders-mobile-summary-count">${mobileCount} đơn hàng</div>
+                            </details>
+                        </div>
+
+                        <h3 id="orders-list-title" class="orders-orders-desktop-only" style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                            <span>📋</span> Danh sách đơn hàng${this.getOrdersListTitleSuffix(this.ordersFilterPeriod)} (${filtered.length}${filtered.length !== orders.length ? '/' + orders.length : ''})
                         </h3>
 
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+                        <div class="orders-orders-desktop-only" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
                             <button type="button" onclick="app.showCreateOrderForm()" title="Thêm đơn hàng" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '➕' : 'Thêm đơn hàng'}</button>
                             <button type="button" id="orders-filter-today" onclick="app.setOrdersFilterPeriod('today')" title="Lọc: Hôm nay" style="background: ${this.ordersFilterPeriod === 'today' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'today' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'today' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📅' : 'Hôm nay'}</button>
                             <button type="button" id="orders-filter-week" onclick="app.setOrdersFilterPeriod('week')" title="Lọc: Tuần này" style="background: ${this.ordersFilterPeriod === 'week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '🗓' : 'Tuần này'}</button>
@@ -4520,7 +4677,7 @@ class HamobileBanhang {
                             <button type="button" onclick="app.exportOrdersReport()" title="Xuất báo cáo" style="background: white; color: #374151; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📤' : 'Xuất báo cáo'}</button>
                         </div>
 
-                        <div style="margin-bottom: 16px;">
+                        <div class="orders-search-field-wrap" style="margin-bottom: 16px;">
                             <input type="text" id="orders-search-input" value="${(this.ordersSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.searchOrders(this.value)" placeholder="Tìm mã đơn, mã/tên SP, khách hàng, SĐT..." 
                                    style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                         </div>
@@ -4603,67 +4760,148 @@ class HamobileBanhang {
         }).join('');
     }
 
+    formatOrdersDateVi(dateStr) {
+        const raw = String(dateStr || '').split('T')[0];
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return String(dateStr || '');
+        const [y, m, d] = raw.split('-');
+        return `${d}/${m}/${y}`;
+    }
+
+    getOrdersMobileDateGroupLabel(dateStr) {
+        const raw = String(dateStr || '').split('T')[0];
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return String(dateStr || '—').toUpperCase();
+        const [ys, ms, ds] = raw.split('-').map(Number);
+        const dt = new Date(ys, ms - 1, ds);
+        const days = ['CHỦ NHẬT', 'THỨ HAI', 'THỨ BA', 'THỨ TƯ', 'THỨ NĂM', 'THỨ SÁU', 'THỨ BẢY'];
+        const dd = String(ds).padStart(2, '0');
+        const mm = String(ms).padStart(2, '0');
+        return `${days[dt.getDay()]}, ${dd}/${mm}/${ys}`;
+    }
+
+    focusOrdersSearch() {
+        const el = document.getElementById('orders-search-input');
+        if (!el) return;
+        el.focus();
+        try {
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (_) {}
+    }
+
+    toggleOrdersMobileSort() {
+        this.ordersMobileSortDesc = !this.ordersMobileSortDesc;
+        this.searchOrders(this.ordersSearchQuery || '');
+        const b = document.getElementById('orders-mobile-sort-btn');
+        if (b) {
+            b.title = this.ordersMobileSortDesc
+                ? 'Đang: mới nhất trước — bấm để cũ nhất trước'
+                : 'Đang: cũ nhất trước — bấm để mới nhất trước';
+        }
+    }
+
     getOrdersMobileListHtml(filtered, orders) {
         if (!filtered || filtered.length === 0) {
             return `<div class="orders-mobile-empty" style="text-align:center; padding:18px 12px;">
                 <div style="font-weight:700; color:#374151; margin-bottom:6px;">Chưa có đơn hàng</div>
-                <div style="font-size:13px; color:#6b7280; margin-bottom:12px;">Hãy thêm đơn hàng để bắt đầu.</div>
+                <div style="font-size:13px; color:#6b7280; margin-bottom:12px;">Hãy thêm đơn hàng hoặc đổi bộ lọc thời gian.</div>
                 <button type="button" onclick="app.showCreateOrderForm()" style="background: var(--primary-green); color: white; border: none; padding: 10px 16px; border-radius: 10px; cursor: pointer; font-weight: 700;">+ Thêm đơn hàng</button>
             </div>`;
         }
 
-        return filtered.map((order, idx) => {
-            const originalIndex = orders.findIndex(o => o.id === order.id);
-            const isFinalized = this.isOrderFinalizedForRevenue(order);
-            const isCancelled = !isFinalized;
-            const cancelBadge = isCancelled
-                ? `<span class="orders-mobile-cancel-badge">ĐÃ HỦY</span>`
-                : '';
+        const desc = this.ordersMobileSortDesc !== false;
+        const sortKey = (o) => `${String(o.date || '').split('T')[0]} ${String(o.time || '00:00:00').trim()}`.trim();
+        const sorted = [...filtered].sort((a, b) => {
+            const c = sortKey(a).localeCompare(sortKey(b), 'en');
+            if (c !== 0) return desc ? -c : c;
+            return desc
+                ? String(b.id || '').localeCompare(String(a.id || ''))
+                : String(a.id || '').localeCompare(String(b.id || ''));
+        });
 
+        const groups = [];
+        sorted.forEach((order) => {
+            const d = String(order.date || '').split('T')[0] || '';
+            const last = groups[groups.length - 1];
+            if (!last || last.date !== d) groups.push({ date: d, items: [] });
+            groups[groups.length - 1].items.push(order);
+        });
+
+        const itemHtml = (order) => {
+            const originalIndex = orders.findIndex((o) => o.id === order.id);
+            const isFinalized = this.isOrderFinalizedForRevenue(order);
             const productsArr = order.products || [];
             const firstProd = productsArr[0];
-            const firstProdName = firstProd ? (firstProd.name || firstProd.productName || '-') : '-';
-            const firstQty = firstProd ? (firstProd.quantity || 1) : 1;
+            const firstProdName = firstProd ? firstProd.name || firstProd.productName || '-' : '-';
+            const firstQty = firstProd ? firstProd.quantity || 1 : 1;
             const moreCount = Math.max(0, productsArr.length - 1);
-            const productsShortText = `${firstProdName} x${firstQty}${moreCount > 0 ? ' + ' + moreCount : ''}`;
-
-            const statusText = order.paymentStatus === 'Đã thanh toán' ? '✓ Đã TT' : 'Công nợ';
-            const statusBg = !isFinalized
-                ? '#94a3b8'
-                : (order.paymentStatus === 'Đã thanh toán' ? '#22c55e' : '#f59e0b');
+            const dateVi = this.formatOrdersDateVi(order.date);
+            const timePart = String(order.time || '').trim();
+            const metaLeft = `${escapeHtml(dateVi)}${timePart ? ` ${escapeHtml(timePart)}` : ''} • ${escapeHtml(order.id || '-')}`;
+            const payMethod = String(order.paymentMethod || '').trim();
+            const payRight = payMethod
+                ? escapeHtml(payMethod)
+                : escapeHtml(order.paymentStatus === 'Đã thanh toán' ? 'Đã thanh toán' : 'Công nợ');
+            const cancelRow = !isFinalized
+                ? '<div class="orders-mobile-item-cancel">Đã hủy</div>'
+                : '';
 
             return `
-                <div class="orders-mobile-item" onclick="app.viewOrderDetails(${originalIndex})" style="${idx % 2 === 0 ? 'background:#fafbfc;' : 'background:#fff;'}">
-                    <div class="orders-mobile-left">
-                        <div class="orders-mobile-order-id">
-                            <span>${escapeHtml(order.id || '-')}</span>
-                            ${cancelBadge}
-                        </div>
-                        <div class="orders-mobile-customer">${escapeHtml(order.customerName || '-')}</div>
-                        <div class="orders-mobile-product" title="${escapeHtml(productsShortText)}">${escapeHtml(productsShortText)}</div>
+                <div class="orders-mobile-item" onclick="app.viewOrderDetails(${originalIndex})" role="button" tabindex="0">
+                    <div class="orders-mobile-item-row1">
+                        <span class="orders-mobile-item-customer">${escapeHtml(order.customerName || 'Khách lẻ')}</span>
+                        <span class="orders-mobile-item-amount">${(order.total || 0).toLocaleString('vi-VN')}</span>
                     </div>
-                    <div class="orders-mobile-right">
-                        <div class="orders-mobile-time">${escapeHtml(order.date || '')} ${escapeHtml(order.time || '')}</div>
-                        <div class="orders-mobile-total">${(order.total || 0).toLocaleString('vi-VN')} VNĐ</div>
-                        <div class="orders-mobile-status">
-                            <button type="button"
-                                class="orders-mobile-status-pill"
-                                ${!isFinalized ? 'disabled' : ''}
-                                style="background:${statusBg}; color:white; border:none; padding:6px 10px; border-radius:999px; cursor:default; font-size:11px; font-weight:700; white-space:nowrap;">
-                                ${escapeHtml(statusText)}
-                            </button>
-                        </div>
+                    <div class="orders-mobile-item-row2">
+                        <span class="orders-mobile-item-meta">${metaLeft}</span>
+                        <span class="orders-mobile-item-pay">${payRight}</span>
                     </div>
-                </div>
-            `;
-        }).join('');
+                    <div class="orders-mobile-item-product">${escapeHtml(String(firstProdName).toUpperCase())} x${firstQty}</div>
+                    ${moreCount > 0 ? `<div class="orders-mobile-item-more">+${moreCount} mặt hàng khác</div>` : ''}
+                    ${cancelRow}
+                </div>`;
+        };
+
+        return `<div class="orders-mobile-card-shell">
+            ${groups
+                .map(
+                    (g) => `
+                <div class="orders-mobile-date-group">
+                    <div class="orders-mobile-date-heading">${escapeHtml(this.getOrdersMobileDateGroupLabel(g.date))}</div>
+                    ${g.items.map(itemHtml).join('')}
+                </div>`,
+                )
+                .join('')}
+        </div>`;
     }
     setOrdersFilterPeriod(period) {
-        this.ordersFilterPeriod = period || 'all';
+        this.ordersFilterPeriod = period != null && period !== '' ? period : 'last7';
+        if (this.ordersFilterPeriod === 'custom') {
+            const vn = this.getVietnamTime();
+            const t = vn.toISOString().split('T')[0];
+            if (!this.ordersFilterCustomFrom) this.ordersFilterCustomFrom = t;
+            if (!this.ordersFilterCustomTo) this.ordersFilterCustomTo = t;
+        }
+        this.searchOrders(this.ordersSearchQuery || '');
+    }
+    applyOrdersCustomRangeFromInputs() {
+        const f = document.getElementById('orders-mobile-custom-from');
+        const t = document.getElementById('orders-mobile-custom-to');
+        if (!f || !t) return;
+        let from = f.value;
+        let to = t.value;
+        if (!from || !to) return;
+        if (from > to) {
+            const x = from;
+            from = to;
+            to = x;
+            f.value = from;
+            t.value = to;
+        }
+        this.ordersFilterCustomFrom = from;
+        this.ordersFilterCustomTo = to;
         this.searchOrders(this.ordersSearchQuery || '');
     }
     updateOrdersFilterButtonsUI() {
-        const active = this.ordersFilterPeriod || 'all';
+        const active = this.ordersFilterPeriod || 'last7';
         const configs = [
             { id: 'orders-filter-today', period: 'today' },
             { id: 'orders-filter-week', period: 'week' },
@@ -4684,13 +4922,8 @@ class HamobileBanhang {
     }
     toggleOrdersSelectAll(checked) {
         const q = (this.ordersSearchQuery || '').trim();
-        const per = this.ordersFilterPeriod || 'all';
-        let list = this.demoData.orders || [];
-        const vn = this.getVietnamTime();
-        const todayStr = vn.toISOString().split('T')[0];
-        const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
-        if (per === 'today') list = list.filter(o => o.date === todayStr);
-        else if (per === 'week') list = list.filter(o => o.date >= weekStart);
+        const per = this.ordersFilterPeriod || 'last7';
+        let list = (this.demoData.orders || []).filter(o => o && this.orderMatchesPeriod(o, per));
         if (q) list = list.filter(o => this.orderMatchesSearch(o, q));
         list.forEach(o => { if (checked) this.selectedOrderIds.add(o.id); else this.selectedOrderIds.delete(o.id); });
         this.updateOrdersSelectionUI();
@@ -4707,13 +4940,8 @@ class HamobileBanhang {
         if (elCount) elCount.textContent = n > 0 ? 'Đã chọn ' + n : '';
         const selectAll = document.getElementById('orders-select-all');
         const q = (this.ordersSearchQuery || '').trim();
-        const per = this.ordersFilterPeriod || 'all';
-        let filtered = this.demoData.orders || [];
-        const vn = this.getVietnamTime();
-        const todayStr = vn.toISOString().split('T')[0];
-        const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
-        if (per === 'today') filtered = filtered.filter(o => o.date === todayStr);
-        else if (per === 'week') filtered = filtered.filter(o => o.date >= weekStart);
+        const per = this.ordersFilterPeriod || 'last7';
+        let filtered = (this.demoData.orders || []).filter(o => o && this.orderMatchesPeriod(o, per));
         if (q) filtered = filtered.filter(o => this.orderMatchesSearch(o, q));
         if (selectAll) selectAll.checked = filtered.length > 0 && filtered.every(o => this.selectedOrderIds.has(o.id));
         document.querySelectorAll('#orders-table input[data-order-id]').forEach(cb => {
@@ -12512,7 +12740,7 @@ class HamobileBanhang {
                                     <input type="number" name="quantity[]" placeholder="SL" min="1" value="1" style="width: 80px; padding: 8px; border: 2px solid #e5e7eb; border-radius: 6px;" onchange="app.calculateRowTotal(this)">
                                     <input type="text" class="price-input" name="price[]" placeholder="Đơn giá" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.calculateRowTotal(this)" onblur="app.priceInputBlur(this); app.calculateRowTotal(this)" style="width: 120px; padding: 8px; border: 2px solid #e5e7eb; border-radius: 6px; background: #fff3cd; cursor: pointer;" title="Click để sửa giá" inputmode="numeric">
                                     <div style="width: 150px; display: flex; gap: 4px; align-items: center;">
-                                        <select name="discountType[]" style="width: 52px; padding: 8px 4px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 12px;" onchange="app.toggleDiscountInput(this); app.calculateRowTotal(this);">
+                                        <select name="discountType[]" style="box-sizing: border-box; min-width: 96px; width: 96px; padding: 8px 24px 8px 8px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 12px;" onchange="app.toggleDiscountInput(this); app.calculateRowTotal(this);">
                                             <option value="vnd" selected>VNĐ</option>
                                             <option value="percent">%</option>
                                         </select>
@@ -12637,7 +12865,7 @@ class HamobileBanhang {
                 <input type="number" name="quantity[]" placeholder="SL" min="1" value="1" style="width: 80px; padding: 8px; border: 2px solid #e5e7eb; border-radius: 6px;" onchange="app.calculateRowTotal(this)">
                 <input type="text" class="price-input" name="price[]" placeholder="Đơn giá" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.calculateRowTotal(this)" onblur="app.priceInputBlur(this); app.calculateRowTotal(this)" style="width: 120px; padding: 8px; border: 2px solid #e5e7eb; border-radius: 6px; background: #fff3cd; cursor: pointer;" title="Click để sửa giá" inputmode="numeric">
                 <div style="width: 150px; display: flex; gap: 4px; align-items: center;">
-                    <select name="discountType[]" style="width: 52px; padding: 8px 4px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 12px;" onchange="app.toggleDiscountInput(this); app.calculateRowTotal(this);">
+                    <select name="discountType[]" style="box-sizing: border-box; min-width: 96px; width: 96px; padding: 8px 24px 8px 8px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 12px;" onchange="app.toggleDiscountInput(this); app.calculateRowTotal(this);">
                         <option value="vnd" selected>VNĐ</option>
                         <option value="percent">%</option>
                     </select>
@@ -12796,7 +13024,8 @@ class HamobileBanhang {
         const hiddenInput = dropdown.querySelector('input[type="hidden"]');
         
         selectedText.textContent = customerName;
-        selectedText.style.color = '#374151';
+        const posEditHeader = typeof dropdown.closest === 'function' && dropdown.closest('.orders-mobile-edit-root--pos .edit-order-pos-mobile-head');
+        selectedText.style.color = posEditHeader ? '#ffffff' : '#374151';
         hiddenInput.value = customerId;
         
         this.closeAllDropdowns();
@@ -13017,20 +13246,93 @@ class HamobileBanhang {
         const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
     }
 
-    viewOrderDetails(index) {
-        console.log('🔍 FIXED viewOrderDetails v2.2 BOLD UPDATE - timestamp:', new Date().toISOString());
-        const order = this.demoData.orders[index];
-        if (!order) {
-            console.error('Order not found at index:', index);
+    getOrdersMobileStatusBadgeClass(status) {
+        const s = String(status || '');
+        if (/Hủy|hủy/.test(s)) return 'danger';
+        if (/Hoàn thành|Đã giao/.test(s)) return 'success';
+        if (/Chờ|Đang|xử lý|giao/i.test(s)) return 'warn';
+        return 'neutral';
+    }
+
+    closeOrdersMobileDetailMenu() {
+        const el = document.getElementById('orders-mdp-actions');
+        if (el) el.hidden = true;
+    }
+
+    closeOrdersMobileDetailPage() {
+        this.closeOrdersMobileDetailMenu();
+        document.getElementById('orders-mobile-detail-root')?.remove();
+        if (typeof document !== 'undefined') document.body.style.overflow = '';
+    }
+
+    closeOrdersMobileEditPage() {
+        document.getElementById('orders-mobile-edit-root')?.remove();
+        if (typeof document !== 'undefined') {
+            document.body.style.overflow = document.getElementById('orders-mobile-detail-root') ? 'hidden' : '';
+        }
+    }
+
+    cleanupEditOrderFormUI(form) {
+        const modal = form && form.closest && (form.closest('.edit-order-modal-backdrop') || form.closest('div[style*="fixed"]'));
+        const hadNbEdit = typeof history !== 'undefined' && history.state && history.state.__nbOrdersEdit === 1;
+        this.closeOrdersMobileEditPage();
+        this.closeOrdersMobileDetailPage();
+        if (modal) modal.remove();
+        if (typeof document !== 'undefined') document.body.style.overflow = '';
+        if (hadNbEdit && typeof history !== 'undefined') {
+            history.back();
+        }
+    }
+
+    dismissEditOrderForm(el) {
+        if (document.getElementById('orders-mobile-edit-root') && typeof history !== 'undefined' && history.state && history.state.__nbOrdersEdit === 1) {
+            history.back();
             return;
         }
-        
+        this.closeOrdersMobileEditPage();
+        const m = el && el.closest && (el.closest('.edit-order-modal-backdrop') || el.closest('div[style*="fixed"]'));
+        if (m && typeof closeModal === 'function') closeModal(m);
+    }
+
+    /** Đồng bộ nút Back trình duyệt với đóng màn sửa đơn (mobile). */
+    handleOrdersMobilePopState() {
+        if (document.getElementById('orders-mobile-edit-root')) {
+            this.closeOrdersMobileEditPage();
+        }
+    }
+
+    toggleOrdersMobileDetailMenu(ev) {
+        if (ev) ev.stopPropagation();
+        const el = document.getElementById('orders-mdp-actions');
+        if (!el) return;
+        el.hidden = !el.hidden;
+    }
+
+    ordersMobileDetailRunAction(kind, index) {
+        this.closeOrdersMobileDetailMenu();
+        if (kind === 'edit') {
+            this.editOrder(index);
+            return;
+        }
+        this.closeOrdersMobileDetailPage();
+        if (kind === 'print') this.showPrintOptionsPopup(index);
+        else if (kind === 'cancel') this.cancelOrder(index);
+        else if (kind === 'delete') this.deleteOrder(index);
+    }
+
+    viewOrderDetails(index) {
+        const order = this.demoData.orders[index];
+        if (!order) {
+            return;
+        }
+
+        const isMobileViewport = typeof window !== 'undefined' && window.innerWidth <= 768;
+
         // Tìm khách hàng trực tiếp từ mảng customers - KHÔNG dùng getCustomerDetails
         let customer = null;
-        
-        // Tìm trong demoData trước - tìm theo ID hoặc tên
+
         for (let i = 0; i < this.demoData.customers.length; i++) {
-            if (this.demoData.customers[i].id === order.customerId || 
+            if (this.demoData.customers[i].id === order.customerId ||
                 this.demoData.customers[i].name === order.customerId ||
                 this.demoData.customers[i].id === order.customerName ||
                 this.demoData.customers[i].name === order.customerName) {
@@ -13038,22 +13340,19 @@ class HamobileBanhang {
                 break;
             }
         }
-        
+
         if (!customer && this.demoData.customers) {
-            customer = this.demoData.customers.find(c => 
+            customer = this.demoData.customers.find(c =>
                 c.id === order.customerId || c.name === order.customerId ||
                 c.id === order.customerName || c.name === order.customerName
             );
         }
-        
+
         const customerDisplay = customer ? customer.name : order.customerName;
-        console.log('🔍 Order:', order.id, 'customerId:', order.customerId, 'customerName:', order.customerName);
-        console.log('🔍 Found customer:', customer);
-        
-        // Tạo thông tin doanh nghiệp nếu có
+
         let businessInfo = '';
         if (customer && customer.type === 'doanh-nghiep') {
-            let companyDetails = [];
+            const companyDetails = [];
             if (customer.companyName) {
                 companyDetails.push(`<strong>Công ty:</strong> ${customer.companyName}`);
             }
@@ -13063,15 +13362,16 @@ class HamobileBanhang {
             if (customer.taxCode) {
                 companyDetails.push(`<strong>MST:</strong> ${customer.taxCode}`);
             }
-            
+
             if (companyDetails.length > 0) {
                 businessInfo = `<div style="margin-top: 8px; font-size: 14px; color: #374151; line-height: 1.4;">
                     ${companyDetails.join(' • ')}
                 </div>`;
             }
         }
-        
-        const productsList = order.products.map(p => {
+
+        const productsArr = order.products || [];
+        const productsList = productsArr.map(p => {
             const prod = this.demoData.products.find(x => x.id === (p.id || p.productId));
             const name = p.name || p.productName || (prod ? prod.name : '-');
             const pid = p.id || p.productId || (prod ? prod.id : '-');
@@ -13087,9 +13387,113 @@ class HamobileBanhang {
                 </div>
             </div>`;
         }).join('');
+
+        const mobileLinesHtml = productsArr.map((p) => {
+            const prod = this.demoData.products.find(x => x.id === (p.id || p.productId));
+            const name = p.name || p.productName || (prod ? prod.name : '-');
+            const pid = p.id || p.productId || (prod ? prod.id : '-');
+            const soldImeis = p.soldImeis && Array.isArray(p.soldImeis) ? p.soldImeis : [];
+            const qty = p.quantity || 1;
+            const price = p.price != null && !isNaN(p.price) ? p.price : (prod ? prod.price : 0);
+            const subtotal = qty * price;
+            const imgRaw = prod && (prod.image || prod.imageUrl || prod.photo) ? String(prod.image || prod.imageUrl || prod.photo) : '';
+            const imgSrc = imgRaw && (imgRaw.startsWith('http') || imgRaw.startsWith('data:')) ? imgRaw : '';
+            const imeiBlock = soldImeis.length > 0
+                ? `<div class="orders-mdp-imei">IMEI: ${soldImeis.map(i => escapeHtml(i)).join(', ')}</div>`
+                : '';
+            const thumb = imgSrc
+                ? `<img src="${escapeHtml(imgSrc)}" alt="" class="orders-mdp-thumb" loading="lazy" />`
+                : `<div class="orders-mdp-thumb orders-mdp-thumb--ph" aria-hidden="true"></div>`;
+            return `<div class="orders-mdp-line">
+                ${thumb}
+                <div class="orders-mdp-line-body">
+                    <div class="orders-mdp-line-name">${escapeHtml(name)}</div>
+                    <div class="orders-mdp-line-sku">${escapeHtml(String(pid))}</div>
+                    <div class="orders-mdp-line-qty">${price.toLocaleString('vi-VN')} x ${qty}</div>
+                    ${imeiBlock}
+                </div>
+                <div class="orders-mdp-line-sum">${subtotal.toLocaleString('vi-VN')}</div>
+            </div>`;
+        }).join('');
+
         const orderPaid = order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0);
         const orderDebtDisplay = Math.max(0, (order.total || 0) - orderPaid);
         const paidDebtRows = (orderPaid > 0 || orderDebtDisplay > 0) ? `<div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #6b7280;"><span>Khách thanh toán:</span><span>${orderPaid.toLocaleString('vi-VN')} đ</span></div><div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #6b7280;"><span>Còn nợ:</span><span>${orderDebtDisplay.toLocaleString('vi-VN')} đ</span></div>` : '';
+
+        const phoneLine = customer && customer.phone
+            ? `<div class="orders-mdp-cmeta"><strong>SĐT:</strong> ${escapeHtml(customer.phone)}</div>`
+            : '';
+        const addrLine = customer && customer.address
+            ? `<div class="orders-mdp-cmeta"><strong>Địa chỉ:</strong> ${escapeHtml(customer.address)}</div>`
+            : '';
+        const badgeClass = this.getOrdersMobileStatusBadgeClass(order.status);
+        const timePart = order.time ? ` ${escapeHtml(String(order.time))}` : '';
+        const notesBody = order.notes
+            ? `<div class="orders-mdp-notes-body">${escapeHtml(order.notes)}</div>`
+            : `<div class="orders-mdp-notes-body orders-mdp-notes-body--empty">Chưa có ghi chú...</div>`;
+        const payStatusInline = order.paymentStatus
+            ? `<span style="background: ${order.paymentStatus === 'Đã thanh toán' ? '#dcfce7' : '#fef3c7'}; padding: 2px 6px; border-radius: 4px;">${escapeHtml(order.paymentStatus)}</span>`
+            : '';
+
+        if (isMobileViewport) {
+            this.closeOrdersMobileDetailPage();
+            const mobileDetailHTML = `
+            <div id="orders-mobile-detail-root" class="orders-mobile-detail-root" role="dialog" aria-modal="true" aria-labelledby="orders-mdp-title">
+                <header class="orders-mdp-header">
+                    <button type="button" class="orders-mdp-back" onclick="app.closeOrdersMobileDetailPage()" aria-label="Quay lại">‹</button>
+                    <div class="orders-mdp-header-spacer"></div>
+                    <div class="orders-mdp-header-end">
+                        <button type="button" class="orders-mdp-more" onclick="app.toggleOrdersMobileDetailMenu(event)" aria-label="Thao tác khác" aria-haspopup="true">⋮</button>
+                        <div id="orders-mdp-actions" class="orders-mdp-dial" hidden>
+                            <button type="button" onclick="app.ordersMobileDetailRunAction('edit', ${index})">✏️ Sửa</button>
+                            <button type="button" onclick="app.ordersMobileDetailRunAction('print', ${index})">🖨️ In</button>
+                            <button type="button" onclick="app.ordersMobileDetailRunAction('cancel', ${index})">⚠️ Hủy đơn</button>
+                            <button type="button" onclick="app.ordersMobileDetailRunAction('delete', ${index})">🗑️ Xóa</button>
+                        </div>
+                    </div>
+                </header>
+                <main class="orders-mdp-main" onclick="app.closeOrdersMobileDetailMenu()">
+                    <section class="orders-mdp-card">
+                        <div class="orders-mdp-card-h">
+                            <span id="orders-mdp-title" class="orders-mdp-oid">${escapeHtml(String(order.id || ''))}</span>
+                            <span class="orders-mdp-badge orders-mdp-badge--${badgeClass}">${escapeHtml(String(order.status || ''))}</span>
+                        </div>
+                        <div class="orders-mdp-datetime">${this.formatOrdersDateVi(order.date)}${timePart}</div>
+                    </section>
+                    <section class="orders-mdp-card orders-mdp-customer" onclick="event.stopPropagation()">
+                        <div class="orders-mdp-av" aria-hidden="true">👤</div>
+                        <div class="orders-mdp-customer-text">
+                            <div class="orders-mdp-cname">${escapeHtml(String(customerDisplay || ''))}</div>
+                            ${phoneLine}
+                            ${addrLine}
+                            ${businessInfo}
+                        </div>
+                    </section>
+                    <section class="orders-mdp-card orders-mdp-card--lines" onclick="event.stopPropagation()">
+                        <div class="orders-mdp-section-title">Sản phẩm</div>
+                        ${mobileLinesHtml || '<div class="orders-mdp-cmeta">Không có sản phẩm</div>'}
+                    </section>
+                    <section class="orders-mdp-card" onclick="event.stopPropagation()">
+                        <div class="orders-mdp-row orders-mdp-row--strong">
+                            <span>Tổng cộng:</span>
+                            <span>${(order.total || 0).toLocaleString('vi-VN')} VNĐ</span>
+                        </div>
+                        ${paidDebtRows}
+                        <div class="orders-mdp-pay-foot">
+                            <strong>Thanh toán:</strong> ${escapeHtml(String(order.paymentMethod || ''))}
+                            ${order.paymentStatus ? ` · ${payStatusInline}` : ''}
+                        </div>
+                    </section>
+                    <section class="orders-mdp-card" onclick="event.stopPropagation()">
+                        <div class="orders-mdp-section-title">Ghi chú</div>
+                        ${notesBody}
+                    </section>
+                </main>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', mobileDetailHTML);
+            document.body.style.overflow = 'hidden';
+            return;
+        }
 
         const detailHTML = `
             <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
@@ -13192,6 +13596,8 @@ class HamobileBanhang {
 
     editOrder(index) {
         const order = this.demoData.orders[index];
+        if (!order) return;
+        const isMobileEdit = typeof window !== 'undefined' && window.innerWidth <= 768;
         // Use same custom dropdown UI as "Tạo đơn hàng" for consistency
         const realCustomers = (this.demoData.customers || []).filter(c =>
             c.id !== 'KH_LE' && !(c.id && c.id.startsWith('KL_'))
@@ -13222,66 +13628,76 @@ class HamobileBanhang {
         const selectedCustomer = (this.demoData.customers || []).find(c => c.id === selectedCustomerId);
         const selectedCustomerText = selectedCustomer ? (selectedCustomer.name || 'Khách lẻ') : 'Khách lẻ';
         
-        const productRows = order.products.map((p, i) => {
+        const productRows = !isMobileEdit ? (order.products || []).map((p, i) => {
             const dt = (p.discountType || 'vnd') === 'percent' ? 'percent' : 'vnd';
+            const thumbHtml = this.getEditOrderLineThumbHtml(p.id);
             return `
-            <div class="edit-order-product-row" style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${i}">
-                <div class="edit-order-field edit-order-field-name" style="flex: 2; min-width:0;">
-                    <div class="edit-order-field-label">Tên sản phẩm</div>
-                    <select class="edit-order-product-name" name="productId_${i}" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;">
-                        ${this.demoData.products.map(prod => 
-                            `<option value="${prod.id}" ${prod.id === p.id ? 'selected' : ''}>${prod.name}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="edit-order-field edit-order-field-price" style="width:120px; flex: 0 0 120px; min-width:0;">
-                    <div class="edit-order-field-label">Giá bán</div>
-                    <input type="text" class="price-input edit-order-product-price" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
-                </div>
-                <div class="edit-order-field edit-order-field-qty" style="width:80px; flex: 0 0 80px; min-width:0;">
-                    <div class="edit-order-field-label">Số lượng</div>
-                    <input type="number" class="edit-order-product-qty" name="quantity_${i}" value="${p.quantity}" min="1" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
-                </div>
-                
-                <div class="edit-order-field edit-order-field-discount edit-order-product-discount" style="width:150px; flex: 0 0 150px; min-width:0;">
-                    <div class="edit-order-field-label">Giảm giá (VNĐ / %)</div>
-                    <div style="display: flex; gap: 4px; align-items: center;">
-                        <select name="discountType_${i}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
-                            <option value="vnd" ${dt === 'vnd' ? 'selected' : ''}>VNĐ</option>
-                            <option value="percent" ${dt === 'percent' ? 'selected' : ''}>%</option>
-                        </select>
-                        <input type="text" class="price-input" name="discount_${i}" value="${this.formatPrice(p.discount || 0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="${dt === 'vnd' ? 'VNĐ' : '%'}" inputmode="numeric">
+            <div class="edit-order-product-card" data-product-row="${i}">
+                <div class="edit-order-pos-row">
+                    ${thumbHtml}
+                    <div class="edit-order-pos-body">
+                        <div class="edit-order-pos-name">
+                            <select class="edit-order-inp edit-order-product-name" name="productId_${i}" onchange="app.updateProductPriceInEdit(this, ${i}); app.editOrderRefreshLineThumb(this)">
+                            ${this.demoData.products.map(prod =>
+                                `<option value="${prod.id}" data-price="${prod.price || 0}" ${prod.id === p.id ? 'selected' : ''}>${prod.name}</option>`
+                            ).join('')}
+                            </select>
+                        </div>
+                        <div class="edit-order-pos-meta">
+                            <div class="edit-order-pos-price">
+                                <span class="edit-order-pos-label">Giá bán</span>
+                                <input type="text" class="edit-order-inp price-input edit-order-product-price" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" placeholder="Giá" inputmode="numeric">
+                            </div>
+                            <div class="edit-order-pos-qty">
+                                <span class="edit-order-pos-label">Số lượng</span>
+                                <div class="edit-order-qty-stepper">
+                                    <button type="button" class="edit-order-qty-dec" aria-label="Giảm số lượng" onclick="app.editOrderQtyStep(this,-1)">−</button>
+                                    <input type="number" class="edit-order-inp edit-order-product-qty edit-order-qty-input" name="quantity_${i}" value="${p.quantity}" min="1" inputmode="numeric">
+                                    <button type="button" class="edit-order-qty-inc" aria-label="Tăng số lượng" onclick="app.editOrderQtyStep(this,1)">+</button>
+                                </div>
+                            </div>
+                            <button type="button" class="edit-order-remove-btn edit-order-remove-btn--meta" onclick="this.closest('[data-product-row]').remove()" aria-label="Xóa dòng sản phẩm">Xóa</button>
+                        </div>
+                        <div class="edit-order-line-discount edit-order-line-discount--pos">
+                            <div class="edit-order-field-label edit-order-field-label--muted">Giảm giá</div>
+                            <div class="edit-order-discount-inner">
+                                <select class="edit-order-inp edit-order-discount-type" name="discountType_${i}">
+                                    <option value="vnd" ${dt === 'vnd' ? 'selected' : ''}>VNĐ</option>
+                                    <option value="percent" ${dt === 'percent' ? 'selected' : ''}>%</option>
+                                </select>
+                                <input type="text" class="edit-order-inp price-input edit-order-discount-val" name="discount_${i}" value="${this.formatPrice(p.discount || 0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" placeholder="${dt === 'vnd' ? 'VNĐ' : '%'}" inputmode="numeric">
+                            </div>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="edit-order-field edit-order-field-remove edit-order-product-remove" style="width: 60px; display: flex; justify-content: center; align-items: center;">
-                    <div class="edit-order-field-label">Xóa</div>
-                    <button type="button" onclick="this.closest('[data-product-row]').remove()" style="padding: 0; width: 40px; height: 36px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
                 </div>
             </div>
         `;
-        }).join('');
+        }).join('') : '';
         
-        const formHTML = `
-            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
-                <div class="edit-order-modal" style="background: white; padding: 32px; border-radius: 12px; width: 900px; max-width: 90vw; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
-                    <h3 style="margin-bottom: 24px; color: var(--text-primary);">Sửa đơn hàng ${order.id}</h3>
-                    <form onsubmit="app.updateOrderComplete(event, ${index})">
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Khách hàng:</label>
-                            <div class="edit-order-customer-row" style="display: flex; gap: 8px; align-items: flex-end;">
-                                <div style="flex: 1; position: relative;">
-                                    <div class="custom-dropdown" style="position: relative;">
-                                        <div class="dropdown-selected" onclick="app.toggleCustomerDropdown(this)" 
-                                             style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-                                            <span class="selected-text" style="color: #374151;">${selectedCustomerText}</span>
-                                            <span class="dropdown-arrow" style="transform: rotate(0deg); transition: transform 0.3s;">▼</span>
+        const mobileEditTotalInit = this.computeEditOrderProductsTotalFromLines(order.products || []);
+        const mobileCountInit = (order.products || []).reduce((n, p) => n + (p.quantity || 1), 0);
+        const productRowsMobile = isMobileEdit
+            ? ((order.products || []).length
+                ? (order.products || []).map((p, i) => this.buildEditOrderMobileProductRow(p, i)).join('')
+                : '<div class="pos-cart-empty">Chưa có sản phẩm. Nhấn + Thêm sản phẩm.</div>')
+            : '';
+        
+        const editOrderFormInner = !isMobileEdit ? `
+                    <form class="edit-order-form" onsubmit="app.updateOrderComplete(event, ${index})">
+                        <div class="edit-order-section edit-order-section--customer">
+                            <label class="edit-order-section-label">Khách hàng</label>
+                            <div class="edit-order-customer-row">
+                                <div class="edit-order-customer-dropdown-wrap">
+                                    <span class="edit-order-customer-sheet-icon" aria-hidden="true">👤</span>
+                                    <div class="custom-dropdown edit-order-customer-dropdown">
+                                        <div class="dropdown-selected" onclick="app.toggleCustomerDropdown(this)">
+                                            <span class="selected-text">${selectedCustomerText}</span>
+                                            <span class="dropdown-arrow">›</span>
                                         </div>
-                                        <div class="dropdown-list" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; max-height: 250px; overflow-y: auto; z-index: 1000; display: none;">
-                                            <div style="padding: 8px; border-bottom: 1px solid #e5e7eb;">
-                                                <input type="text" class="dropdown-search" placeholder="🔍 Tìm khách hàng..." 
-                                                       style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;" 
-                                                       oninput="app.filterDropdownItems(this, 'customer')" 
+                                        <div class="dropdown-list">
+                                            <div class="edit-order-dropdown-search-wrap">
+                                                <input type="text" class="dropdown-search edit-order-inp" placeholder="🔍 Tìm khách hàng..."
+                                                       oninput="app.filterDropdownItems(this, 'customer')"
                                                        onclick="event.stopPropagation()">
                                             </div>
                                             <div class="dropdown-options">
@@ -13291,43 +13707,37 @@ class HamobileBanhang {
                                         <input type="hidden" name="customerId" id="edit-order-customer-select" value="${selectedCustomerId}">
                                     </div>
                                 </div>
-                                <button type="button" onclick="app.showQuickAddCustomer()" 
-                                        style="background: var(--primary-green); color: white; border: none; padding: 12px 16px; border-radius: 8px; cursor: pointer; white-space: nowrap; font-weight: 600;">
+                                <button type="button" class="edit-order-btn-secondary" onclick="app.showQuickAddCustomer()">
                                     + Thêm KH mới
                                 </button>
                             </div>
                         </div>
-                        
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Sản phẩm:</label>
-                            <div class="edit-order-product-header" style="margin-bottom: 8px; font-size: 12px; color: #374151; background: #f8fafc; border-radius: 6px; padding: 8px; display: flex; gap: 8px; font-weight: 600;">
-                                <div style="flex: 2;">Tên sản phẩm</div>
-                                <div style="width: 120px; text-align: center;">Giá bán</div>
-                                <div style="width: 80px; text-align: center;">Số lượng</div>
-                                <div style="width: 150px; text-align: center;">Giảm giá (VNĐ / %)</div>
-                                <div style="width: 60px; text-align: center;">Xóa</div>
+
+                        <div class="edit-order-section edit-order-section--products">
+                            <label class="edit-order-section-label">Sản phẩm</label>
+                            <div class="edit-order-products-shell">
+                                <div id="products-container" class="edit-order-products-list">
+                                    ${productRows}
+                                </div>
+                                <button type="button" class="edit-order-add-product-btn" onclick="app.addProductRowEdit()">+ Thêm sản phẩm</button>
                             </div>
-                            <div id="products-container">
-                                ${productRows}
-                            </div>
-                            <button type="button" onclick="app.addProductRowEdit()" style="margin-top: 8px; padding: 8px 16px; background: var(--primary-green); color: white; border: none; border-radius: 4px; cursor: pointer;">+ Thêm sản phẩm</button>
                         </div>
-                        
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Trạng thái thanh toán:</label>
-                            <select name="paymentStatus" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+
+                        <div class="edit-order-section">
+                            <label class="edit-order-section-label">Trạng thái thanh toán:</label>
+                            <select class="edit-order-inp edit-order-select-full" name="paymentStatus" required>
                                 <option value="Công nợ" ${order.paymentStatus === 'Công nợ' ? 'selected' : ''}>Công nợ</option>
                                 <option value="Đã thanh toán" ${order.paymentStatus === 'Đã thanh toán' ? 'selected' : ''}>Đã thanh toán</option>
                             </select>
                         </div>
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Khách thanh toán (VNĐ):</label>
-                            <input type="text" class="price-input" name="amountPaid" value="${this.formatPrice(order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0))}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" inputmode="numeric">
-                            <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Số tiền khách đã trả. Còn nợ = Tổng đơn − Số này.</div>
+                        <div class="edit-order-section">
+                            <label class="edit-order-section-label">Khách thanh toán (VNĐ):</label>
+                            <input type="text" class="edit-order-inp edit-order-select-full price-input" name="amountPaid" value="${this.formatPrice(order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0))}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" inputmode="numeric">
+                            <p class="edit-order-hint">Số tiền khách đã trả. Còn nợ = Tổng đơn − Số này.</p>
                         </div>
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Trạng thái đơn hàng:</label>
-                            <select name="status" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                        <div class="edit-order-section">
+                            <label class="edit-order-section-label">Trạng thái đơn hàng:</label>
+                            <select class="edit-order-inp edit-order-select-full" name="status" required>
                                 <option value="Đang xử lý" ${order.status === 'Đang xử lý' ? 'selected' : ''}>Đang xử lý</option>
                                 <option value="Hoàn thành" ${order.status === 'Hoàn thành' ? 'selected' : ''}>Hoàn thành</option>
                                 <option value="Đã giao" ${order.status === 'Đã giao' ? 'selected' : ''}>Đã giao</option>
@@ -13335,28 +13745,112 @@ class HamobileBanhang {
                                 <option value="Đã hủy" ${order.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
                             </select>
                         </div>
-                        
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Phương thức thanh toán:</label>
-                            <select name="paymentMethod" required style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+
+                        <div class="edit-order-section">
+                            <label class="edit-order-section-label">Phương thức thanh toán:</label>
+                            <select class="edit-order-inp edit-order-select-full" name="paymentMethod" required>
                                 <option value="Tiền mặt" ${order.paymentMethod === 'Tiền mặt' ? 'selected' : ''}>Tiền mặt</option>
                                 <option value="Chuyển khoản" ${order.paymentMethod === 'Chuyển khoản' ? 'selected' : ''}>Chuyển khoản</option>
                                 <option value="Thẻ tín dụng" ${order.paymentMethod === 'Thẻ tín dụng' ? 'selected' : ''}>Thẻ tín dụng</option>
                             </select>
                         </div>
-                        
-                        <div style="margin-bottom: 24px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Ghi chú:</label>
-                            <textarea name="notes" placeholder="Nhập ghi chú cho đơn hàng..." style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; resize: vertical; height: 100px; font-family: inherit;">${order.notes || ''}</textarea>
+
+                        <div class="edit-order-section edit-order-section--notes">
+                            <label class="edit-order-section-label">Ghi chú:</label>
+                            <textarea class="edit-order-textarea" name="notes" placeholder="Nhập ghi chú cho đơn hàng...">${order.notes || ''}</textarea>
                         </div>
-                        
-                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                            <button type="button" onclick="closeModal(this.closest('div[style*=fixed]'))" 
-                                    style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Hủy</button>
-                            <button type="submit" 
-                                    style="padding: 12px 24px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer;">Cập nhật đơn hàng</button>
+
+                        <div class="edit-order-form-actions">
+                            <button type="button" class="edit-order-btn-cancel" onclick="app.dismissEditOrderForm(this)">Hủy</button>
+                            <button type="submit" class="edit-order-btn-submit">Cập nhật đơn hàng</button>
                         </div>
                     </form>
+        ` : '';
+        if (isMobileEdit) {
+            this.closeOrdersMobileEditPage();
+            const mobileEditHtml = `
+            <div id="orders-mobile-edit-root" class="orders-mobile-edit-root orders-mobile-edit-root--pos" role="dialog" aria-modal="true">
+                <form class="edit-order-form edit-order-form--mobile-pos" onsubmit="app.updateOrderComplete(event, ${index})">
+                    <div class="pos-mobile-step2-header edit-order-pos-mobile-head edit-order-pos-head">
+                        <button type="button" class="edit-order-pos-head__btn edit-order-pos-head__back" onclick="app.dismissEditOrderForm(null)" title="Quay lại" aria-label="Quay lại">←</button>
+                        <input type="text" id="edit-order-pos-search" class="edit-order-pos-head__search" placeholder="Tìm thêm sản phẩm..." oninput="app.syncEditOrderSearchMobileStep2(this.value)" onfocus="app.showEditOrderStep2SearchResults(this.value)">
+                        <button type="button" class="edit-order-pos-head__btn edit-order-pos-head__scan" onclick="app.openPOSBarcodeScanner()" title="Quét mã" aria-label="Quét mã">📷</button>
+                        <div class="pos-header-customer edit-order-pos-head__customer">
+                            <div class="pos-header-customer-trigger edit-order-pos-head__cust-trigger" onclick="app.showPOSCustomerListFullModal()">
+                                <span>👤</span>
+                                <span id="edit-order-header-customer-name" class="edit-order-pos-head__cust-name">${selectedCustomerText}</span>
+                                <span>▼</span>
+                            </div>
+                            <button type="button" class="edit-order-pos-head__btn edit-order-pos-head__addcust" onclick="event.stopPropagation(); app.showQuickAddCustomer()" aria-label="Thêm khách">+</button>
+                        </div>
+                        <input type="hidden" name="customerId" id="edit-order-customer-select" value="${selectedCustomerId}">
+                    </div>
+                    <div class="pos-mobile-step2-body edit-order-pos-mobile-body edit-order-pos-body">
+                        <div id="edit-order-pos-step2-search-results" class="edit-order-pos-search-drop"></div>
+                        <div id="products-container" class="edit-order-pos-cart-items">${productRowsMobile}</div>
+                        <button type="button" class="edit-order-add-product-btn edit-order-pos-add-line" onclick="app.addProductRowEdit()">+ Thêm sản phẩm</button>
+                        <details class="edit-order-pos-mobile-details">
+                            <summary class="edit-order-pos-mobile-details-sum">Thông tin thanh toán &amp; trạng thái · ${escapeHtml(String(order.id || ''))}</summary>
+                            <div class="edit-order-pos-mobile-details-body">
+                                <div class="edit-order-section">
+                                    <label class="edit-order-section-label">Trạng thái thanh toán:</label>
+                                    <select class="edit-order-inp edit-order-select-full" name="paymentStatus" required>
+                                        <option value="Công nợ" ${order.paymentStatus === 'Công nợ' ? 'selected' : ''}>Công nợ</option>
+                                        <option value="Đã thanh toán" ${order.paymentStatus === 'Đã thanh toán' ? 'selected' : ''}>Đã thanh toán</option>
+                                    </select>
+                                </div>
+                                <div class="edit-order-section">
+                                    <label class="edit-order-section-label">Khách thanh toán (VNĐ):</label>
+                                    <input type="text" class="edit-order-inp edit-order-select-full price-input" name="amountPaid" value="${this.formatPrice(order.amountPaid != null ? order.amountPaid : (order.paymentStatus === 'Đã thanh toán' ? order.total : 0))}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" inputmode="numeric">
+                                    <p class="edit-order-hint">Số tiền khách đã trả. Còn nợ = Tổng đơn − Số này.</p>
+                                </div>
+                                <div class="edit-order-section">
+                                    <label class="edit-order-section-label">Trạng thái đơn hàng:</label>
+                                    <select class="edit-order-inp edit-order-select-full" name="status" required>
+                                        <option value="Đang xử lý" ${order.status === 'Đang xử lý' ? 'selected' : ''}>Đang xử lý</option>
+                                        <option value="Hoàn thành" ${order.status === 'Hoàn thành' ? 'selected' : ''}>Hoàn thành</option>
+                                        <option value="Đã giao" ${order.status === 'Đã giao' ? 'selected' : ''}>Đã giao</option>
+                                        <option value="Hủy" ${order.status === 'Hủy' ? 'selected' : ''}>Hủy</option>
+                                        <option value="Đã hủy" ${order.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
+                                    </select>
+                                </div>
+                                <div class="edit-order-section">
+                                    <label class="edit-order-section-label">Phương thức thanh toán:</label>
+                                    <select class="edit-order-inp edit-order-select-full" name="paymentMethod" required>
+                                        <option value="Tiền mặt" ${order.paymentMethod === 'Tiền mặt' ? 'selected' : ''}>Tiền mặt</option>
+                                        <option value="Chuyển khoản" ${order.paymentMethod === 'Chuyển khoản' ? 'selected' : ''}>Chuyển khoản</option>
+                                        <option value="Thẻ tín dụng" ${order.paymentMethod === 'Thẻ tín dụng' ? 'selected' : ''}>Thẻ tín dụng</option>
+                                    </select>
+                                </div>
+                                <div class="edit-order-section edit-order-section--notes">
+                                    <label class="edit-order-section-label">Ghi chú:</label>
+                                    <textarea class="edit-order-textarea" name="notes" placeholder="Nhập ghi chú cho đơn hàng...">${order.notes || ''}</textarea>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                    <div class="pos-mobile-footer pos-mobile-footer-fixed edit-order-pos-mobile-footer edit-order-pos-footer">
+                        <div class="edit-order-pos-footer__total">
+                            <span>Tổng tiền hàng <span id="edit-order-mobile-count">${mobileCountInit}</span></span>
+                            <span id="edit-order-mobile-total" class="edit-order-pos-footer__total-amt">${mobileEditTotalInit.toLocaleString('vi-VN')}</span>
+                        </div>
+                        <button type="submit" class="pos-mobile-btn-pay edit-order-btn-submit edit-order-pos-footer__submit">Cập nhật đơn hàng</button>
+                    </div>
+                </form>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', mobileEditHtml);
+            document.body.style.overflow = 'hidden';
+            try { this.syncEditOrderMobileTotals(); } catch (_) {}
+            if (typeof history !== 'undefined' && history.pushState) {
+                history.pushState({ __nbOrdersEdit: 1 }, '', '');
+            }
+            return;
+        }
+        const formHTML = `
+            <div class="edit-order-modal-backdrop" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
+                <div class="edit-order-modal" onclick="event.stopPropagation()">
+                    <h3 class="edit-order-modal-title">Cập nhật · ${order.id}</h3>
+                    ${editOrderFormInner}
                 </div>
             </div>
         `;
@@ -13367,39 +13861,52 @@ class HamobileBanhang {
         const container = document.getElementById('products-container');
         const rowCount = container.children.length;
         const firstProduct = this.demoData.products[0];
+        const isMobilePos = typeof document !== 'undefined' && document.getElementById('orders-mobile-edit-root')?.classList.contains('orders-mobile-edit-root--pos');
+        if (isMobilePos) {
+            const newRow = this.buildEditOrderMobileProductRowForNew(rowCount);
+            container.insertAdjacentHTML('beforeend', newRow);
+            this.syncEditOrderMobileTotals();
+            return;
+        }
+        const thumbNew = this.getEditOrderLineThumbHtml(firstProduct ? firstProduct.id : '');
         const newRow = `
-            <div class="edit-order-product-row" style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;" data-product-row="${rowCount}">
-                <div class="edit-order-field edit-order-field-name" style="flex: 2; min-width:0;">
-                    <div class="edit-order-field-label">Tên sản phẩm</div>
-                    <select class="edit-order-product-name" name="productId_${rowCount}" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" onchange="app.updateProductPriceInEdit(this, ${rowCount})">
-                        ${this.demoData.products.map(prod => 
-                            `<option value="${prod.id}" data-price="${prod.price}">${prod.name}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="edit-order-field edit-order-field-price" style="width:120px; flex: 0 0 120px; min-width:0;">
-                    <div class="edit-order-field-label">Giá bán</div>
-                    <input type="text" class="price-input edit-order-product-price" name="price_${rowCount}" value="${firstProduct ? (firstProduct.price||0).toLocaleString('vi-VN') : '0'}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="Giá bán" inputmode="numeric">
-                </div>
-                <div class="edit-order-field edit-order-field-qty" style="width:80px; flex: 0 0 80px; min-width:0;">
-                    <div class="edit-order-field-label">Số lượng</div>
-                    <input type="number" class="edit-order-product-qty" name="quantity_${rowCount}" value="1" min="1" style="width:100%; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="SL">
-                </div>
-                
-                <div class="edit-order-field edit-order-field-discount edit-order-product-discount" style="width:150px; flex: 0 0 150px; min-width:0;">
-                    <div class="edit-order-field-label">Giảm giá (VNĐ / %)</div>
-                    <div style="display: flex; gap: 4px; align-items: center;">
-                        <select name="discountType_${rowCount}" style="width:52px; flex: 0 0 52px; padding: 8px 4px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px;">
-                            <option value="vnd" selected>VNĐ</option>
-                            <option value="percent">%</option>
-                        </select>
-                        <input type="text" class="price-input" name="discount_${rowCount}" value="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" style="flex: 1; min-width:0; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="VNĐ" inputmode="numeric">
+            <div class="edit-order-product-card" data-product-row="${rowCount}">
+                <div class="edit-order-pos-row">
+                    ${thumbNew}
+                    <div class="edit-order-pos-body">
+                        <div class="edit-order-pos-name">
+                            <select class="edit-order-inp edit-order-product-name" name="productId_${rowCount}" onchange="app.updateProductPriceInEdit(this, ${rowCount}); app.editOrderRefreshLineThumb(this)">
+                            ${this.demoData.products.map(prod =>
+                                `<option value="${prod.id}" data-price="${prod.price || 0}">${prod.name}</option>`
+                            ).join('')}
+                            </select>
+                        </div>
+                        <div class="edit-order-pos-meta">
+                            <div class="edit-order-pos-price">
+                                <span class="edit-order-pos-label">Giá bán</span>
+                                <input type="text" class="edit-order-inp price-input edit-order-product-price" name="price_${rowCount}" value="${firstProduct ? (firstProduct.price||0).toLocaleString('vi-VN') : '0'}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" placeholder="Giá" inputmode="numeric">
+                            </div>
+                            <div class="edit-order-pos-qty">
+                                <span class="edit-order-pos-label">Số lượng</span>
+                                <div class="edit-order-qty-stepper">
+                                    <button type="button" class="edit-order-qty-dec" aria-label="Giảm số lượng" onclick="app.editOrderQtyStep(this,-1)">−</button>
+                                    <input type="number" class="edit-order-inp edit-order-product-qty edit-order-qty-input" name="quantity_${rowCount}" value="1" min="1" inputmode="numeric">
+                                    <button type="button" class="edit-order-qty-inc" aria-label="Tăng số lượng" onclick="app.editOrderQtyStep(this,1)">+</button>
+                                </div>
+                            </div>
+                            <button type="button" class="edit-order-remove-btn edit-order-remove-btn--meta" onclick="this.closest('[data-product-row]').remove()" aria-label="Xóa dòng sản phẩm">Xóa</button>
+                        </div>
+                        <div class="edit-order-line-discount edit-order-line-discount--pos">
+                            <div class="edit-order-field-label edit-order-field-label--muted">Giảm giá</div>
+                            <div class="edit-order-discount-inner">
+                                <select class="edit-order-inp edit-order-discount-type" name="discountType_${rowCount}">
+                                    <option value="vnd" selected>VNĐ</option>
+                                    <option value="percent">%</option>
+                                </select>
+                                <input type="text" class="edit-order-inp price-input edit-order-discount-val" name="discount_${rowCount}" value="0" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this)" onblur="app.priceInputBlur(this)" placeholder="VNĐ" inputmode="numeric">
+                            </div>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="edit-order-field edit-order-field-remove edit-order-product-remove" style="width: 60px; display: flex; justify-content: center; align-items: center;">
-                    <div class="edit-order-field-label">Xóa</div>
-                    <button type="button" onclick="this.closest('[data-product-row]').remove()" style="padding: 0; width: 40px; height: 36px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
                 </div>
             </div>
         `;
@@ -13407,12 +13914,249 @@ class HamobileBanhang {
     }
 
     updateProductPriceInEdit(selectElement, rowIndex) {
+        const row = selectElement.closest('[data-product-row]');
         const selectedOption = selectElement.options[selectElement.selectedIndex];
         const price = selectedOption.getAttribute('data-price');
-        const priceInput = document.querySelector(`input[name="price_${rowIndex}"]`);
-        if (priceInput && price) {
+        const priceInput = row
+            ? row.querySelector(`input[name="price_${rowIndex}"]`)
+            : document.querySelector(`input[name="price_${rowIndex}"]`);
+        if (priceInput && price != null && price !== '') {
             priceInput.value = this.formatPrice(parseInt(price, 10) || 0);
         }
+    }
+
+    getEditOrderLineThumbHtml(productId) {
+        const prod = (this.demoData.products || []).find(pr => pr.id === productId);
+        const raw = prod && (prod.image || prod.imageUrl || prod.photo)
+            ? String(prod.image || prod.imageUrl || prod.photo).trim()
+            : '';
+        if (raw && (raw.startsWith('http') || raw.startsWith('data:'))) {
+            return `<div class="edit-order-pos-thumb"><img src="${escapeHtml(raw)}" alt="" class="edit-order-pos-thumb-img" loading="lazy"/></div>`;
+        }
+        return `<div class="edit-order-pos-thumb"><div class="edit-order-pos-thumb-ph" aria-hidden="true">📦</div></div>`;
+    }
+
+    editOrderRefreshLineThumb(selectEl) {
+        const row = selectEl.closest('[data-product-row]');
+        if (!row) return;
+        const pid = selectEl.value;
+        const html = this.getEditOrderLineThumbHtml(pid);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html.trim();
+        const next = tmp.firstElementChild;
+        const cur = row.querySelector('.edit-order-pos-thumb');
+        if (cur && next) cur.replaceWith(next);
+    }
+
+    editOrderQtyStep(btn, delta) {
+        const row = btn.closest('[data-product-row]');
+        if (!row) return;
+        const inp = row.querySelector('input.edit-order-product-qty[name^="quantity_"]');
+        if (!inp) return;
+        let v = parseInt(String(inp.value).replace(/\D/g, ''), 10);
+        if (isNaN(v) || v < 1) v = 1;
+        v = Math.max(1, v + delta);
+        inp.value = String(v);
+        try {
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (_) {}
+        this.syncEditOrderMobileTotals();
+    }
+
+    buildEditOrderSoldImeiLine(p) {
+        const soldImeis = p.soldImeis && Array.isArray(p.soldImeis) ? p.soldImeis : [];
+        if (!soldImeis.length) return '';
+        const slice = soldImeis.slice(0, 4);
+        const preview = slice.map(i => escapeHtml(String(i))).join(', ');
+        const more = soldImeis.length > 4 ? ` (+${soldImeis.length - 4})` : '';
+        return `<div class="pos-cart-imei edit-order-sold-imei">IMEI: ${preview}${escapeHtml(more)}</div>`;
+    }
+
+    computeEditOrderProductsTotalFromLines(products) {
+        return (products || []).reduce((sum, product) => {
+            const beforeDiscount = (product.quantity || 1) * (product.price || 0);
+            const isVnd = (product.discountType || 'vnd') === 'vnd';
+            const discountAmount = isVnd ? Math.min(product.discount || 0, beforeDiscount) : (beforeDiscount * (product.discount || 0) / 100);
+            return sum + Math.max(0, beforeDiscount - discountAmount);
+        }, 0);
+    }
+
+    buildEditOrderMobileProductRow(p, i) {
+        const dt = (p.discountType || 'vnd') === 'percent' ? 'percent' : 'vnd';
+        const linePid = p.id || p.productId;
+        const imeiLine = this.buildEditOrderSoldImeiLine(p);
+        const productOpts = this.demoData.products.map(prod =>
+            `<option value="${prod.id}" data-price="${prod.price || 0}" ${prod.id === linePid ? 'selected' : ''}>${prod.name}</option>`
+        ).join('');
+        return `
+            <div class="edit-order-line-card" data-product-row="${i}">
+                <div class="edit-order-line-card__product">
+                    <select class="edit-order-line-card__name edit-order-inp edit-order-product-name" name="productId_${i}" onchange="app.updateProductPriceInEdit(this, ${i}); app.editOrderRefreshLineThumb(this); app.syncEditOrderMobileTotals()">
+                    ${productOpts}
+                    </select>
+                    ${imeiLine}
+                </div>
+                <div class="edit-order-line-card__checkout-row">
+                    <div class="edit-order-line-card__price-wrap">
+                        <input type="text" class="edit-order-line-card__price edit-order-inp price-input edit-order-product-price" name="price_${i}" value="${(p.price||0).toLocaleString('vi-VN')}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.syncEditOrderMobileTotals()" onblur="app.priceInputBlur(this); app.syncEditOrderMobileTotals()" placeholder="Giá" inputmode="numeric" aria-label="Đơn giá">
+                    </div>
+                    <div class="edit-order-line-card__qty-wrap">
+                        <div class="edit-order-line-card__stepper">
+                            <button type="button" class="edit-order-line-card__step-btn" onclick="app.editOrderQtyStep(this,-1)" aria-label="Giảm">−</button>
+                            <input type="number" class="edit-order-line-card__qty-input edit-order-inp edit-order-product-qty edit-order-qty-input" name="quantity_${i}" value="${p.quantity}" min="1" inputmode="numeric" onchange="app.syncEditOrderMobileTotals()">
+                            <button type="button" class="edit-order-line-card__step-btn" onclick="app.editOrderQtyStep(this,1)" aria-label="Tăng">+</button>
+                        </div>
+                    </div>
+                    <button type="button" class="edit-order-line-card__del" onclick="const r=this.closest('[data-product-row]'); if(r) r.remove(); app.syncEditOrderMobileTotals();" aria-label="Xóa dòng">🗑</button>
+                </div>
+                <div class="edit-order-line-card__discount">
+                    <span class="edit-order-line-card__disc-lbl">Giảm giá</span>
+                    <div class="edit-order-line-card__disc-group" role="group" aria-label="Giảm giá">
+                        <select class="edit-order-line-card__disc-type edit-order-inp edit-order-discount-type" name="discountType_${i}" onchange="app.syncEditOrderMobileTotals()">
+                            <option value="vnd" ${dt === 'vnd' ? 'selected' : ''}>VNĐ</option>
+                            <option value="percent" ${dt === 'percent' ? 'selected' : ''}>%</option>
+                        </select>
+                        <input type="text" class="edit-order-line-card__disc-inp edit-order-inp price-input edit-order-discount-val" name="discount_${i}" value="${this.formatPrice(p.discount || 0)}" onfocus="app.priceInputFocus(this)" oninput="app.priceInputInput(this); app.syncEditOrderMobileTotals()" onblur="app.priceInputBlur(this); app.syncEditOrderMobileTotals()" placeholder="${dt === 'vnd' ? 'Số tiền' : 'Phần trăm'}" inputmode="numeric">
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    buildEditOrderMobileProductRowForNew(i) {
+        const firstProduct = this.demoData.products[0];
+        const p = {
+            id: firstProduct ? firstProduct.id : '',
+            quantity: 1,
+            price: firstProduct ? firstProduct.price : 0,
+            discount: 0,
+            discountType: 'vnd',
+            soldImeis: []
+        };
+        return this.buildEditOrderMobileProductRow(p, i);
+    }
+
+    syncEditOrderMobileTotals() {
+        const root = document.getElementById('orders-mobile-edit-root');
+        if (!root || !root.classList.contains('orders-mobile-edit-root--pos')) return;
+        const form = root.querySelector('form');
+        if (!form) return;
+        const rows = form.querySelectorAll('[data-product-row]');
+        let count = 0;
+        let sum = 0;
+        rows.forEach((row) => {
+            const sel = row.querySelector('select[name^="productId_"]');
+            if (!sel || !sel.name) return;
+            const m = sel.name.match(/^productId_(\d+)$/);
+            if (!m) return;
+            const idx = m[1];
+            const productId = sel.value;
+            if (!productId) return;
+            const qtyInput = row.querySelector(`input[name="quantity_${idx}"]`);
+            const priceInput = row.querySelector(`input[name="price_${idx}"]`);
+            const dtInput = row.querySelector(`select[name="discountType_${idx}"]`);
+            const discInput = row.querySelector(`input[name="discount_${idx}"]`);
+            const qty = parseInt(qtyInput && qtyInput.value, 10) || 1;
+            const price = this.parsePrice(priceInput && priceInput.value);
+            const dt = (dtInput && dtInput.value) === 'percent' ? 'percent' : 'vnd';
+            const disc = this.parsePrice(discInput && discInput.value);
+            const beforeDiscount = qty * price;
+            const discountAmount = dt === 'percent' ? beforeDiscount * (disc || 0) / 100 : Math.min(disc || 0, beforeDiscount);
+            sum += Math.max(0, beforeDiscount - discountAmount);
+            count += qty;
+        });
+        const elCount = document.getElementById('edit-order-mobile-count');
+        const elTotal = document.getElementById('edit-order-mobile-total');
+        if (elCount) elCount.textContent = String(count);
+        if (elTotal) elTotal.textContent = sum.toLocaleString('vi-VN');
+    }
+
+    focusEditOrderPosSearch() {
+        const el = document.getElementById('edit-order-pos-search');
+        if (el) el.focus();
+    }
+
+    focusEditOrderAddProductBtn() {
+        const btn = document.querySelector('#orders-mobile-edit-root .edit-order-add-product-btn');
+        if (btn) {
+            btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => { try { btn.focus(); } catch (_) {} }, 150);
+        }
+    }
+
+    showEditOrderStep2SearchResults(val) {
+        this.syncEditOrderSearchMobileStep2(val || '');
+    }
+
+    syncEditOrderSearchMobileStep2(val) {
+        const resultsEl = document.getElementById('edit-order-pos-step2-search-results');
+        const searchInp = document.getElementById('edit-order-pos-search');
+        if (!resultsEl) return;
+        const term = (val || (searchInp && searchInp.value) || '').trim().toLowerCase();
+        if (!term) {
+            resultsEl.style.display = 'none';
+            resultsEl.innerHTML = '';
+            return;
+        }
+        let products = (this.demoData.products || []).filter(p => this.productMatchesSearchQuery(p, term));
+        products.sort((a, b) => this.productSearchRelevance(b, term) - this.productSearchRelevance(a, term));
+        products = products.slice(0, 15);
+        if (!products.length) {
+            resultsEl.style.display = 'block';
+            resultsEl.innerHTML = '<div style="padding: 12px; color: #6b7280; font-size: 13px;">Không tìm thấy sản phẩm</div>';
+            return;
+        }
+        resultsEl.style.display = 'block';
+        resultsEl.innerHTML = products.map(p => {
+            const stock = (p.hasImei && p.imeis) ? (p.stock != null ? p.stock : p.imeis.length) : (p.stock || 0);
+            const canSell = stock > 0;
+            return `<div class="pos-step2-search-item" onclick="${canSell ? `app.addProductToEditOrderFromStep2Search('${p.id}')` : ''}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f3f4f6; cursor: ${canSell ? 'pointer' : 'not-allowed'}; background: ${canSell ? 'white' : '#f9fafb'};" onmouseover="if(${canSell}) this.style.background='#ecfdf5'" onmouseout="this.style.background='${canSell ? 'white' : '#f9fafb'}'"><div style="flex: 1; min-width: 0;"><div style="font-weight: 600; font-size: 13px; line-height: 1.4;">${(p.name||'').replace(/</g,'&lt;')}</div><div style="font-size: 11px; color: #6b7280; line-height: 1.4; margin-top: 2px;">${(p.id||'').replace(/</g,'&lt;')} • ${stock} tồn</div>${this.buildPosImeiLineForProductList(p)}</div><div style="font-weight: 600; color: #059669; flex-shrink: 0;">${(p.price||0).toLocaleString('vi-VN')}</div></div>`;
+        }).join('');
+    }
+
+    addProductToEditOrderFromStep2Search(productId) {
+        const root = document.getElementById('orders-mobile-edit-root');
+        if (!root || !root.classList.contains('orders-mobile-edit-root--pos')) return;
+        this.addProductToEditOrderByProductId(productId);
+        const searchInp = document.getElementById('edit-order-pos-search');
+        const resultsEl = document.getElementById('edit-order-pos-step2-search-results');
+        if (searchInp) { searchInp.value = ''; searchInp.blur(); }
+        if (resultsEl) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; }
+    }
+
+    addProductToEditOrderByProductId(productId) {
+        const root = document.getElementById('orders-mobile-edit-root');
+        if (!root || !root.classList.contains('orders-mobile-edit-root--pos')) return;
+        const container = document.getElementById('products-container');
+        if (!container) return;
+        const p = this.demoData.products.find(x => x.id === productId);
+        if (!p) return;
+        const rows = container.querySelectorAll('[data-product-row]');
+        for (let r = 0; r < rows.length; r++) {
+            const row = rows[r];
+            const sel = row.querySelector('select[name^="productId_"]');
+            if (sel && sel.value === productId) {
+                const m = sel.name.match(/^productId_(\d+)$/);
+                const idx = m ? m[1] : null;
+                const qtyInp = idx ? row.querySelector(`input[name="quantity_${idx}"]`) : null;
+                if (qtyInp) {
+                    const v = Math.max(1, (parseInt(qtyInp.value, 10) || 1) + 1);
+                    qtyInp.value = String(v);
+                    try {
+                        qtyInp.dispatchEvent(new Event('change', { bubbles: true }));
+                    } catch (_) {}
+                    this.syncEditOrderMobileTotals();
+                }
+                return;
+            }
+        }
+        const rowCount = container.children.length;
+        const emptyEl = container.querySelector('.pos-cart-empty');
+        if (emptyEl) emptyEl.remove();
+        const lineProduct = { id: productId, quantity: 1, price: p.price || 0, discount: 0, discountType: 'vnd', soldImeis: [] };
+        const html = this.buildEditOrderMobileProductRow(lineProduct, rowCount);
+        container.insertAdjacentHTML('beforeend', html);
+        this.syncEditOrderMobileTotals();
     }
 
     updateOrderComplete(event, index) {
@@ -13494,7 +14238,7 @@ class HamobileBanhang {
             this.saveToLocalStorage();
             this.showNotification(`Đã hủy đơn hàng ${order.id} và hoàn trả tồn kho`, 'success');
             this.loadPage('orders');
-            const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
+            this.cleanupEditOrderFormUI(form);
             return;
         }
         
@@ -13561,7 +14305,7 @@ class HamobileBanhang {
         this.saveToLocalStorage();
         this.showNotification(`Đã cập nhật đơn hàng ${order.id}`, 'success');
         this.loadPage('orders');
-        const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
+        this.cleanupEditOrderFormUI(form);
     }
 
     updateOrder(event, index) {
@@ -13754,25 +14498,9 @@ class HamobileBanhang {
     }
 
     filterOrdersByPeriod(period) {
-        const now = this.getVietnamTime();
-        const today = now.toISOString().split('T')[0];
-        
-        // Tính toán ngày bắt đầu của tuần (thứ 2)
-        const startOfWeek = new Date(now);
-        const day = startOfWeek.getDay();
-        const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Điều chỉnh để thứ 2 là ngày đầu tuần
-        startOfWeek.setDate(diff);
-        const weekStart = startOfWeek.toISOString().split('T')[0];
-        
-        // Lọc đơn hàng theo thời gian
-        let filteredOrders = [];
-        if (period === 'today') {
-            filteredOrders = this.demoData.orders.filter(order => order.date === today);
-        } else if (period === 'week') {
-            filteredOrders = this.demoData.orders.filter(order => order.date >= weekStart);
-        } else {
-            filteredOrders = this.demoData.orders;
-        }
+        const filteredOrders = (this.demoData.orders || []).filter(order =>
+            order && this.orderMatchesPeriod(order, period || 'all')
+        );
         
         // Ẩn tất cả các dòng trong bảng
         const rows = document.querySelectorAll('#orders-table tbody tr');
@@ -13788,7 +14516,7 @@ class HamobileBanhang {
         });
         
         // Cập nhật tiêu đề và thông báo
-        const periodText = period === 'today' ? 'hôm nay' : period === 'week' ? 'tuần này' : 'tất cả';
+        const periodText = this.getOrdersPeriodPhrase(period);
         const headerElement = document.querySelector('#orders-table').previousElementSibling;
         if (headerElement && headerElement.tagName === 'H3') {
             headerElement.innerHTML = `<span>📋</span> Đơn hàng ${periodText} (${filteredOrders.length})`;
@@ -13804,10 +14532,11 @@ class HamobileBanhang {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         if (isMobile) {
             // Mobile hiển thị card-list (.orders-mobile-list), không dùng table DOM.
+            const per = this.ordersFilterPeriod || 'last7';
             const filteredOrders = orders.filter(order =>
                 !!order &&
                 order.id &&
-                this.orderMatchesPeriod(order, this.ordersFilterPeriod || 'all') &&
+                this.orderMatchesPeriod(order, per) &&
                 this.orderMatchesSearch(order, q)
             );
 
@@ -13815,18 +14544,30 @@ class HamobileBanhang {
             if (mobileList) {
                 mobileList.innerHTML = this.getOrdersMobileListHtml(filteredOrders, orders);
             }
+            const mobileSum = filteredOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+            const amtEl = document.getElementById('orders-mobile-summary-amount');
+            const cntEl = document.getElementById('orders-mobile-summary-count');
+            if (amtEl) amtEl.textContent = mobileSum.toLocaleString('vi-VN');
+            if (cntEl) cntEl.textContent = `${filteredOrders.length} đơn hàng`;
+            const mobSel = document.getElementById('orders-mobile-period-select');
+            if (mobSel) mobSel.value = per;
+            const customRow = document.getElementById('orders-mobile-custom-range');
+            if (customRow) {
+                customRow.style.display = per === 'custom' ? 'flex' : 'none';
+                const cf = document.getElementById('orders-mobile-custom-from');
+                const ct = document.getElementById('orders-mobile-custom-to');
+                const vn = this.getVietnamTime();
+                const td = vn.toISOString().split('T')[0];
+                if (per === 'custom' && cf && ct) {
+                    cf.value = this.ordersFilterCustomFrom || td;
+                    ct.value = this.ordersFilterCustomTo || td;
+                }
+            }
 
             const title = document.getElementById('orders-list-title');
             if (title) {
-                const periodText = this.ordersFilterPeriod === 'today' ? ' hôm nay' : this.ordersFilterPeriod === 'week' ? ' tuần này' : '';
-                const vn = this.getVietnamTime();
-                const todayStr = vn.toISOString().split('T')[0];
-                const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
-
-                let periodOrders = orders;
-                if (this.ordersFilterPeriod === 'today') periodOrders = orders.filter(o => o.date === todayStr);
-                else if (this.ordersFilterPeriod === 'week') periodOrders = orders.filter(o => o.date >= weekStart);
-
+                const periodText = this.getOrdersListTitleSuffix(this.ordersFilterPeriod);
+                const periodOrders = orders.filter(o => this.orderMatchesPeriod(o, per));
                 title.innerHTML = `<span>📋</span> Danh sách đơn hàng${periodText} (${filteredOrders.length}${filteredOrders.length !== periodOrders.length ? '/' + periodOrders.length : ''})`;
             }
 
@@ -13840,7 +14581,7 @@ class HamobileBanhang {
         rows.forEach(row => {
             const idx = parseInt(row.getAttribute('data-order-index'), 10);
             const order = this.demoData.orders[idx];
-            const isVisible = !!order && this.orderMatchesPeriod(order, this.ordersFilterPeriod || 'all') && this.orderMatchesSearch(order, q);
+            const isVisible = !!order && this.orderMatchesPeriod(order, this.ordersFilterPeriod || 'last7') && this.orderMatchesSearch(order, q);
             row.style.display = isVisible ? '' : 'none';
             if (isVisible) visibleCount++;
         });
@@ -13858,14 +14599,10 @@ class HamobileBanhang {
         }
         const title = document.getElementById('orders-list-title');
         if (title) {
-            const periodText = this.ordersFilterPeriod === 'today' ? ' hôm nay' : this.ordersFilterPeriod === 'week' ? ' tuần này' : '';
+            const per = this.ordersFilterPeriod || 'last7';
+            const periodText = this.getOrdersListTitleSuffix(this.ordersFilterPeriod);
             const allOrders = this.demoData.orders || [];
-            let periodOrders = allOrders;
-            const vn = this.getVietnamTime();
-            const todayStr = vn.toISOString().split('T')[0];
-            const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
-            if (this.ordersFilterPeriod === 'today') periodOrders = allOrders.filter(o => o.date === todayStr);
-            else if (this.ordersFilterPeriod === 'week') periodOrders = allOrders.filter(o => o.date >= weekStart);
+            const periodOrders = allOrders.filter(o => this.orderMatchesPeriod(o, per));
             title.innerHTML = `<span>📋</span> Danh sách đơn hàng${periodText} (${visibleCount}${visibleCount !== periodOrders.length ? '/' + periodOrders.length : ''})`;
         }
         this.updateOrdersFilterButtonsUI();
@@ -14210,7 +14947,7 @@ class HamobileBanhang {
 
     showQuickAddCustomer() {
         const quickAddHTML = `
-            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1002; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 2300; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this && window._modalMousedownTarget===this) closeModal(this)">
                 <div style="background: white; padding: 32px; border-radius: 12px; width: 600px; max-width: 90vw;" onclick="event.stopPropagation()">
                     <h3 style="margin-bottom: 24px; color: var(--text-primary);">➕ Thêm khách hàng mới</h3>
                     <form onsubmit="app.quickAddCustomer(event)">
@@ -14342,7 +15079,7 @@ class HamobileBanhang {
             customerSelect.value = newCustomer.id;
         }
 
-        if (this.currentPage === 'sales') {
+        if (this.currentPage === 'sales' || (typeof document !== 'undefined' && document.getElementById('orders-mobile-edit-root')?.classList.contains('orders-mobile-edit-root--pos'))) {
             this.selectPOSCustomer(newCustomer.id, newCustomer.name);
             const inp = document.getElementById('pos-customer-search');
             const nameEl = document.getElementById('pos-customer-name');
@@ -17066,6 +17803,11 @@ document.addEventListener('click', function(e) {
 
 // Handle window resize - close menu on larger screens
 document.addEventListener('DOMContentLoaded', function() {
+    window.addEventListener('popstate', function() {
+        if (window.app && typeof window.app.handleOrdersMobilePopState === 'function') {
+            window.app.handleOrdersMobilePopState();
+        }
+    });
     window.addEventListener('resize', function() {
         if (window.innerWidth > 768) {
             const navMenu = document.getElementById('mainNavMenu');

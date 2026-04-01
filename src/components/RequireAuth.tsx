@@ -179,6 +179,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         }
 
         if (!user) {
+          // Tránh đăng xuất nhầm khi Firebase tạm trả null (refresh token / tab ngủ / mạng chập).
           logoutDebounce = window.setTimeout(() => {
             logoutDebounce = undefined;
             if (disposed) return;
@@ -188,7 +189,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
             setReady(true);
             void clearServerSession();
             redirectToLogin();
-          }, 80);
+          }, 2500);
           return;
         }
 
