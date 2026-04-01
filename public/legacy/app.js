@@ -2119,6 +2119,7 @@ class HamobileBanhang {
                 <span id="products-selection-bar-count" style="font-weight: 600; color: #1e40af;">Đã chọn ${selectedCount}</span>
                 <button type="button" onclick="app.clearProductsSelection()" style="background: transparent; border: none; color: #6b7280; cursor: pointer; padding: 2px 6px; font-size: 18px;" title="Bỏ chọn">×</button>
                 <button type="button" onclick="app.bulkExportSelectedProducts()" style="background: #059669; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;" title="Xuất file CSV đúng định dạng để nhập lại">📥 Xuất file (định dạng nhập)</button>
+                <button type="button" onclick="app.printSelectedProductLabels()" style="background: #16a34a; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">🖨 In tem đã chọn</button>
                 <button type="button" onclick="app.showBulkChangeCategoryForm()" style="background: #7c3aed; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">📂 Đổi nhóm hàng</button>
                 <button type="button" onclick="app.bulkDeleteProducts()" style="background: #ef4444; color: white; padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">Xóa đã chọn</button>
                 <button type="button" onclick="app.clearProductsSelection()" style="background: #e5e7eb; color: #374151; padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer;">Bỏ chọn</button>
@@ -2700,6 +2701,7 @@ class HamobileBanhang {
     }
     clearProductsSelection() {
         this.selectedProductIds.clear();
+        this._bulkLabelPrintState = null;
         this.updateProductsSelectionUI();
     }
     showImeiLookupModal() {
@@ -2861,6 +2863,21 @@ class HamobileBanhang {
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
         this.showNotification(`Đã xuất ${this.selectedProductIds.size} sản phẩm ra file CSV (định dạng nhập).`, 'success');
+    }
+    printSelectedProductLabels() {
+        if (this.selectedProductIds.size === 0) {
+            this.showNotification('Chưa chọn sản phẩm nào để in tem.', 'warning');
+            return;
+        }
+        const selectedIds = (this.demoData.products || [])
+            .filter(p => p && this.selectedProductIds.has(p.id))
+            .map(p => p.id);
+        if (selectedIds.length === 0) {
+            this.showNotification('Không tìm thấy sản phẩm đã chọn để in tem.', 'error');
+            return;
+        }
+        this._bulkLabelPrintState = { productIds: selectedIds, active: true };
+        this.showPrintLabelModal(selectedIds[0]);
     }
     showBulkChangeCategoryForm() {
         if (this.selectedProductIds.size === 0) {
@@ -11389,6 +11406,26 @@ class HamobileBanhang {
             ? (product.stock != null ? Number(product.stock) : product.imeis.length)
             : Number(product.stock || 0);
         const defaultQty = Math.max(1, stockQty || 1);
+        const bulkState = this._bulkLabelPrintState;
+        const bulkIds = (bulkState && Array.isArray(bulkState.productIds))
+            ? this._bulkLabelPrintState.productIds.filter(Boolean)
+            : [];
+        const selectedIdsNow = Array.from(this.selectedProductIds || []);
+        const selectionStillMatchesBulk = bulkIds.length > 1
+            && selectedIdsNow.length === bulkIds.length
+            && bulkIds.every(id => this.selectedProductIds.has(id));
+        const isBulkMode = !!(bulkState && bulkState.active && selectionStillMatchesBulk);
+        const bulkProductsForQty = (this.demoData.products || []).filter(p => p && bulkIds.includes(p.id));
+        const bulkQty = Math.max(1, bulkProductsForQty.reduce((sum, p) => {
+            if (p && p.hasImei && Array.isArray(p.imeis) && p.imeis.length > 0) {
+                const n = Number(p.stock);
+                return sum + (Number.isFinite(n) && n > 0 ? n : p.imeis.length);
+            }
+            const n = Number(p && p.stock);
+            return sum + (Number.isFinite(n) && n > 0 ? n : 1);
+        }, 0));
+        const qtyMax = isBulkMode ? bulkQty : defaultQty;
+        const qtyValue = isBulkMode ? bulkQty : defaultQty;
         const templates = this.getLabelPrintTemplates();
         const defaultTemplateId = 'roll_2_74x22';
         const templateCards = templates.map((t) => `
@@ -11414,12 +11451,12 @@ class HamobileBanhang {
             <div id="print-label-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1002; display: flex; justify-content: center; align-items: center;" onclick="if(event.target===this) this.remove()">
                 <div style="background: #fff; width: min(860px, 96vw); max-height: 92vh; overflow: auto; border-radius: 14px; padding: 14px;" onclick="event.stopPropagation()">
                     <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h3 style="margin:0;">Chọn loại giấy in tem mã</h3>
+                        <h3 style="margin:0;">Chọn loại giấy in tem mã${isBulkMode ? ` (${bulkIds.length} sản phẩm đã chọn)` : ''}</h3>
                         <button type="button" onclick="document.getElementById('print-label-modal').remove()" style="border:none;background:none;font-size:24px;cursor:pointer;">×</button>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px; margin: 8px 0 12px; padding: 8px 10px; background:#f8fafc; border: 1px solid #e5e7eb; border-radius: 10px;">
                         <span style="font-size:13px; font-weight:700; color:#334155;">Số tem cần in:</span>
-                        <input id="label-print-qty" type="number" min="1" step="1" max="${defaultQty}" value="${defaultQty}"
+                        <input id="label-print-qty" type="number" min="1" step="1" max="${qtyMax}" value="${qtyValue}" ${isBulkMode ? 'readonly' : ''}
                             style="width:120px; padding:8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size:13px; font-weight:700; color:#111827;"
                             onchange="app.renderPrintLabelPreview('${productId}')"/>
                     </div>
@@ -11460,12 +11497,40 @@ class HamobileBanhang {
         const product = this.demoData.products.find(p => p.id === productId);
         const qtyInput = document.getElementById('label-print-qty');
         if (!product || !qtyInput) return;
+        const bulkIds = (this._bulkLabelPrintState && Array.isArray(this._bulkLabelPrintState.productIds))
+            ? this._bulkLabelPrintState.productIds.filter(Boolean)
+            : [];
+        const bulkMode = bulkIds.length > 1;
         const isImei = !!(product.hasImei && Array.isArray(product.imeis) && product.imeis.length > 0);
         const template = this.getLabelPrintTemplates().find(t => t.id === templateId) || this.getLabelPrintTemplates()[0];
         const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
         const maxQty = Math.max(1, parseInt(qtyInput.max, 10) || qty);
-        const labels = this.getPrintableLabelItems(product, qty);
-        const printType = isImei ? 'imei' : 'barcode';
+        const labels = bulkMode
+            ? (() => {
+                const out = [];
+                (this.demoData.products || [])
+                    .filter(p => p && bulkIds.includes(p.id))
+                    .forEach((p) => {
+                        const pIsImei = !!(p.hasImei && Array.isArray(p.imeis) && p.imeis.length > 0);
+                        const stockNum = Number(p.stock);
+                        const qtyByProduct = pIsImei
+                            ? ((Number.isFinite(stockNum) && stockNum > 0) ? stockNum : p.imeis.length)
+                            : ((Number.isFinite(stockNum) && stockNum > 0) ? stockNum : 1);
+                        for (let i = 0; i < qtyByProduct; i++) {
+                            out.push({
+                                product: p,
+                                printType: pIsImei ? 'imei' : 'barcode',
+                                line2: pIsImei
+                                    ? `IMEI: ${String((p.imeis && p.imeis[i % p.imeis.length]) || p.id || '').trim()}`
+                                    : String(p.id || ''),
+                                code: p.id || 'SP',
+                            });
+                        }
+                    });
+                return out;
+            })()
+            : this.getPrintableLabelItems(product, qty);
+        const printType = bulkMode ? 'mixed' : (isImei ? 'imei' : 'barcode');
         const pageSize = this.getTemplatePageSize(template);
         const totalPages = Math.max(1, Math.ceil(labels.length / pageSize));
         const html = `
@@ -11489,7 +11554,7 @@ class HamobileBanhang {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', html);
-        this._labelSheetState = { productId, template, labels, pageSize, page: 1, totalPages, printType, maxQty };
+        this._labelSheetState = { productId, template, labels, pageSize, page: 1, totalPages, printType, maxQty, bulkMode };
         this.renderLabelSheetPage();
     }
 
@@ -11591,24 +11656,38 @@ class HamobileBanhang {
         const hideLine2 = (st.printType === 'imei' && !!this._labelHideImei) || (st.printType !== 'imei' && !!this._labelHideProductCode);
         indicator.textContent = `${st.page}/${st.totalPages}`;
         const isTwoLabelTemplate = st.template && (st.template.id === 'roll_2_72x22' || st.template.id === 'roll_2_74x22');
+        const resolvePreviewMeta = (item) => {
+            if (st.bulkMode && item && item.product) {
+                const p = item.product;
+                return {
+                    product: p,
+                    printType: item.printType || 'barcode',
+                    line2: item.line2 || '',
+                    canPrintBarcode: p.printBarcode !== false,
+                    hideLine2: ((item.printType || 'barcode') === 'imei' && !!this._labelHideImei) || ((item.printType || 'barcode') !== 'imei' && !!this._labelHideProductCode),
+                };
+            }
+            return { product, printType: st.printType, line2: item && item.line2 || '', canPrintBarcode, hideLine2 };
+        };
         if (isTwoLabelTemplate) {
             const renderCell = (item, isRight) => {
                 if (!item) return `<div style="position:absolute;top:0;${isRight ? 'left:156px;width:120px;' : 'left:8px;width:121px;'}height:83px;"></div>`;
-                const codeValue = this.getLabelSheetCodeValue(product, item, st.printType);
-                const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 96, 14) : '';
-                const priceText = Number(product.price || 0).toLocaleString('vi-VN') + ' VND';
-                const title = this.getAdaptiveLabelTitle(product.name || '');
+                const meta = resolvePreviewMeta(item);
+                const codeValue = this.getLabelSheetCodeValue(meta.product, { line2: meta.line2, code: meta.product.id }, meta.printType);
+                const barcodeSvg = meta.canPrintBarcode ? this.generateCode39Svg(codeValue, 96, 14) : '';
+                const priceText = Number(meta.product.price || 0).toLocaleString('vi-VN') + ' VND';
+                const title = this.getAdaptiveLabelTitle(meta.product.name || '');
                 const singleTitle = !title.line2;
-                const title1Top = singleTitle ? ((hidePrice && hideLine2) ? 14 : (hidePrice ? 12 : 9)) : 3;
-                const barcodeTop = singleTitle ? ((hidePrice && hideLine2) ? 36 : (hidePrice ? 34 : 32)) : 30;
+                const title1Top = singleTitle ? ((hidePrice && meta.hideLine2) ? 14 : (hidePrice ? 12 : 9)) : 3;
+                const barcodeTop = singleTitle ? ((hidePrice && meta.hideLine2) ? 36 : (hidePrice ? 34 : 32)) : 30;
                 const codeTop = hidePrice ? 61 : 49;
-                const priceTop = hideLine2 ? 56 : 64;
+                const priceTop = meta.hideLine2 ? 56 : 64;
                 return `
                     <div style="position:absolute;top:0;${isRight ? 'left:145px;width:120px;' : 'left:-3px;width:121px;'}height:83px;overflow:hidden;">
                         <div style="position:absolute;left:1px;top:${title1Top}px;width:calc(100% - 2px);text-align:center;font-size:${title.fontPx}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title.line1 || '')}</div>
                         ${title.line2 ? `<div style="position:absolute;left:1px;top:15px;width:calc(100% - 2px);text-align:center;font-size:${title.fontPx}px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title.line2)}</div>` : ''}
-                        <div style="position:absolute;left:8px;top:${barcodeTop}px;width:104px;height:34px;overflow:hidden;">${canPrintBarcode ? barcodeSvg : ''}</div>
-                        ${hideLine2 ? '' : `<div style="position:absolute;left:4px;top:${codeTop}px;width:calc(100% - 8px);font-size:9px;font-weight:600;line-height:1;text-align:center;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(item.line2 || '')}</div>`}
+                        <div style="position:absolute;left:8px;top:${barcodeTop}px;width:104px;height:34px;overflow:hidden;">${meta.canPrintBarcode ? barcodeSvg : ''}</div>
+                        ${meta.hideLine2 ? '' : `<div style="position:absolute;left:4px;top:${codeTop}px;width:calc(100% - 8px);font-size:9px;font-weight:600;line-height:1;text-align:center;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(meta.line2 || '')}</div>`}
                         ${hidePrice ? '' : `<div style="position:absolute;left:4px;top:${priceTop}px;width:calc(100% - 8px);font-size:12px;font-weight:800;line-height:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(priceText)}</div>`}
                     </div>
                 `;
@@ -11626,14 +11705,15 @@ class HamobileBanhang {
         body.innerHTML = `
             <div style="display:grid; grid-template-columns: repeat(${st.pageSize}, 1fr); gap:8px; justify-items:center;">
                 ${pageItems.map((item) => {
-                    const codeValue = this.getLabelSheetCodeValue(product, item, st.printType);
-                    const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 200, 32) : '';
+                    const meta = resolvePreviewMeta(item);
+                    const codeValue = this.getLabelSheetCodeValue(meta.product, { line2: meta.line2, code: meta.product.id }, meta.printType);
+                    const barcodeSvg = meta.canPrintBarcode ? this.generateCode39Svg(codeValue, 200, 32) : '';
                     return `
                         <div style="width:170px; height:82px; background:#fff; border:1px solid #d1d5db; padding:6px; box-sizing:border-box;">
-                            <div style="font-size:11px; text-align:center; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(product.name || '')}</div>
-                            ${canPrintBarcode ? `<div style="width:100%; overflow:hidden;">${barcodeSvg}</div>` : `<div style="font-size:10px;color:#6b7280;text-align:center;">Tắt in mã vạch</div>`}
-                            ${hideLine2 ? '' : `<div style="font-size:9px; text-align:center; font-family:monospace;">${escapeHtml(item.line2 || '')}</div>`}
-                            ${hidePrice ? '' : `<div style="font-size:11px; font-weight:800; text-align:center;">${escapeHtml(Number(product.price || 0).toLocaleString('vi-VN') + ' VND')}</div>`}
+                            <div style="font-size:11px; text-align:center; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(meta.product.name || '')}</div>
+                            ${meta.canPrintBarcode ? `<div style="width:100%; overflow:hidden;">${barcodeSvg}</div>` : `<div style="font-size:10px;color:#6b7280;text-align:center;">Tắt in mã vạch</div>`}
+                            ${meta.hideLine2 ? '' : `<div style="font-size:9px; text-align:center; font-family:monospace;">${escapeHtml(meta.line2 || '')}</div>`}
+                            ${hidePrice ? '' : `<div style="font-size:11px; font-weight:800; text-align:center;">${escapeHtml(Number(meta.product.price || 0).toLocaleString('vi-VN') + ' VND')}</div>`}
                         </div>
                     `;
                 }).join('')}
@@ -11644,6 +11724,7 @@ class HamobileBanhang {
     updateLabelSheetQty(nextQty) {
         const st = this._labelSheetState;
         if (!st) return;
+        if (st.bulkMode) return;
         const product = this.demoData.products.find(p => p.id === st.productId);
         if (!product) return;
         let q = Math.max(1, parseInt(nextQty, 10) || 1);
@@ -11673,9 +11754,220 @@ class HamobileBanhang {
         if (!st) return;
         if (this._printingLabelSheet) return;
         this._printingLabelSheet = true;
-        // In toàn bộ theo số lượng đã chọn (giống KiotViet), không chỉ trang hiện tại.
-        this.printProductLabels(st.productId, st.template.id, st.printType, st.labels);
+        const bulkIds = (this._bulkLabelPrintState && Array.isArray(this._bulkLabelPrintState.productIds))
+            ? this._bulkLabelPrintState.productIds.filter(Boolean)
+            : [];
+        if (bulkIds.length > 1) {
+            this.printSelectedProductsByTemplate(st.template.id);
+        } else {
+            // In toàn bộ theo số lượng đã chọn (giống KiotViet), không chỉ trang hiện tại.
+            this.printProductLabels(st.productId, st.template.id, st.printType, st.labels);
+        }
         window.setTimeout(() => { this._printingLabelSheet = false; }, 1200);
+    }
+
+    printSelectedProductsByTemplate(templateId) {
+        const ids = (this._bulkLabelPrintState && Array.isArray(this._bulkLabelPrintState.productIds))
+            ? this._bulkLabelPrintState.productIds.filter(Boolean)
+            : [];
+        if (ids.length === 0) {
+            this.showNotification('Chưa có sản phẩm nào để in tem.', 'warning');
+            return;
+        }
+        const products = (this.demoData.products || []).filter(p => p && ids.includes(p.id));
+        if (products.length === 0) {
+            this.showNotification('Không tìm thấy sản phẩm để in tem.', 'error');
+            return;
+        }
+        const template = this.getLabelPrintTemplates().find(t => t.id === templateId) || this.getSelectedLabelTemplate();
+        if (!template) {
+            this.showNotification('Không tìm thấy mẫu in tem.', 'error');
+            return;
+        }
+        const labels = [];
+        products.forEach((product) => {
+            const isImei = !!(product.hasImei && Array.isArray(product.imeis) && product.imeis.length > 0);
+            const stockNum = Number(product.stock);
+            const qtyByProduct = isImei
+                ? ((Number.isFinite(stockNum) && stockNum > 0) ? stockNum : product.imeis.length)
+                : ((Number.isFinite(stockNum) && stockNum > 0) ? stockNum : 1);
+            for (let i = 0; i < qtyByProduct; i++) {
+                labels.push({
+                    product,
+                    printType: isImei ? 'imei' : 'barcode',
+                    line2: isImei
+                        ? `IMEI: ${String((product.imeis && product.imeis[i % product.imeis.length]) || product.id || '').trim()}`
+                        : (product.id || ''),
+                });
+            }
+        });
+        const hidePrice = !!this._labelHidePrice;
+        const isThreeLabelTemplate = template.id === 'roll_3_104x22';
+        const isSingle5030Template = template.id === 'roll_1_50x30';
+        const isTwoLabelTemplate = template.id === 'roll_2_72x22' || template.id === 'roll_2_74x22';
+        let printBody = '';
+        let printStyles = '';
+        if (isThreeLabelTemplate || isTwoLabelTemplate) {
+            const perRow = isThreeLabelTemplate ? 3 : 2;
+            const rows = [];
+            for (let i = 0; i < labels.length; i += perRow) rows.push(labels.slice(i, i + perRow));
+            printBody = rows.map((row) => {
+                const renderCell = (item) => {
+                    if (!item) return `<div class="kv-cell empty"></div>`;
+                    const p = item.product;
+                    const canPrintBarcode = p.printBarcode !== false;
+                    const codeValue = this.getLabelSheetCodeValue(p, { line2: item.line2, code: p.id }, item.printType);
+                    const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 96, 14) : '';
+                    const priceText = Number(p.price || 0).toLocaleString('vi-VN') + ' VND';
+                    const title = this.getAdaptiveLabelTitle(p.name || '');
+                    const hideLine2 = (item.printType === 'imei' && !!this._labelHideImei) || (item.printType !== 'imei' && !!this._labelHideProductCode);
+                    const singleTitle = !title.line2;
+                    const title1Top = isThreeLabelTemplate
+                        ? (singleTitle ? ((hidePrice && hideLine2) ? '3.2mm' : (hidePrice ? '2.4mm' : '1.8mm')) : '0.7mm')
+                        : (singleTitle ? ((hidePrice && hideLine2) ? '3.6mm' : (hidePrice ? '2.8mm' : '2.1mm')) : '1.0mm');
+                    const barcodeTop = isThreeLabelTemplate
+                        ? (singleTitle ? ((hidePrice && hideLine2) ? '9.6mm' : (hidePrice ? '8.9mm' : '8.3mm')) : '8.0mm')
+                        : (singleTitle ? ((hidePrice && hideLine2) ? '9.1mm' : (hidePrice ? '8.6mm' : '8.2mm')) : '8.0mm');
+                    const codeTop = isThreeLabelTemplate ? (hidePrice ? '16.2mm' : '13.1mm') : (hidePrice ? '16.4mm' : '12.7mm');
+                    const priceTop = isThreeLabelTemplate ? (hideLine2 ? '14.8mm' : '15.8mm') : (hideLine2 ? '14.4mm' : (singleTitle ? '15.6mm' : '15.9mm'));
+                    return `
+                        <div class="kv-cell">
+                            <div class="kv-title-l1" style="top:${title1Top};font-size:${title.fontPx}px;">${escapeHtml(title.line1 || '')}</div>
+                            ${title.line2 ? `<div class="kv-title-l2" style="font-size:${title.fontPx}px;">${escapeHtml(title.line2 || '')}</div>` : ''}
+                            <div class="kv-barcode" style="top:${barcodeTop};">${canPrintBarcode ? barcodeSvg : ''}</div>
+                            ${hideLine2 ? '' : `<div class="kv-code" style="top:${codeTop};">${escapeHtml(item.line2 || '')}</div>`}
+                            ${hidePrice ? '' : `<div class="kv-price" style="top:${priceTop};">${escapeHtml(priceText)}</div>`}
+                        </div>
+                    `;
+                };
+                return `<div class="kv-page">${row.map(renderCell).join('')}${row.length < perRow ? `<div class="kv-cell empty"></div>`.repeat(perRow - row.length) : ''}</div>`;
+            }).join('');
+            if (isThreeLabelTemplate) {
+                printStyles = `
+                    @page { size: 104mm 22mm; margin: 0; }
+                    html, body { margin: 0 !important; padding: 0 !important; width: 104mm; font-family: Arial, sans-serif; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .kv-page { display: flex; width: 104mm; height: 22mm; page-break-after: always; overflow: hidden; }
+                    .kv-cell { position: relative; width: calc(104mm / 3); height: 22mm; overflow: hidden; }
+                    .kv-cell.empty { border: none; }
+                    .kv-title-l1 { position: absolute; left: 1mm; width: calc(100% - 2mm); text-align: center; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .kv-title-l2 { position: absolute; left: 1mm; top: 3.8mm; width: calc(100% - 2mm); text-align: center; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .kv-barcode { position: absolute; left: 2.8mm; width: calc(100% - 5.6mm); height: 4.6mm; overflow: hidden; }
+                    .kv-barcode svg { width: 100%; height: 3.9mm; display: block; }
+                    .kv-code { position: absolute; left: 0; width: 100%; font-size: 2.1mm; font-weight: 600; text-align: center; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .kv-price { position: absolute; left: 0; width: 100%; font-size: 2.3mm; font-weight: 800; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                `;
+            } else {
+                const w = template.id === 'roll_2_74x22' ? '74mm' : '72mm';
+                printStyles = `
+                    @page { size: ${w} 22mm; margin: 0; }
+                    html, body { margin: 0 !important; padding: 0 !important; width: ${w}; font-family: Arial, sans-serif; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .kv-page { display:flex; width: ${w}; height: 22mm; page-break-after: always; overflow: hidden; }
+                    .kv-cell { position: relative; width: 50%; height: 22mm; overflow: hidden; }
+                    .kv-cell.empty { border: none; }
+                    .kv-title-l1 { position: absolute; left: 1px; width: calc(100% - 2px); text-align: center; font-size: 10px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .kv-title-l2 { position: absolute; left: 1px; top: 15px; width: calc(100% - 2px); text-align: center; font-size: 10px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .kv-barcode { position: absolute; left: 2.5mm; width: calc(100% - 5.0mm); height: 4.8mm; overflow: hidden; }
+                    .kv-barcode svg { width: 100%; height: 4.2mm; display: block; }
+                    .kv-code { position: absolute; left: 0; width: 100%; font-size: 2.8mm; font-weight: 600; text-align: center; font-family: monospace; }
+                    .kv-price { position: absolute; left: 0; width: 100%; font-size: 2.7mm; font-weight: 800; line-height: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                `;
+            }
+        } else if (isSingle5030Template) {
+            printBody = labels.map((item) => {
+                const p = item.product;
+                const canPrintBarcode = p.printBarcode !== false;
+                const codeValue = this.getLabelSheetCodeValue(p, { line2: item.line2, code: p.id }, item.printType);
+                const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 150, 22) : '';
+                const priceText = Number(p.price || 0).toLocaleString('vi-VN');
+                const title = this.getAdaptiveLabelTitle(p.name || '');
+                const hideLine2 = (item.printType === 'imei' && !!this._labelHideImei) || (item.printType !== 'imei' && !!this._labelHideProductCode);
+                const singleTitle = !title.line2;
+                const title1Top = singleTitle ? (hidePrice ? '3.2mm' : '2.4mm') : '1.0mm';
+                const barcodeTop = singleTitle ? (hidePrice ? '11.2mm' : '10.4mm') : '10.0mm';
+                const imeiTop = hidePrice ? '22.6mm' : '20.4mm';
+                const priceTop = hideLine2 ? '21.8mm' : (singleTitle ? '23.6mm' : '24.0mm');
+                return `
+                    <div class="kv-page">
+                        <div class="kv-title-l1" style="top:${title1Top};font-size:${Math.max(11, title.fontPx + 1)}px;">${escapeHtml(title.line1 || '')}</div>
+                        ${title.line2 ? `<div class="kv-title-l2" style="font-size:${Math.max(11, title.fontPx + 1)}px;">${escapeHtml(title.line2 || '')}</div>` : ''}
+                        <div class="kv-barcode" style="top:${barcodeTop};">${canPrintBarcode ? barcodeSvg : ''}</div>
+                        ${hideLine2 ? '' : (item.printType === 'imei' ? `<div class="kv-code" style="top:${imeiTop};">${escapeHtml(item.line2 || '')}</div>` : '')}
+                        ${hidePrice ? '' : `<div class="kv-price" style="top:${priceTop};">${escapeHtml(priceText)}<span class="kv-price-unit"> VND</span></div>`}
+                    </div>
+                `;
+            }).join('');
+            printStyles = `
+                @page { size: 50mm 30mm; margin: 0; }
+                html, body { margin: 0 !important; padding: 0 !important; width: 50mm; font-family: Arial, sans-serif; }
+                body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .kv-page { position: relative; width: 50mm; height: 30mm; page-break-after: always; overflow: hidden; }
+                .kv-title-l1 { position: absolute; left: 1.1mm; width: 46mm; text-align: center; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .kv-title-l2 { position: absolute; left: 1.1mm; top: 4.2mm; width: 46mm; text-align: center; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .kv-barcode { position: absolute; left: 3.0mm; width: 44.0mm; height: 8.6mm; overflow: hidden; }
+                .kv-barcode svg { width: 100%; height: 6.8mm; display: block; }
+                .kv-code { position: absolute; left: 0; width: 100%; font-size: 2.3mm; font-weight: 600; text-align: center; font-family: monospace; }
+                .kv-price { position: absolute; left: 0; width: 100%; text-align: center; font-size: 4.2mm; font-weight: 800; line-height: 1; }
+                .kv-price-unit { font-size: 2.5mm; font-weight: 700; }
+            `;
+        } else {
+            const labelW = Math.max(20, template.widthMm);
+            const labelH = Math.max(10, template.heightMm);
+            const barcodeHeight = Math.max(14, Math.min(40, Math.round(labelH * 0.45)));
+            const labelHtml = labels.map((item) => {
+                const p = item.product;
+                const canPrintBarcode = p.printBarcode !== false;
+                const codeValue = this.getLabelSheetCodeValue(p, { line2: item.line2, code: p.id }, item.printType);
+                const barcodeSvg = canPrintBarcode ? this.generateCode39Svg(codeValue, 220, barcodeHeight) : '';
+                const hideLine2 = (item.printType === 'imei' && !!this._labelHideImei) || (item.printType !== 'imei' && !!this._labelHideProductCode);
+                return `
+                    <div class="label-item">
+                        <div class="name">${escapeHtml(p.name || '')}</div>
+                        ${canPrintBarcode ? `<div class="barcode">${barcodeSvg}</div>` : `<div class="barcode-disabled">Sản phẩm đang tắt in mã vạch</div>`}
+                        ${hideLine2 ? '' : `<div class="line2">${escapeHtml(item.line2 || '')}</div>`}
+                        ${hidePrice ? '' : `<div class="code">${escapeHtml(codeValue)}</div>`}
+                    </div>
+                `;
+            }).join('');
+            printBody = `<div class="grid">${labelHtml}</div>`;
+            printStyles = `
+                @page { size: A4; margin: 8mm; }
+                body { font-family: Arial, sans-serif; margin: 0; }
+                .grid { display: grid; grid-template-columns: repeat(${template.columns}, ${labelW}mm); gap: 2mm; justify-content: start; }
+                .label-item { border: 1px dashed #999; width: ${labelW}mm; min-height: ${labelH}mm; height: ${labelH}mm; box-sizing: border-box; padding: 1.2mm; display:flex; flex-direction:column; justify-content: space-between; overflow: hidden; }
+                .name { font-size: 10pt; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .barcode { margin: 1mm 0; }
+                .barcode svg { width: 100%; height: ${Math.max(4, Math.round(labelH * 0.38))}mm; }
+                .barcode-disabled { text-align:center; color:#666; font-size:8pt; padding: 2mm 0; }
+                .line2 { text-align: center; font-size: ${labelH <= 12 ? '6.5pt' : '8pt'}; font-family: monospace; }
+                .code { text-align: center; font-size: ${labelH <= 12 ? '6pt' : '7pt'}; color: #4b5563; font-family: monospace; }
+            `;
+        }
+        const win = window.open('', '_blank', 'width=900,height=700');
+        if (!win) {
+            this.showNotification('Trình duyệt đang chặn popup in tem.', 'warning');
+            return;
+        }
+        win.document.write(`
+            <html>
+            <head>
+                <title>In tem mã - nhiều sản phẩm</title>
+                <style>${printStyles}</style>
+            </head>
+            <body>
+                ${printBody}
+                <script>
+                    window.onafterprint = function() { window.close(); };
+                    window.addEventListener('focus', function () { setTimeout(function () { window.close(); }, 200); });
+                </script>
+            </body>
+            </html>
+        `);
+        win.document.close();
+        win.focus();
+        setTimeout(() => win.print(), 120);
+        this.showNotification(`Đang in ${labels.length} tem theo số lượng tồn của ${products.length} sản phẩm đã chọn.`, 'success');
     }
 
     printProductLabels(productId, forcedTemplateId, forcedPrintType, forcedItems) {
