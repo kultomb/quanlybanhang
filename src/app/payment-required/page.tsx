@@ -7,7 +7,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { forceLogoutMissingShop, hasValidShopSlug, postSessionCookieWithRetries } from "@/lib/client-auth";
 import { isEffectiveTrialAccount, syncTrialUiSessionFlag } from "@/lib/trial-shop";
 
@@ -35,7 +35,7 @@ function PaymentRequiredContent() {
     return `https://img.vietqr.io/image/${BANK_BIN}-${BANK_ACCOUNT}-compact2.png?amount=${PAYMENT_AMOUNT}&addInfo=${addInfo}&accountName=${accountName}`;
   }, [paymentRef, shop]);
 
-  async function checkStatus(uid: string) {
+  const checkStatus = useCallback(async (uid: string) => {
     const snap = await get(ref(rtdb, `users/${uid}`));
     const profile = (snap.val() || {}) as {
       shopSlug?: string;
@@ -62,13 +62,13 @@ function PaymentRequiredContent() {
     }
     if (upgradeTarget) {
       setIsUpgradePay(true);
-      setShop(`${resolvedShop || shop} → ${upgradeTarget}`);
+      setShop((prev) => `${resolvedShop || prev || initialShop} → ${upgradeTarget}`);
     } else {
       setIsUpgradePay(false);
       if (resolvedShop) setShop(resolvedShop);
     }
     setPaymentRef(String(profile.paymentRef || ""));
-    if (!resolvedShop && !shop) {
+    if (!resolvedShop && !initialShop) {
       setMessage(
         "Tài khoản chưa có tên cửa hàng. Nếu bạn vừa đăng ký, hãy thử đăng ký lại; nếu đã dùng lâu, vui lòng liên hệ hỗ trợ.",
       );
@@ -88,7 +88,7 @@ function PaymentRequiredContent() {
       return true;
     }
     return false;
-  }
+  }, [forcingLogout, initialShop, router]);
 
   useEffect(() => {
     let disposed = false;
@@ -114,7 +114,7 @@ function PaymentRequiredContent() {
       disposed = true;
       unsub();
     };
-  }, [forcingLogout, router, shop]);
+  }, [checkStatus, router]);
 
   useEffect(() => {
     if (checking) return;
@@ -124,7 +124,7 @@ function PaymentRequiredContent() {
       void checkStatus(user.uid);
     }, 12000);
     return () => window.clearInterval(timer);
-  }, [checking, forcingLogout, shop]);
+  }, [checking, checkStatus]);
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
@@ -162,7 +162,22 @@ function PaymentRequiredContent() {
     router.replace("/login");
   }
 
-  if (checking) return null;
+  if (checking) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: "linear-gradient(160deg, #ecfdf5 0%, #d1fae5 100%)",
+          color: "#4b5563",
+          fontSize: 15,
+        }}
+      >
+        Đang kiểm tra trạng thái thanh toán...
+      </main>
+    );
+  }
 
   return (
     <main

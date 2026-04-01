@@ -30,14 +30,9 @@ function clearClientUserState(options?: ClearClientStateOptions) {
         if (!preservePos) localStorage.removeItem(key);
         continue;
       }
-      const normalized = key.toLowerCase();
-      if (
-        normalized.includes("firebase") ||
-        normalized.includes("auth") ||
-        normalized.includes("shop") ||
-        normalized.includes("payment") ||
-        normalized.includes("user")
-      ) {
+      const normalized = key.toLowerCase().trim();
+      // Only clear app-owned keys; avoid wiping Firebase SDK persistence unexpectedly.
+      if (normalized.startsWith("ha_") || normalized.startsWith("hangho_")) {
         localStorage.removeItem(key);
       }
     }

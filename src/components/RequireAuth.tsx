@@ -1,7 +1,7 @@
 "use client";
 
 import { auth } from "@/lib/backend/client";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { onIdTokenChanged, type User } from "firebase/auth";
 import { ReactNode, useEffect, useState } from "react";
 import { fetchUserProfileClient } from "@/lib/user-profile-client";
 import {
@@ -69,8 +69,15 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
     let unsub: (() => void) | undefined;
     let settled = false;
     let logoutDebounce: number | undefined;
+    let processingUid = "";
+    let redirecting = false;
 
     const redirectToLogin = () => {
+      if (redirecting) return;
+      redirecting = true;
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[RequireAuth] redirect -> /login");
+      }
       try {
         if (window.top && window.top !== window) {
           window.top.location.href = "/login";
@@ -107,9 +114,18 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
       }
     };
 
+    const resolveProfileWithRetry = async (uid: string) => {
+      const first = await fetchUserProfileClient(uid);
+      if (hasValidShopSlug(first.shopSlug)) return first;
+      await new Promise((r) => setTimeout(r, 450));
+      return fetchUserProfileClient(uid);
+    };
+
     const processSignedInUser = async (user: User) => {
+      if (processingUid === user.uid) return;
+      processingUid = user.uid;
       try {
-        const profile = await fetchUserProfileClient(user.uid);
+        const profile = await resolveProfileWithRetry(user.uid);
         const shopSlug = String(profile.shopSlug || "");
         const reg = profile.registrationTrial;
 
@@ -164,6 +180,8 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         setAuthed(false);
         setReady(true);
         redirectToLogin();
+      } finally {
+        processingUid = "";
       }
     };
 
@@ -171,7 +189,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
       await auth.authStateReady();
       if (disposed) return;
 
-      unsub = onAuthStateChanged(auth, (user) => {
+      unsub = onIdTokenChanged(auth, (user) => {
         settled = true;
         if (logoutDebounce !== undefined) {
           window.clearTimeout(logoutDebounce);
@@ -207,7 +225,7 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
         return;
       }
       void processSignedInUser(user);
-    }, 600);
+    }, 1800);
 
     return () => {
       disposed = true;

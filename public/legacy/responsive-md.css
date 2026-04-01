@@ -2327,12 +2327,16 @@ select.edit-order-inp{
 }
 .debts-m-footer{
   flex-shrink:0;
+  position:sticky;
+  bottom:0;
+  z-index:4;
   display:flex;
   gap:10px;
   padding:12px;
   padding-bottom:max(12px, env(safe-area-inset-bottom, 0px));
   background:#fff;
   border-top:1px solid #e5e7eb;
+  box-shadow:0 -6px 18px rgba(15,23,42,.08);
 }
 .debts-m-btn{
   flex:1;

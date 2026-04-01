@@ -26,19 +26,21 @@ export async function POST(request: Request) {
     const profileShopSlug = await resolveUserShopSlugWithHeal(decoded.uid);
     const requestShopSlug = normalizeShopSlug(String(body?.shopSlug || ""));
     const shopSlug = profileShopSlug || requestShopSlug;
+    const isHttps = request.headers.get("x-forwarded-proto") === "https" || process.env.NODE_ENV === "production";
 
     const jar = await cookies();
     jar.set(COOKIE_NAME, idToken, {
       httpOnly: true,
-      secure: true,
+      secure: isHttps,
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      // Firebase ID token is short-lived; keep cookie TTL close to avoid stale-token loops.
+      maxAge: 60 * 55,
     });
     if (shopSlug) {
       jar.set(SHOP_COOKIE_NAME, shopSlug, {
         httpOnly: true,
-        secure: true,
+        secure: isHttps,
         sameSite: "lax",
         path: "/",
         maxAge: 60 * 60 * 24 * 7,

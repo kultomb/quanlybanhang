@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 import { getFirestore } from "firebase/firestore";
 
@@ -77,6 +77,13 @@ if (typeof window !== "undefined") {
 export const auth = getAuth(app);
 if (typeof window !== "undefined") {
   auth.languageCode = "vi";
+  const w = window as typeof window & { __haAuthPersistenceInit?: boolean };
+  if (!w.__haAuthPersistenceInit) {
+    w.__haAuthPersistenceInit = true;
+    void setPersistence(auth, browserLocalPersistence).catch(() => {
+      // Keep default persistence if browser blocks storage.
+    });
+  }
 }
 export const rtdb = getDatabase(app);
 export const db = getFirestore(app);
