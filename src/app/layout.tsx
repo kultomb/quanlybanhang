@@ -11,10 +11,7 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "Hangho.com — Quản lý bán hàng",
   description: "POS, tồn kho, khách hàng và đồng bộ đám mây.",
-  icons: {
-    icon: [{ url: "/favicon.ico", type: "image/x-icon" }],
-    shortcut: "/favicon.ico",
-  },
+  // Favicon: đặt file tại src/app/favicon.ico — Next tự gắn <link> và phục vụ /favicon.ico.
 };
 
 export default function RootLayout({
