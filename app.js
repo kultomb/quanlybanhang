@@ -1553,11 +1553,16 @@ class HamobileBanhang {
             el.style.setProperty('position', 'fixed', 'important');
             el.style.setProperty('left', 'auto', 'important');
             el.style.setProperty('top', 'auto', 'important');
+            const vv = window.visualViewport;
+            const browserUiInset = vv
+                ? Math.max(0, Math.round((window.innerHeight - vv.height - vv.offsetTop)))
+                : 0;
+            const bottomPx = 12 + browserUiInset;
             // Fallback first for browsers that do not support env()/max().
             el.style.setProperty('right', '12px', 'important');
-            el.style.setProperty('bottom', '12px', 'important');
+            el.style.setProperty('bottom', `${bottomPx}px`, 'important');
             el.style.setProperty('right', 'max(16px, env(safe-area-inset-right, 0px))', 'important');
-            el.style.setProperty('bottom', 'max(12px, env(safe-area-inset-bottom, 0px))', 'important');
+            el.style.setProperty('bottom', `max(${bottomPx}px, calc(env(safe-area-inset-bottom, 0px) + 12px))`, 'important');
             el.style.setProperty('z-index', '10050', 'important');
         };
         this._productsFabVVListener = apply;
@@ -12402,7 +12407,43 @@ class HamobileBanhang {
         document.body.insertAdjacentHTML('beforeend', orderDetailHTML);
     }
 
+    detachDebtsMobileDetailViewport() {
+        if (this._debtsMobileDetailVvListener) {
+            const fn = this._debtsMobileDetailVvListener;
+            window.removeEventListener('resize', fn);
+            try { window.removeEventListener('orientationchange', fn); } catch (_) {}
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', fn);
+                window.visualViewport.removeEventListener('scroll', fn);
+            }
+            this._debtsMobileDetailVvListener = null;
+        }
+    }
+
+    /** Safari iOS: thanh địa chỉ / toolbar che footer fixed — bù theo visualViewport. */
+    applyDebtsMobileDetailViewport() {
+        const root = document.getElementById('debts-mobile-detail-root');
+        if (!root) return;
+        const footer = root.querySelector('.debts-m-footer');
+        const scroll = root.querySelector('.debts-m-scroll');
+        if (!footer) return;
+        const vv = window.visualViewport;
+        const browserUiInset = vv
+            ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+            : 0;
+        footer.style.setProperty('bottom', `${browserUiInset}px`, 'important');
+        footer.style.setProperty('bottom', `max(${browserUiInset}px, env(safe-area-inset-bottom, 0px))`, 'important');
+        if (scroll) {
+            scroll.style.setProperty(
+                'padding-bottom',
+                `calc(96px + ${browserUiInset}px + env(safe-area-inset-bottom, 0px))`,
+                'important'
+            );
+        }
+    }
+
     closeDebtsMobileDetail() {
+        this.detachDebtsMobileDetailViewport();
         const el = document.getElementById('debts-mobile-detail-root');
         if (el) el.remove();
         try { document.body.style.overflow = ''; } catch (_) {}
@@ -12556,6 +12597,18 @@ class HamobileBanhang {
             </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
         try { document.body.style.overflow = 'hidden'; } catch (_) {}
+        this.detachDebtsMobileDetailViewport();
+        this._debtsMobileDetailVvListener = () => this.applyDebtsMobileDetailViewport();
+        this.applyDebtsMobileDetailViewport();
+        requestAnimationFrame(() => this.applyDebtsMobileDetailViewport());
+        setTimeout(() => this.applyDebtsMobileDetailViewport(), 50);
+        setTimeout(() => this.applyDebtsMobileDetailViewport(), 400);
+        window.addEventListener('resize', this._debtsMobileDetailVvListener);
+        try { window.addEventListener('orientationchange', this._debtsMobileDetailVvListener); } catch (_) {}
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', this._debtsMobileDetailVvListener);
+            window.visualViewport.addEventListener('scroll', this._debtsMobileDetailVvListener);
+        }
     }
     
     // Hiển thị chi tiết công nợ khách hàng (đơn hàng + sửa chữa)
