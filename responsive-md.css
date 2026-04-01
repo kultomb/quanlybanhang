@@ -1842,3 +1842,54 @@ select.edit-order-inp{
   }
 }
 
+/* POS mobile bước 2: footer fixed làm mất flex height → danh sách giỏ không cuộn — đưa footer vào cột flex, scroll một lớp */
+@media (max-width:768px){
+  .content.page-sales{
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  .content.page-sales .pos-mobile-step-2{
+    flex:1 1 auto!important;
+    min-height:0!important;
+    max-height:100%!important;
+    height:100%!important;
+    overflow:hidden!important;
+    display:flex!important;
+    flex-direction:column!important;
+  }
+  .content.page-sales .pos-mobile-step-2 .pos-mobile-step2-header{
+    flex-shrink:0!important;
+  }
+  .content.page-sales .pos-mobile-step-2 .pos-mobile-step2-body{
+    flex:1 1 auto!important;
+    min-height:0!important;
+    overflow:hidden!important;
+    display:flex!important;
+    flex-direction:column!important;
+  }
+  .content.page-sales .pos-mobile-step-2 #pos-step2-search-results{
+    flex-shrink:0!important;
+  }
+  .content.page-sales .pos-mobile-step-2 #pos-cart-items{
+    flex:1 1 auto!important;
+    min-height:0!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    -webkit-overflow-scrolling:touch!important;
+    overscroll-behavior:contain;
+    padding-bottom:12px!important;
+  }
+  .content.page-sales .pos-mobile-step-2 .pos-mobile-footer.pos-mobile-footer-fixed,
+  .content.page-sales .pos-mobile-step-2 .pos-mobile-step2-footer{
+    position:relative!important;
+    left:auto!important;
+    right:auto!important;
+    bottom:auto!important;
+    top:auto!important;
+    flex-shrink:0!important;
+    z-index:2!important;
+    width:100%!important;
+    box-sizing:border-box!important;
+  }
+}
+

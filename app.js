@@ -2990,7 +2990,7 @@ class HamobileBanhang {
         if (isMobile && mobileStep === 2) {
             const cartHtmlStep2 = this.renderPOSCart(true);
             return `
-            <div class="pos-kiotviet pos-mobile-step-2" style="margin: 0; padding: 0; max-width: none; display: flex; flex-direction: column; min-height: 0;">
+            <div class="pos-kiotviet pos-mobile-step-2" style="margin: 0; padding: 0; max-width: none; display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; overflow: hidden;">
                 <div class="pos-mobile-step2-header" style="background: var(--header-gradient); color: white; padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap;">
                     <button type="button" onclick="app.goToPOSMobileStep(1)" style="background: rgba(255,255,255,0.2); border: none; border-radius: 8px; width: 40px; height: 40px; cursor: pointer; font-size: 18px; flex-shrink: 0;" title="Quay lại chọn sản phẩm">←</button>
                     <input type="text" id="pos-step2-search" placeholder="Tìm thêm sản phẩm..." oninput="app.syncPosSearchMobileStep2(this.value)" onfocus="app.showPosStep2SearchResults(this.value)" style="flex: 1; min-width: 0; padding: 10px 14px; border: none; border-radius: 8px; font-size: 14px; color: #1f2937;">
@@ -3005,9 +3005,9 @@ class HamobileBanhang {
                         <div id="pos-header-customer-dropdown" class="pos-header-customer-dropdown" style="display: none;"></div>
                     </div>
                 </div>
-                <div class="pos-mobile-step2-body" style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column;">
-                    <div id="pos-step2-search-results" style="display: none; max-height: 200px; overflow-y: auto; background: white; border-bottom: 1px solid #e5e7eb; padding: 8px;"></div>
-                    <div id="pos-cart-items" style="padding: 16px; flex: 1; overflow-y: auto;">
+                <div class="pos-mobile-step2-body" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
+                    <div id="pos-step2-search-results" style="display: none; max-height: 200px; overflow-y: auto; flex-shrink: 0; background: white; border-bottom: 1px solid #e5e7eb; padding: 8px;"></div>
+                    <div id="pos-cart-items" style="padding: 16px; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;">
                         ${cartHtmlStep2}
                     </div>
                 </div>
