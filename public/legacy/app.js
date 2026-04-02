@@ -1642,9 +1642,6 @@ class HamobileBanhang {
     }
     
     loadPage(pageName) {
-        try {
-            document.querySelectorAll('body > .products-fab-add').forEach((el) => el.remove());
-        } catch (_) {}
         this.currentPage = pageName;
         this.initializeData();
         // Khi mở trang Khách hàng hoặc Công nợ: đồng bộ công nợ từ đơn hàng + sửa chữa (để hiển thị đúng)
@@ -1693,7 +1690,7 @@ class HamobileBanhang {
         if (pageName === 'customers') this.searchCustomers(this.customersSearchQuery || '');
         if (pageName === 'orders') this.searchOrders(this.ordersSearchQuery || '');
         if (pageName === 'repairs') this.searchRepairs(this.repairsSearchQuery || '');
-        if (pageName === 'products') this.ensureProductsFabMobile();
+        // FAB mobile removed; no DOM reparenting needed.
         
         // Add fade in animation
         document.getElementById('main-content').classList.add('fade-in');
@@ -1712,32 +1709,10 @@ class HamobileBanhang {
                     this.updatePOSDebtHint();
                 } catch (_) {}
             }
-            if (pageName === 'products') this.ensureProductsFabMobile();
+            // FAB mobile removed; no DOM reparenting needed.
         }, 500);
         }
     
-    /**
-     * FAB thêm SP: trên mobile append vào document.body để tránh ancestor overflow/scroll
-     * làm position:fixed neo sai (WebKit). Vị trí chỉ dùng CSS + env(safe-area-inset-*).
-     */
-    ensureProductsFabMobile() {
-        if (this.currentPage !== 'products') return;
-        const el = document.querySelector('.products-fab-add');
-        const slot = document.querySelector('.products-page-compact');
-        if (!el || !slot) return;
-        let mobile = false;
-        try {
-            mobile = window.matchMedia('(max-width: 1024px)').matches;
-        } catch (_) {
-            mobile = window.innerWidth <= 1024;
-        }
-        if (mobile) {
-            if (el.parentElement !== document.body) document.body.appendChild(el);
-        } else if (el.parentElement === document.body) {
-            slot.insertBefore(el, slot.firstChild);
-        }
-    }
-
     getPageTitles(pageName) {
         const titles = {
             dashboard: { title: 'Tổng quan', subtitle: 'Hệ thống quản lý bán hàng' },
@@ -2148,7 +2123,6 @@ class HamobileBanhang {
 
         return `
             <div class="fade-in products-page-compact">
-                <button type="button" class="products-fab-add" onclick="app.showAddProductForm()" title="Thêm sản phẩm" aria-label="Thêm sản phẩm">+</button>
                 <div class="stats-grid products-stats">
                     <div class="stat-card products">
                         <div class="stat-header">
@@ -2172,7 +2146,13 @@ class HamobileBanhang {
                     </div>
                 </div>
                 <div class="quick-actions">
-                    <h2 class="section-title">Danh sách Sản phẩm</h2>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                        <h2 class="section-title" style="margin:0;">Danh sách Sản phẩm</h2>
+                        <button type="button" onclick="app.showAddProductForm()"
+                            style="background: var(--primary-green); color: white; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 14px; white-space: nowrap;">
+                            Thêm sản phẩm
+                        </button>
+                    </div>
                     <div class="action-grid products-actions products-actions-desktop" style="grid-template-columns: repeat(3, 1fr);">
                         <div class="action-button" onclick="app.showAddProductForm()">
                             <div class="action-icon">📦➕</div>
