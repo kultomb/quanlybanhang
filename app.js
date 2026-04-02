@@ -8649,9 +8649,6 @@ class HamobileBanhang {
                     this.demoData.orders = remoteOrders;
                 }
                 window.FirebaseStorage.setData(this.demoData);
-                if (window.app && remoteOrders.length > localOrders.length) {
-                    window.app.showNotification('Đã hợp nhất hóa đơn mới nhất từ trình duyệt khác trước khi lưu.', 'info');
-                }
             }
         } catch (_) {}
     }
