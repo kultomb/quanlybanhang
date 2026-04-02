@@ -2149,7 +2149,7 @@ class HamobileBanhang {
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
                         <h2 class="section-title" style="margin:0;">Danh sách Sản phẩm</h2>
                         <button type="button" onclick="app.showAddProductForm()"
-                            style="background: var(--primary-green); color: white; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 14px; white-space: nowrap;">
+                            style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; min-height: 34px;">
                             Thêm sản phẩm
                         </button>
                     </div>
