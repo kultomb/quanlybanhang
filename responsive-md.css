@@ -2068,8 +2068,11 @@ select.edit-order-inp{
   background:#f3f4f6;
   display:flex;
   flex-direction:column;
+  height:100dvh;
   max-height:100dvh;
+  min-height:0;
   box-sizing:border-box;
+  overflow:hidden;
 }
 .debts-m-header{
   flex-shrink:0;
@@ -2116,7 +2119,7 @@ select.edit-order-inp{
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
   padding:12px;
-  padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px));
+  padding-bottom:12px;
   position:relative;
   z-index:1;
 }
@@ -2337,13 +2340,9 @@ select.edit-order-inp{
   font-size:14px;
   text-align:center;
 }
+/* Footer trong cột flex (không position:fixed) — tránh iOS Safari neo bottom theo layout viewport làm nút trôi khỏi vùng nhìn thấy */
 .debts-m-footer{
   flex-shrink:0;
-  position:fixed;
-  left:0;
-  right:0;
-  bottom:0;
-  z-index:10070;
   display:flex;
   gap:10px;
   padding:12px;
