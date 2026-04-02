@@ -12812,11 +12812,11 @@ class HamobileBanhang {
                         <div class="debts-m-section-hd"><span class="debts-m-section-lbl">Phiếu sửa chữa đang nợ (${unpaidRepairs.length})</span></div>
                         <div class="debts-m-card debts-m-card--lines">${repairCards}</div>
                     </section>` : ''}
-                    <footer class="debts-m-footer">
-                        <button type="button" class="debts-m-btn debts-m-btn--secondary" onclick='app.printDebtReport(${JSON.stringify(String(customer.id || customer.name || ""))});'>In báo cáo</button>
-                        <button type="button" class="debts-m-btn debts-m-btn--primary" onclick='app.showPaymentFormForCustomer(${JSON.stringify(String(customer.id || customer.name || ""))}); app.closeDebtsMobileDetail();'>Ghi nhận thanh toán</button>
-                    </footer>
                 </div>
+                <footer class="debts-m-footer">
+                    <button type="button" class="debts-m-btn debts-m-btn--secondary" onclick='app.printDebtReport(${JSON.stringify(String(customer.id || customer.name || ""))});'>In báo cáo</button>
+                    <button type="button" class="debts-m-btn debts-m-btn--primary" onclick='app.showPaymentFormForCustomer(${JSON.stringify(String(customer.id || customer.name || ""))}); app.closeDebtsMobileDetail();'>Ghi nhận thanh toán</button>
+                </footer>
             </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
         try { document.body.style.overflow = 'hidden'; } catch (_) {}

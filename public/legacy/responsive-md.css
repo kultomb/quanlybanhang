@@ -2345,10 +2345,6 @@ select.edit-order-inp{
 }
 /* Thanh hành động dạng app: fixed bottom + safe-area (không đặt trong ancestor overflow:hidden/transform) */
 .debts-m-footer{
-  position:sticky;
-  left:0;
-  right:0;
-  bottom:0;
   z-index:10;
   flex-shrink:0;
   display:flex;
