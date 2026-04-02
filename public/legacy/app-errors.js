@@ -1,9 +1,17 @@
 /**
  * Centralized POS error handling: friendly Vietnamese UI + full technical debug.
  * @see handleAppError(errorCode, debugData, options)
+ *
+ * ❌ DO NOT use window.confirm in application code — use haConfirmAsync() or
+ *    confirmAsync() from app.js (shim + postMessage → Next ConfirmDialog).
  */
 (function (global) {
     'use strict';
+
+    /** Native confirm — dùng cho fallback; không gọi window.confirm sau khi shim (tránh vòng lặp). */
+    if (typeof global.__haNativeConfirm !== 'function') {
+        global.__haNativeConfirm = global.confirm.bind(global);
+    }
 
     var USER_MESSAGES = {
         missing_shop_context: 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.',
@@ -54,6 +62,17 @@
         var message = opts.message || '';
         var okLabel = opts.confirmLabel || 'Xác nhận';
         var cancelLabel = opts.cancelLabel || 'Hủy';
+        var primaryClass = 'ha-app-error-modal__btn ha-app-error-modal__btn--primary';
+        if (opts.variant === 'danger') primaryClass += ' ha-app-error-modal__btn--danger';
+        else if (opts.variant === 'warning') primaryClass += ' ha-app-error-modal__btn--warning';
+        else if (opts.variant === 'info') primaryClass += ' ha-app-error-modal__btn--info';
+        var iconHtml = '';
+        if (opts.icon) {
+            iconHtml =
+                '<div class="ha-app-error-modal__icon" aria-hidden="true">' +
+                haEscapeHtml(opts.icon) +
+                '</div>';
+        }
         var id = 'ha-app-error-modal';
         var html =
             '<div id="' +
@@ -61,6 +80,7 @@
             '" class="ha-app-error-modal" role="dialog" aria-modal="true">' +
             '<div class="ha-app-error-modal__backdrop"></div>' +
             '<div class="ha-app-error-modal__card">' +
+            iconHtml +
             '<h2 class="ha-app-error-modal__title">' +
             haEscapeHtml(title) +
             '</h2>' +
@@ -71,7 +91,9 @@
             '<button type="button" class="ha-app-error-modal__btn ha-app-error-modal__btn--secondary" id="ha-app-confirm-cancel">' +
             haEscapeHtml(cancelLabel) +
             '</button>' +
-            '<button type="button" class="ha-app-error-modal__btn ha-app-error-modal__btn--primary" id="ha-app-confirm-ok">' +
+            '<button type="button" class="' +
+            primaryClass +
+            '" id="ha-app-confirm-ok">' +
             haEscapeHtml(okLabel) +
             '</button>' +
             '</div></div></div>';
@@ -90,6 +112,127 @@
                 if (typeof opts.onCancel === 'function') opts.onCancel();
             };
         }
+        if (btnCancel) {
+            try {
+                btnCancel.focus();
+            } catch (_) {}
+        }
+    }
+
+    /**
+     * Promise xác nhận: trong iframe Next shop → modal React (postMessage);
+     * trang legacy độc lập → haShowConfirmModal; fallback → window.confirm.
+     * @param {{ title?: string, message?: string, confirmLabel?: string, cancelLabel?: string, icon?: string, variant?: string }} opts
+     * @returns {Promise<boolean>}
+     */
+    function haConfirmAsync(opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+            var origin;
+            try {
+                origin = global.location && global.location.origin ? global.location.origin : '';
+            } catch (e) {
+                origin = '';
+            }
+            if (
+                typeof global.parent !== 'undefined' &&
+                global.parent !== global &&
+                origin
+            ) {
+                var requestId =
+                    'hc_' +
+                    Date.now() +
+                    '_' +
+                    Math.random().toString(36).slice(2, 11);
+                var settled = false;
+                function finish(val) {
+                    if (settled) return;
+                    settled = true;
+                    try {
+                        clearTimeout(timeoutId);
+                    } catch (_) {}
+                    global.removeEventListener('message', onMsg);
+                    resolve(!!val);
+                }
+                function onMsg(e) {
+                    if (!e || e.source !== global.parent) return;
+                    if (e.origin !== origin) return;
+                    var data = e.data;
+                    if (
+                        !data ||
+                        data.type !== 'HANGHO_CONFIRM_RESULT' ||
+                        data.requestId !== requestId
+                    ) {
+                        return;
+                    }
+                    finish(data.ok);
+                }
+                var timeoutId = setTimeout(function () {
+                    var r;
+                    try {
+                        r = global.__haNativeConfirm(String(opts.message || ''));
+                    } catch (e) {
+                        r = false;
+                    }
+                    finish(r);
+                }, 120000);
+                global.addEventListener('message', onMsg);
+                try {
+                    global.parent.postMessage(
+                        {
+                            type: 'HANGHO_CONFIRM',
+                            requestId: requestId,
+                            options: {
+                                title: opts.title,
+                                message: opts.message,
+                                confirmLabel: opts.confirmLabel,
+                                cancelLabel: opts.cancelLabel,
+                                icon: opts.icon,
+                                variant:
+                                    opts.variant === 'danger' ||
+                                    opts.variant === 'default' ||
+                                    opts.variant === 'warning' ||
+                                    opts.variant === 'info'
+                                        ? opts.variant
+                                        : undefined,
+                                closeOnBackdrop:
+                                    opts.closeOnBackdrop === false ? false : undefined,
+                                closeOnEscape:
+                                    opts.closeOnEscape === false ? false : undefined,
+                            },
+                        },
+                        origin
+                    );
+                } catch (err) {
+                    var r2;
+                    try {
+                        r2 = global.__haNativeConfirm(String(opts.message || ''));
+                    } catch (e2) {
+                        r2 = false;
+                    }
+                    finish(r2);
+                }
+                return;
+            }
+            if (typeof haShowConfirmModal === 'function') {
+                haShowConfirmModal({
+                    title: opts.title,
+                    message: opts.message,
+                    confirmLabel: opts.confirmLabel || 'Xác nhận',
+                    cancelLabel: opts.cancelLabel || 'Hủy',
+                    icon: opts.icon,
+                    variant: opts.variant,
+                    onConfirm: function () {
+                        resolve(true);
+                    },
+                    onCancel: function () {
+                        resolve(false);
+                    },
+                });
+                return;
+            }
+            resolve(global.__haNativeConfirm(String(opts.message || '')));
+        });
     }
 
     /**
@@ -337,5 +480,6 @@
     global.haUserMessageForAppError = userMessageFor;
     global.haRenderAppErrorFullscreen = renderFullscreen;
     global.haShowConfirmModal = haShowConfirmModal;
+    global.haConfirmAsync = haConfirmAsync;
     global.haShowFullscreenFromLastError = haShowFullscreenFromLastError;
 })(typeof window !== 'undefined' ? window : globalThis);

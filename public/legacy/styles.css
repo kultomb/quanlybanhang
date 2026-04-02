@@ -9,7 +9,11 @@
 .ha-app-error-modal__actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
 .ha-app-error-modal__btn{border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;min-height:44px}
 .ha-app-error-modal__btn--primary{background:var(--header-gradient);color:#fff}
+.ha-app-error-modal__btn--primary.ha-app-error-modal__btn--danger{background:var(--danger-gradient);color:#fff}
+.ha-app-error-modal__btn--primary.ha-app-error-modal__btn--warning{background:var(--warning-gradient);color:#111}
+.ha-app-error-modal__btn--primary.ha-app-error-modal__btn--info{background:linear-gradient(135deg,#0ea5e9 0%,#0284c7 100%);color:#fff}
 .ha-app-error-modal__btn--secondary{background:#f3f4f6;color:#374151}
+.ha-app-error-modal__icon{text-align:center;font-size:2.5rem;line-height:1;margin:0 0 10px}
 .ha-app-error-full{min-height:50vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .ha-app-error-full__inner{background:#fff;border-radius:16px;padding:32px 28px;max-width:480px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e5e7eb}
 .ha-app-error-full__title{font-size:20px;font-weight:700;margin:0 0 14px;color:var(--text-primary)}

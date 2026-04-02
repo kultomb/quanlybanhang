@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { auth } from "@/lib/backend/client";
 import AccountBar from "@/components/AccountBar";
 import TrialModeBanner from "@/components/TrialModeBanner";
+import { confirmDialog } from "@/components/confirm-dialog";
+import type { ConfirmDialogOptions } from "@/components/confirm-dialog";
 
 declare global {
   interface Window {
@@ -14,6 +16,8 @@ declare global {
 
 const PM_GET = "HANGHO_GET_ID_TOKEN";
 const PM_TOKEN = "HANGHO_ID_TOKEN";
+const PM_CONFIRM = "HANGHO_CONFIRM";
+const PM_CONFIRM_RESULT = "HANGHO_CONFIRM_RESULT";
 
 async function readHanghoIdToken(): Promise<string | null> {
   const u = auth.currentUser;
@@ -46,14 +50,36 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
       const child = iframeRef.current?.contentWindow;
       if (!child || e.source !== child) return;
       const d = e.data;
-      if (!d || d.type !== PM_GET || typeof d.requestId !== "string") return;
-      void (async () => {
-        const token = await readHanghoIdToken();
-        (e.source as Window | null)?.postMessage(
-          { type: PM_TOKEN, requestId: d.requestId, token },
-          e.origin,
-        );
-      })();
+      if (!d || typeof d !== "object") return;
+
+      if (d.type === PM_GET && typeof d.requestId === "string") {
+        void (async () => {
+          const token = await readHanghoIdToken();
+          (e.source as Window | null)?.postMessage(
+            { type: PM_TOKEN, requestId: d.requestId, token },
+            e.origin,
+          );
+        })();
+        return;
+      }
+
+      if (d.type === PM_CONFIRM && typeof d.requestId === "string") {
+        const raw = d.options;
+        const opts: ConfirmDialogOptions =
+          raw && typeof raw === "object" ? { ...raw } : {};
+        void (async () => {
+          let ok = false;
+          try {
+            ok = await confirmDialog.show(opts);
+          } catch {
+            ok = false;
+          }
+          (e.source as Window | null)?.postMessage(
+            { type: PM_CONFIRM_RESULT, requestId: d.requestId, ok },
+            window.location.origin,
+          );
+        })();
+      }
     };
 
     window.addEventListener("message", onMessage);

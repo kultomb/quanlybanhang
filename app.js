@@ -8,6 +8,69 @@ function haLegacyDebugLog(tag, payload) {
         console.log('[HaLegacy]', tag, payload);
     } catch (_) {}
 }
+
+/* ❌ DO NOT USE window.confirm — dùng confirmAsync() hoặc haConfirmAsync(). */
+(function (win) {
+    if (typeof win === 'undefined' || !win) return;
+    if (typeof win.__haNativeConfirm !== 'function') {
+        win.__haNativeConfirm = win.confirm.bind(win);
+    }
+    win.confirm = function haLegacyConfirmShim() {
+        try {
+            var h = win.location && win.location.hostname;
+            if (
+                h === 'localhost' ||
+                h === '127.0.0.1' ||
+                (h && String(h).endsWith('.local'))
+            ) {
+                console.warn(
+                    '[Hangho] Do not use window.confirm — use confirmAsync() or haConfirmAsync().',
+                );
+            }
+        } catch (_) {}
+        return win.__haNativeConfirm.apply(win, arguments);
+    };
+    win.confirmAsync = function (optsOrMsg) {
+        var ha = typeof win.haConfirmAsync === 'function' ? win.haConfirmAsync : null;
+        if (!ha) {
+            var msg =
+                typeof optsOrMsg === 'string'
+                    ? optsOrMsg
+                    : String((optsOrMsg && optsOrMsg.message) || '');
+            return Promise.resolve(!!win.__haNativeConfirm(msg));
+        }
+        if (typeof optsOrMsg === 'string') {
+            return ha({
+                title: 'Xác nhận',
+                message: optsOrMsg,
+                confirmLabel: 'Đồng ý',
+                cancelLabel: 'Hủy',
+                variant: 'danger',
+            });
+        }
+        var o = optsOrMsg || {};
+        var v = o.variant;
+        if (
+            v !== 'danger' &&
+            v !== 'default' &&
+            v !== 'warning' &&
+            v !== 'info'
+        ) {
+            v = 'danger';
+        }
+        return ha({
+            title: o.title != null ? String(o.title) : 'Xác nhận',
+            message: o.message != null ? String(o.message) : '',
+            confirmLabel: o.confirmLabel || o.confirmText || 'Đồng ý',
+            cancelLabel: o.cancelLabel || o.cancelText || 'Hủy',
+            icon: o.icon,
+            variant: v,
+            closeOnBackdrop: o.closeOnBackdrop,
+            closeOnEscape: o.closeOnEscape,
+        });
+    };
+})(typeof window !== 'undefined' ? window : undefined);
+
 function backupKeyHintForUi(cfg) {
     const k = String((cfg && cfg.key) || '').trim();
     if (!k) return '(chưa có)';
@@ -635,7 +698,14 @@ class HamobileBanhang {
             window.app = this;
             const self = this;
             const runSeed = async function() {
-                const w = window.confirm('CẢNH BÁO: Bạn sắp ghi DỮ LIỆU MẪU (demo) lên đám mây cho tài khoản / kho hiện tại.\n\nChỉ bấm OK nếu đây là shop mới và bạn CHẮC CHẮN không có dữ liệu thật trên máy khác hoặc bản sao lưu.\n\nNếu shop đã bán hàng thật: bấm Hủy, rồi dùng «Thử tải lại» hoặc đăng nhập lại (tab thường, không chặn cookie).');
+                const w = await confirmAsync({
+                    title: 'CẢNH BÁO — Dữ liệu mẫu lên đám mây',
+                    message:
+                        'Bạn sắp ghi DỮ LIỆU MẪU (demo) lên đám mây cho tài khoản / kho hiện tại.\n\nChỉ xác nhận nếu đây là shop mới và bạn CHẮC CHẮN không có dữ liệu thật trên máy khác hoặc bản sao lưu.\n\nNếu shop đã bán hàng thật: hủy, rồi dùng «Thử tải lại» hoặc đăng nhập lại (tab thường, không chặn cookie).',
+                    confirmLabel: 'Tiếp tục',
+                    cancelLabel: 'Hủy',
+                    variant: 'danger',
+                });
                 if (!w) return;
                 if (content) content.innerHTML = '<div style="padding: 48px; text-align: center;"><p>Khởi tạo dữ liệu mới cho khóa sao lưu này...</p><p style="font-size: 14px; color: #6b7280;">Vui lòng đợi...</p></div>';
                 self.demoData = self.generateDemoData();
@@ -2675,9 +2745,15 @@ class HamobileBanhang {
         `;
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
-    bulkDeleteProducts() {
+    async bulkDeleteProducts() {
         if (this.selectedProductIds.size === 0) return;
-        if (!confirm('Bạn có chắc muốn xóa ' + this.selectedProductIds.size + ' sản phẩm đã chọn?')) return;
+        if (!(await confirmAsync({
+            title: 'Xác nhận xóa',
+            message: 'Bạn có chắc muốn xóa ' + this.selectedProductIds.size + ' sản phẩm đã chọn?',
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        }))) return;
         this.demoData.products = this.demoData.products.filter(p => !this.selectedProductIds.has(p.id));
         this.selectedProductIds.clear();
         this.saveToLocalStorage();
@@ -5118,9 +5194,15 @@ class HamobileBanhang {
         this.selectedOrderIds.clear();
         this.updateOrdersSelectionUI();
     }
-    bulkDeleteOrders() {
+    async bulkDeleteOrders() {
         if (this.selectedOrderIds.size === 0) return;
-        if (!confirm('Bạn có chắc muốn xóa ' + this.selectedOrderIds.size + ' đơn hàng đã chọn? Sẽ hoàn trả tồn kho.')) return;
+        if (!(await confirmAsync({
+            title: 'Xác nhận xóa đơn',
+            message: 'Bạn có chắc muốn xóa ' + this.selectedOrderIds.size + ' đơn hàng đã chọn? Sẽ hoàn trả tồn kho.',
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        }))) return;
         const toDelete = [...this.selectedOrderIds];
         toDelete.forEach(orderId => {
             const index = this.demoData.orders.findIndex(o => o.id === orderId);
@@ -5169,14 +5251,20 @@ class HamobileBanhang {
         return true;
     }
 
-    cancelOrder(index) {
+    async cancelOrder(index) {
         const order = this.demoData.orders[index];
         if (!order) return;
         if (order.status === 'Đã hủy') {
             this.showNotification(`Đơn ${order.id} đã hủy trước đó`, 'info');
             return;
         }
-        if (!confirm(`Xác nhận hủy đơn ${order.id}? Hệ thống sẽ hoàn tồn kho và giữ lịch sử đơn.`)) return;
+        if (!(await confirmAsync({
+            title: 'Xác nhận hủy đơn',
+            message: `Xác nhận hủy đơn ${order.id}? Hệ thống sẽ hoàn tồn kho và giữ lịch sử đơn.`,
+            confirmLabel: 'Hủy đơn',
+            cancelLabel: 'Đóng',
+            variant: 'warning',
+        }))) return;
         this.restoreOrderStockAndDebt(order);
         order.status = 'Đã hủy';
         order.cancelledAt = new Date().toISOString();
@@ -6130,10 +6218,16 @@ class HamobileBanhang {
         this.loadPage('repairs');
     }
 
-    deleteRepair(index) {
+    async deleteRepair(index) {
         const r = this.demoData.repairs[index];
         if (!r) return;
-        if (confirm('Bạn có chắc muốn xóa phiếu sửa chữa ' + (r.id || 'này') + '?')) {
+        if (await confirmAsync({
+            title: 'Xác nhận xóa',
+            message: 'Bạn có chắc muốn xóa phiếu sửa chữa ' + (r.id || 'này') + '?',
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        })) {
             const cost = Number(r.repairCost) || 0;
             const paid = Number(r.amountPaid) || 0;
             const repairDebt = (r.status || '') === 'Đã trả' && cost > 0 && paid < cost ? Math.max(0, cost - paid) : 0;
@@ -6872,7 +6966,7 @@ class HamobileBanhang {
                                     style="padding: 10px 16px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">Lưu cấu hình</button>
                             <button type="button" onclick="app.testFirebaseConnection();" 
                                     style="padding: 10px 16px; background: #f59e0b; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">🔌 Kiểm tra kết nối</button>
-                            <button type="button" onclick="if(confirm('Tải dữ liệu từ đám mây sẽ ghi đè dữ liệu hiện tại. Tiếp tục?')) { var u=document.getElementById('firebase-url'); var k=document.getElementById('firebase-key'); app.loadFromFirebase(function(ok){ if(ok) { app.showNotification('Đã khôi phục dữ liệu từ đám mây. An toàn khi ẩn danh / xóa cache / đổi máy.', 'success'); app.loadPage('products'); } else { app.showNotification('Không có dữ liệu hoặc lỗi. Kiểm tra URL và Khóa sao lưu.', 'error'); }}, u ? u.value : null, k ? k.value : null); }" 
+                            <button type="button" onclick="void app.confirmLoadFromFirebaseCloud()" 
                                     style="padding: 10px 16px; background: var(--primary-green); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">☁️ Khôi phục từ đám mây</button>
                             <span id="firebase-sync-status" style="font-size: 12px; color: #6b7280;">${lastSyncStr ? 'Đồng bộ lúc: ' + lastSyncStr : 'Chưa cấu hình hoặc chưa đồng bộ'}</span>
                         </div>
@@ -7438,9 +7532,15 @@ class HamobileBanhang {
         const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
     }
     
-    deleteCustomer(index) {
+    async deleteCustomer(index) {
         const customer = this.demoData.customers[index];
-        if (confirm(`Bạn có chắc muốn xóa khách hàng ${customer.name}?`)) {
+        if (await confirmAsync({
+            title: 'Xác nhận xóa khách',
+            message: `Bạn có chắc muốn xóa khách hàng ${customer.name}?`,
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        })) {
             this.demoData.customers.splice(index, 1);
             this.saveToFirebaseImmediate().then(ok => { if (!ok) this.saveToLocalStorage(); });
             this.showNotification(`Đã xóa khách hàng ${customer.name}`, 'success');
@@ -8352,9 +8452,15 @@ class HamobileBanhang {
         return `${year}${month}${day}_${hour}${minute}`;
     }
 
-    deleteSupplier(index) {
+    async deleteSupplier(index) {
         const supplier = this.demoData.suppliers[index];
-        if (confirm(`Bạn có chắc muốn xóa nhà cung cấp ${supplier.name}?`)) {
+        if (await confirmAsync({
+            title: 'Xác nhận xóa',
+            message: `Bạn có chắc muốn xóa nhà cung cấp ${supplier.name}?`,
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        })) {
             this.demoData.suppliers.splice(index, 1);
             this.saveToLocalStorage();
             this.showNotification(`Đã xóa nhà cung cấp ${supplier.name}`, 'success');
@@ -8362,9 +8468,18 @@ class HamobileBanhang {
         }
     }
 
-    deleteProduct(index) {
+    async deleteProduct(index) {
         const product = this.demoData.products[index];
-        if (product && confirm(`Bạn có chắc muốn xóa sản phẩm ${product.name}?`)) {
+        if (
+            product &&
+            (await confirmAsync({
+                title: 'Xác nhận xóa',
+                message: `Bạn có chắc muốn xóa sản phẩm ${product.name}?`,
+                confirmLabel: 'Xóa',
+                cancelLabel: 'Hủy',
+                variant: 'danger',
+            }))
+        ) {
             this.demoData.products.splice(index, 1);
             this.saveToLocalStorage();
             this.showNotification(`Đã xóa sản phẩm ${product.name}`, 'success');
@@ -8718,6 +8833,33 @@ class HamobileBanhang {
             });
     }
     
+    async confirmLoadFromFirebaseCloud() {
+        const ok = await confirmAsync({
+            title: 'Xác nhận khôi phục từ đám mây',
+            message: 'Tải dữ liệu từ đám mây sẽ ghi đè dữ liệu hiện tại. Tiếp tục?',
+            confirmLabel: 'Tiếp tục',
+            cancelLabel: 'Hủy',
+            variant: 'warning',
+        });
+        if (!ok) return;
+        const u = document.getElementById('firebase-url');
+        const k = document.getElementById('firebase-key');
+        this.loadFromFirebase((success) => {
+            if (success) {
+                this.showNotification(
+                    'Đã khôi phục dữ liệu từ đám mây. An toàn khi ẩn danh / xóa cache / đổi máy.',
+                    'success',
+                );
+                this.loadPage('products');
+            } else {
+                this.showNotification(
+                    'Không có dữ liệu hoặc lỗi. Kiểm tra URL và Khóa sao lưu.',
+                    'error',
+                );
+            }
+        }, u ? u.value : null, k ? k.value : null);
+    }
+
     loadFromFirebase(callback, formUrl, formKey) {
         if (formUrl && formKey) window.FirebaseStorage.setConfig(formUrl, formKey);
         const cfg = this.getFirebaseConfig();
@@ -8874,7 +9016,16 @@ class HamobileBanhang {
                     throw new Error('File backup không đúng định dạng');
                 }
                 
-                if (!confirm('Khôi phục dữ liệu sẽ ghi đè toàn bộ dữ liệu hiện tại. Bạn có chắc chắn?')) return;
+                const restoreOk = await confirmAsync({
+                    title: 'Xác nhận khôi phục dữ liệu',
+                    message:
+                        'Khôi phục dữ liệu sẽ ghi đè toàn bộ dữ liệu hiện tại. Bạn có chắc chắn?',
+                    confirmLabel: 'Đồng ý',
+                    cancelLabel: 'Hủy bỏ',
+                    icon: '\u26A0\uFE0F',
+                    variant: 'danger',
+                });
+                if (!restoreOk) return;
                 
                 this.demoData = backupData.data;
                 if (!this.demoData.customers) this.demoData.customers = [];
@@ -8947,8 +9098,14 @@ class HamobileBanhang {
         console.log('💾 Company settings saved:', companySettings);
     }
     
-    resetCompanySettings() {
-        if (confirm('Bạn có chắc chắn muốn xóa tất cả thông tin công ty đã lưu?')) {
+    async resetCompanySettings() {
+        if (await confirmAsync({
+            title: 'Xác nhận',
+            message: 'Bạn có chắc chắn muốn xóa tất cả thông tin công ty đã lưu?',
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        })) {
             window.FirebaseStorage.setCompany({});
             window.FirebaseStorage.save({ company: {} });
             this.showNotification('Đã xóa thông tin công ty', 'success');
@@ -9173,8 +9330,14 @@ class HamobileBanhang {
     }
 
     // Remove logo function
-    removeLogo() {
-        if (!confirm('Bạn có chắc chắn muốn xóa logo?')) return;
+    async removeLogo() {
+        if (!(await confirmAsync({
+            title: 'Xác nhận xóa logo',
+            message: 'Bạn có chắc chắn muốn xóa logo?',
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        }))) return;
         
         const companySettings = this.getCompanySettings();
         delete companySettings.logo;
@@ -9294,8 +9457,14 @@ class HamobileBanhang {
     }
 
     // Remove QR Code function  
-    removeQR() {
-        if (!confirm('Bạn có chắc chắn muốn xóa mã QR?')) return;
+    async removeQR() {
+        if (!(await confirmAsync({
+            title: 'Xác nhận xóa mã QR',
+            message: 'Bạn có chắc chắn muốn xóa mã QR?',
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        }))) return;
         
         const companySettings = this.getCompanySettings();
         delete companySettings.qrCode;
@@ -10439,9 +10608,15 @@ class HamobileBanhang {
         this.selectedSupplierIds.clear();
         this.updateSuppliersSelectionUI();
     }
-    bulkDeleteSuppliers() {
+    async bulkDeleteSuppliers() {
         if (this.selectedSupplierIds.size === 0) return;
-        if (!confirm('Bạn có chắc muốn xóa ' + this.selectedSupplierIds.size + ' nhà cung cấp đã chọn?')) return;
+        if (!(await confirmAsync({
+            title: 'Xác nhận xóa',
+            message: 'Bạn có chắc muốn xóa ' + this.selectedSupplierIds.size + ' nhà cung cấp đã chọn?',
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        }))) return;
         this.demoData.suppliers = this.demoData.suppliers.filter(s => !this.selectedSupplierIds.has(s.id));
         this.selectedSupplierIds.clear();
         this.saveToLocalStorage();
@@ -10816,8 +10991,14 @@ class HamobileBanhang {
         }
     }
 
-    deleteCategory(categoryId) {
-        if (!confirm('Bạn có chắc chắn muốn xóa danh mục này?')) return;
+    async deleteCategory(categoryId) {
+        if (!(await confirmAsync({
+            title: 'Xác nhận xóa danh mục',
+            message: 'Bạn có chắc chắn muốn xóa danh mục này?',
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        }))) return;
         
         const categories = this.demoData.categories || [];
         const updatedCategories = categories.filter(c => c.id !== categoryId && c.parent !== categoryId);
@@ -15065,10 +15246,16 @@ class HamobileBanhang {
         const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
     }
 
-    deleteOrder(index, redirectTo) {
+    async deleteOrder(index, redirectTo) {
         const order = this.demoData.orders[index];
         if (!order) return;
-        if (confirm(`Bạn có chắc muốn xóa đơn hàng ${order.id}?`)) {
+        if (await confirmAsync({
+            title: 'Xác nhận xóa đơn',
+            message: `Bạn có chắc muốn xóa đơn hàng ${order.id}?`,
+            confirmLabel: 'Xóa',
+            cancelLabel: 'Hủy',
+            variant: 'danger',
+        })) {
             this.restoreOrderStockAndDebt(order);
             this.demoData.orders.splice(index, 1);
             this.saveToLocalStorage();

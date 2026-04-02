@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
+import { ConfirmDialogProvider } from "@/components/confirm-dialog";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -21,7 +22,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className={montserrat.variable}>
-      <body>{children}</body>
+      <body>
+        <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+      </body>
     </html>
   );
 }
