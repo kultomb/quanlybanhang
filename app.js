@@ -365,7 +365,7 @@ window.FirebaseStorage = {
                 && p[0] && p[0].id === 'SP001' && String(p[0].name || '').includes('iPhone 15 Pro');
         } catch (_) { return false; }
     },
-    async save(payload) {
+    async save(payload, _retried) {
         const mergedMeta = Object.assign({}, this._cache.meta || {}, payload.meta || {});
         if (mergedMeta.schemaVersion == null) mergedMeta.schemaVersion = 1;
         const wv = typeof mergedMeta.writeVersion === 'number' && Number.isFinite(mergedMeta.writeVersion) ? mergedMeta.writeVersion : 0;
@@ -417,6 +417,25 @@ window.FirebaseStorage = {
                     })).catch(() => {});
                 }
                 return true;
+            }
+            if (res.status === 409 && !_retried) {
+                let parsedErr = null;
+                try { parsedErr = resText ? JSON.parse(resText) : null; } catch (_) {}
+                if (parsedErr && parsedErr.error === 'stale_data') {
+                    const latest = await this.load().catch(() => null);
+                    const latestMeta = latest && latest.meta && typeof latest.meta === 'object' ? latest.meta : (this._cache.meta || {});
+                    const retryMeta = Object.assign({}, payload.meta || {}, {
+                        writeVersion:
+                            typeof latestMeta.writeVersion === 'number' && Number.isFinite(latestMeta.writeVersion)
+                                ? latestMeta.writeVersion
+                                : 0,
+                    });
+                    return this.save({
+                        data: body.data,
+                        company: body.company,
+                        meta: retryMeta,
+                    }, true);
+                }
             }
         } catch (e) { console.warn('Firebase save:', e); }
         return false;

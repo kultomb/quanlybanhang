@@ -277,14 +277,6 @@ async function proxy(
         );
       }
 
-      const existingSnap = await dbRef.get();
-      const existingVal = existingSnap.val();
-      const srvNorm = normalizePosBackupJsonForGet(existingVal) as { meta?: Record<string, unknown> };
-      const srvWrite =
-        typeof srvNorm?.meta?.writeVersion === "number" && Number.isFinite(srvNorm.meta.writeVersion)
-          ? srvNorm.meta.writeVersion
-          : 0;
-
       const isDemoSeed = !!(
         meta0 &&
         typeof meta0 === "object" &&
@@ -292,7 +284,47 @@ async function proxy(
         (meta0 as { isDemoSeed?: unknown }).isDemoSeed === true
       );
       if (isDemoSeed) {
-        if (shouldRejectDemoSeedOverwrite(existingVal)) {
+        working = stripDemoSeedFlagFromPayload(working) as Record<string, unknown>;
+      }
+
+      let rejectCode: "stale_data" | "demo_seed_forbidden" | null = null;
+      let rejectServerWriteVersion = 0;
+      const tx = await dbRef.transaction((current) => {
+        const srvNorm = normalizePosBackupJsonForGet(current) as { meta?: Record<string, unknown> };
+        const srvWrite =
+          typeof srvNorm?.meta?.writeVersion === "number" && Number.isFinite(srvNorm.meta.writeVersion)
+            ? srvNorm.meta.writeVersion
+            : 0;
+        rejectServerWriteVersion = srvWrite;
+
+        if (isDemoSeed && shouldRejectDemoSeedOverwrite(current)) {
+          rejectCode = "demo_seed_forbidden";
+          return;
+        }
+        if (clientBase !== srvWrite) {
+          rejectCode = "stale_data";
+          return;
+        }
+
+        const merged = JSON.parse(JSON.stringify(working)) as Record<string, unknown>;
+        const existingMeta =
+          srvNorm.meta && typeof srvNorm.meta === "object" && !Array.isArray(srvNorm.meta)
+            ? { ...srvNorm.meta }
+            : {};
+        const incomingMeta =
+          merged.meta && typeof merged.meta === "object" && !Array.isArray(merged.meta)
+            ? { ...(merged.meta as Record<string, unknown>) }
+            : {};
+        delete incomingMeta.clientBaseWriteVersion;
+        delete incomingMeta.isDemoSeed;
+        incomingMeta.writeVersion = srvWrite + 1;
+        incomingMeta.updatedAt = Date.now();
+        merged.meta = { ...existingMeta, ...incomingMeta };
+        return merged;
+      }, undefined, false);
+
+      if (!tx.committed) {
+        if (rejectCode === "demo_seed_forbidden") {
           logRtdb("DEMO_SEED_BLOCKED", {
             uid: decoded.uid,
             shop: allowedShopKey,
@@ -305,16 +337,12 @@ async function proxy(
             "Từ chối ghi dữ liệu mẫu: shop đã có dữ liệu thật (đơn hàng hoặc đã khởi tạo trên đám mây).",
           );
         }
-        working = stripDemoSeedFlagFromPayload(working) as Record<string, unknown>;
-      }
-
-      if (clientBase !== srvWrite) {
         logRtdb("STALE_WRITE_REJECTED", {
           uid: decoded.uid,
           shop: allowedShopKey,
           path: targetPath,
           clientBaseWriteVersion: clientBase,
-          serverWriteVersion: srvWrite,
+          serverWriteVersion: rejectServerWriteVersion,
         });
         return jsonError(
           409,
@@ -323,23 +351,11 @@ async function proxy(
         );
       }
 
-      const merged = JSON.parse(JSON.stringify(working)) as Record<string, unknown>;
-      const existingMeta =
-        srvNorm.meta && typeof srvNorm.meta === "object" && !Array.isArray(srvNorm.meta)
-          ? { ...srvNorm.meta }
-          : {};
-      const incomingMeta =
-        merged.meta && typeof merged.meta === "object" && !Array.isArray(merged.meta)
-          ? { ...(merged.meta as Record<string, unknown>) }
-          : {};
-      delete incomingMeta.clientBaseWriteVersion;
-      delete incomingMeta.isDemoSeed;
-
-      incomingMeta.writeVersion = srvWrite + 1;
-      incomingMeta.updatedAt = Date.now();
-
-      merged.meta = { ...existingMeta, ...incomingMeta };
-      valueToSet = merged;
+      valueToSet = tx.snapshot?.val() ?? null;
+      return new Response(JSON.stringify(valueToSet ?? null), {
+        status: 200,
+        headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+      });
     }
     await dbRef.set(valueToSet);
     return new Response(JSON.stringify(valueToSet ?? null), {

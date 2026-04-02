@@ -461,7 +461,7 @@ window.FirebaseStorage = {
                 && p[0] && p[0].id === 'SP001' && String(p[0].name || '').includes('iPhone 15 Pro');
         } catch (_) { return false; }
     },
-    async save(payload) {
+    async save(payload, _retried) {
         const mergedMeta = Object.assign({}, this._cache.meta || {}, payload.meta || {});
         if (mergedMeta.schemaVersion == null) mergedMeta.schemaVersion = 1;
         var wv = typeof mergedMeta.writeVersion === 'number' && Number.isFinite(mergedMeta.writeVersion) ? mergedMeta.writeVersion : 0;
@@ -527,6 +527,22 @@ window.FirebaseStorage = {
                 typeof haParseSyncHttpError === 'function'
                     ? haParseSyncHttpError(res.status, resText)
                     : { code: 'unknown_error', serverError: '', serverMessage: '', requestId: undefined };
+            if (pSave.code === 'stale_data' && !_retried) {
+                // Rebase writeVersion từ cloud và thử lưu lại 1 lần với local draft hiện tại.
+                const latest = await this.load().catch(() => null);
+                const latestMeta = latest && latest.meta && typeof latest.meta === 'object' ? latest.meta : (this._cache.meta || {});
+                const retryMeta = Object.assign({}, payload.meta || {}, {
+                    writeVersion:
+                        typeof latestMeta.writeVersion === 'number' && Number.isFinite(latestMeta.writeVersion)
+                            ? latestMeta.writeVersion
+                            : 0,
+                });
+                return this.save({
+                    data: body.data,
+                    company: body.company,
+                    meta: retryMeta,
+                }, true);
+            }
             if (typeof handleAppError === 'function') {
                 handleAppError(pSave.code, {
                     phase: 'save',
