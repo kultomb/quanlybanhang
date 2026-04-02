@@ -15139,7 +15139,14 @@ class HamobileBanhang {
         })) {
             this.restoreOrderStockAndDebt(order);
             this.demoData.orders.splice(index, 1);
+            // Lưu local để offline vẫn đúng, và lưu cloud để reload không bị "hiện lại" từ Firebase.
             this.saveToLocalStorage();
+            try {
+                const ok = await this.saveToFirebaseImmediate();
+                if (!ok) this.saveToLocalStorage();
+            } catch (e) {
+                this.saveToLocalStorage();
+            }
             this.showNotification(`Đã xóa đơn hàng ${order.id} và hoàn trả tồn kho`, 'success');
             this.loadPage(redirectTo || 'orders');
         }
