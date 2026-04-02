@@ -2118,7 +2118,7 @@ select.edit-order-inp{
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
   padding:12px;
-  padding-bottom:max(16px, env(safe-area-inset-bottom, 0px));
+  padding-bottom:16px;
   position:relative;
   z-index:1;
 }
@@ -2341,16 +2341,12 @@ select.edit-order-inp{
 }
 /* Thanh hành động dạng app: fixed bottom + safe-area (không đặt trong ancestor overflow:hidden/transform) */
 .debts-m-footer{
-  position:sticky;
-  left:0;
-  right:0;
-  bottom:0;
-  z-index:10;
+  flex-shrink:0;
   display:flex;
   gap:10px;
   box-sizing:border-box;
   padding:14px 12px 12px;
-  padding-bottom:max(12px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+  padding-bottom:max(12px, env(safe-area-inset-bottom, 0px));
   background:#fff;
   border-top:1px solid #e5e7eb;
   border-radius:16px 16px 0 0;
