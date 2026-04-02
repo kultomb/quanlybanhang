@@ -7284,6 +7284,7 @@ class HamobileBanhang {
         notification.className = `notification show ${type}` + (longForm ? ' notification-long' : '');
         notification._notifyTimer = setTimeout(() => {
             notification.classList.remove('show');
+            notification.textContent = '';
             notification._notifyTimer = null;
         }, durationMs);
     }
@@ -18544,47 +18545,60 @@ class HamobileBanhang {
 
 // Notification styles
 const notificationStyles = `
+    .top-utility-bar .top-brand {
+        flex-shrink: 0;
+    }
+    #next-account-slot {
+        flex-shrink: 0;
+    }
     .notification {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 16px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 600;
-        z-index: 1000;
-        transform: translateX(400px);
-        transition: transform 0.3s ease;
-        max-width: 300px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        flex: 1 1 0;
+        min-width: 0;
+        margin: 0;
+        padding: 0 8px 0 12px;
+        align-self: center;
+        text-align: right;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.35;
+        color: var(--text-secondary);
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+        max-width: none;
+        position: static;
+        transform: none;
+        transition: opacity 0.25s ease;
+        opacity: 0;
+        pointer-events: none;
+        z-index: auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
-    
     .notification.show {
-        transform: translateX(0);
+        opacity: 1;
     }
-    
     .notification.success {
-        background: var(--success-gradient);
+        color: #047857;
     }
-    
     .notification.error {
-        background: var(--danger-gradient);
+        color: #dc2626;
     }
-    
     .notification.warning {
-        background: var(--warning-gradient);
-        color: var(--text-primary);
+        color: #b45309;
     }
-    
     .notification.info {
-        background: var(--header-gradient);
+        color: #047857;
     }
     .notification.notification-long {
-        max-width: min(440px, 94vw);
-        font-weight: 500;
-        font-size: 14px;
-        line-height: 1.45;
         white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        font-size: 11px;
+        line-height: 1.4;
+        font-weight: 500;
     }
 `;
 
