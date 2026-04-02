@@ -8735,6 +8735,9 @@ class HamobileBanhang {
 
     async guardOrdersBeforeCloudSave() {
         const localOrders = Array.isArray(this.demoData.orders) ? this.demoData.orders : [];
+        // Khi đang có thay đổi local chưa đồng bộ (đặc biệt là XÓA), không được "hợp nhất" kiểu union
+        // vì sẽ kéo đơn từ cloud về và làm xóa không có hiệu lực.
+        if (this._hasUnsyncedChanges) return;
         try {
             const loaded = await window.FirebaseStorage.load();
             const remoteOrders = (loaded && loaded.data && Array.isArray(loaded.data.orders)) ? loaded.data.orders : [];
