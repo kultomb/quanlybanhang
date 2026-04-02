@@ -1622,17 +1622,29 @@ class HamobileBanhang {
             el.style.setProperty('justify-content', 'center', 'important');
             el.style.setProperty('position', 'fixed', 'important');
             el.style.setProperty('left', 'auto', 'important');
-            el.style.setProperty('top', 'auto', 'important');
             const vv = window.visualViewport;
-            const browserUiInset = vv
-                ? Math.max(0, Math.round((window.innerHeight - vv.height - vv.offsetTop)))
-                : 0;
-            const bottomPx = 12 + browserUiInset;
-            // Fallback first for browsers that do not support env()/max().
+            const fabH = 56;
+            const margin = 12;
+            if (vv && typeof vv.height === 'number' && vv.height > 80) {
+                const topPx = vv.offsetTop + vv.height - fabH - margin;
+                const minTop = vv.offsetTop + margin;
+                el.style.setProperty('top', `${Math.round(Math.max(minTop, topPx))}px`, 'important');
+                el.style.setProperty('bottom', 'auto', 'important');
+            } else {
+                el.style.removeProperty('top');
+                const browserUiInset = vv
+                    ? Math.max(0, Math.round((window.innerHeight - vv.height - vv.offsetTop)))
+                    : 0;
+                const bottomPx = Math.max(16, margin + browserUiInset);
+                el.style.setProperty('bottom', `${bottomPx}px`, 'important');
+                el.style.setProperty(
+                    'bottom',
+                    `max(${bottomPx}px, calc(env(safe-area-inset-bottom, 0px) + 16px))`,
+                    'important',
+                );
+            }
             el.style.setProperty('right', '12px', 'important');
-            el.style.setProperty('bottom', `${bottomPx}px`, 'important');
             el.style.setProperty('right', 'max(16px, env(safe-area-inset-right, 0px))', 'important');
-            el.style.setProperty('bottom', `max(${bottomPx}px, calc(env(safe-area-inset-bottom, 0px) + 12px))`, 'important');
             el.style.setProperty('z-index', '10050', 'important');
         };
         this._productsFabVVListener = apply;
