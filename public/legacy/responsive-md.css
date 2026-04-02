@@ -2066,10 +2066,11 @@ select.edit-order-inp{
   position:fixed;
   inset:0;
   z-index:10060;
-  background:#f3f4f6;
+  background:#f5f5f5;
   display:flex;
   flex-direction:column;
-  min-height:0;
+  height:100dvh;
+  min-height:100dvh;
   box-sizing:border-box;
   overflow:visible;
 }
@@ -2341,16 +2342,21 @@ select.edit-order-inp{
 }
 /* Thanh hành động dạng app: fixed bottom + safe-area (không đặt trong ancestor overflow:hidden/transform) */
 .debts-m-footer{
+  position:sticky;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:10;
   flex-shrink:0;
   display:flex;
   gap:10px;
   box-sizing:border-box;
-  padding:14px 12px 12px;
-  padding-bottom:max(12px, env(safe-area-inset-bottom, 0px));
+  padding:12px;
+  padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 12px);
   background:#fff;
   border-top:1px solid #e5e7eb;
   border-radius:16px 16px 0 0;
-  box-shadow:0 -8px 24px rgba(15,23,42,.12);
+  box-shadow:0 -4px 12px rgba(0,0,0,0.08);
   touch-action:manipulation;
   -webkit-tap-highlight-color:transparent;
 }
