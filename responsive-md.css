@@ -2343,11 +2343,11 @@ select.edit-order-inp{
   left:0;
   right:0;
   bottom:0;
-  bottom:max(0px, env(safe-area-inset-bottom, 0px));
   z-index:10070;
   display:flex;
   gap:10px;
-  padding:12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  padding:12px;
+  padding-bottom:max(12px, env(safe-area-inset-bottom, 0px));
   background:#fff;
   border-top:1px solid #e5e7eb;
   box-shadow:0 -6px 18px rgba(15,23,42,.08);

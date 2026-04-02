@@ -536,7 +536,6 @@ class HamobileBanhang {
         this._posScannerCameraIds = [];
         this._posScannerCameraIndex = 0;
         this._posScannerRotateTimerId = null;
-        this._productsFabVVListener = null;
         this.productsSearchQuery = '';
         this.suppliersSearchQuery = '';
         this.ordersSearchQuery = '';
@@ -1502,16 +1501,6 @@ class HamobileBanhang {
     }
     
     loadPage(pageName) {
-        if (this._productsFabVVListener) {
-            const fn = this._productsFabVVListener;
-            window.removeEventListener('resize', fn);
-            try { window.removeEventListener('orientationchange', fn); } catch (_) {}
-            if (window.visualViewport) {
-                window.visualViewport.removeEventListener('resize', fn);
-                window.visualViewport.removeEventListener('scroll', fn);
-            }
-            this._productsFabVVListener = null;
-        }
         try {
             document.querySelectorAll('body > .products-fab-add').forEach((el) => el.remove());
         } catch (_) {}
@@ -1586,77 +1575,25 @@ class HamobileBanhang {
         }, 500);
         }
     
-    /** FAB thêm SP: Safari iOS đôi khi không áp dụng đúng @media / fixed trong .content — gắn body + viewport. */
+    /**
+     * FAB thêm SP: trên mobile append vào document.body để tránh ancestor overflow/scroll
+     * làm position:fixed neo sai (WebKit). Vị trí chỉ dùng CSS + env(safe-area-inset-*).
+     */
     ensureProductsFabMobile() {
-        if (this._productsFabVVListener) {
-            const fn = this._productsFabVVListener;
-            window.removeEventListener('resize', fn);
-            try { window.removeEventListener('orientationchange', fn); } catch (_) {}
-            if (window.visualViewport) {
-                window.visualViewport.removeEventListener('resize', fn);
-                window.visualViewport.removeEventListener('scroll', fn);
-            }
-            this._productsFabVVListener = null;
+        if (this.currentPage !== 'products') return;
+        const el = document.querySelector('.products-fab-add');
+        const slot = document.querySelector('.products-page-compact');
+        if (!el || !slot) return;
+        let mobile = false;
+        try {
+            mobile = window.matchMedia('(max-width: 1024px)').matches;
+        } catch (_) {
+            mobile = window.innerWidth <= 1024;
         }
-        const isMobileFabViewport = () => {
-            const w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-            if (w <= 1024) return true;
-            try {
-                if (window.matchMedia('(max-device-width: 1024px)').matches) return true;
-            } catch (_) {}
-            return false;
-        };
-        const apply = () => {
-            if (this.currentPage !== 'products') return;
-            const el = document.querySelector('.products-fab-add');
-            if (!el) return;
-            const slot = document.querySelector('.products-page-compact');
-            if (!isMobileFabViewport()) {
-                ['display', 'align-items', 'justify-content', 'position', 'right', 'bottom', 'z-index', 'left', 'top'].forEach((p) => { try { el.style.removeProperty(p); } catch (_) {} });
-                if (slot && el.parentElement === document.body) slot.insertBefore(el, slot.firstChild);
-                return;
-            }
+        if (mobile) {
             if (el.parentElement !== document.body) document.body.appendChild(el);
-            el.style.setProperty('display', 'flex', 'important');
-            el.style.setProperty('align-items', 'center', 'important');
-            el.style.setProperty('justify-content', 'center', 'important');
-            el.style.setProperty('position', 'fixed', 'important');
-            el.style.setProperty('left', 'auto', 'important');
-            const vv = window.visualViewport;
-            const fabH = 56;
-            const margin = 12;
-            if (vv && typeof vv.height === 'number' && vv.height > 80) {
-                const topPx = vv.offsetTop + vv.height - fabH - margin;
-                const minTop = vv.offsetTop + margin;
-                el.style.setProperty('top', `${Math.round(Math.max(minTop, topPx))}px`, 'important');
-                el.style.setProperty('bottom', 'auto', 'important');
-            } else {
-                el.style.removeProperty('top');
-                const browserUiInset = vv
-                    ? Math.max(0, Math.round((window.innerHeight - vv.height - vv.offsetTop)))
-                    : 0;
-                const bottomPx = Math.max(16, margin + browserUiInset);
-                el.style.setProperty('bottom', `${bottomPx}px`, 'important');
-                el.style.setProperty(
-                    'bottom',
-                    `max(${bottomPx}px, calc(env(safe-area-inset-bottom, 0px) + 16px))`,
-                    'important',
-                );
-            }
-            el.style.setProperty('right', '12px', 'important');
-            el.style.setProperty('right', 'max(16px, env(safe-area-inset-right, 0px))', 'important');
-            el.style.setProperty('z-index', '10050', 'important');
-        };
-        this._productsFabVVListener = apply;
-        apply();
-        requestAnimationFrame(apply);
-        setTimeout(apply, 50);
-        setTimeout(apply, 400);
-        window.addEventListener('resize', apply);
-        try { window.addEventListener('orientationchange', apply); } catch (_) {}
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', apply);
-            window.visualViewport.addEventListener('scroll', apply);
+        } else if (el.parentElement === document.body) {
+            slot.insertBefore(el, slot.firstChild);
         }
     }
 
@@ -2590,10 +2527,7 @@ class HamobileBanhang {
             ${filtered.length > 0 ? `<span class="products-table-total">Tổng tồn kho (${filtered.length} SP): <strong>${totalStock.toLocaleString('vi-VN')}</strong></span>` : ''}`;
         }
         this.updateProductsSelectionUI();
-        if (this.currentPage === 'products') {
-            if (this._productsFabVVListener) this._productsFabVVListener();
-            else this.ensureProductsFabMobile();
-        }
+        if (this.currentPage === 'products') this.ensureProductsFabMobile();
     }
     toggleProductsSelectAll(checked) {
         const q = (this.productsSearchQuery || '').trim().toLowerCase();
@@ -12601,43 +12535,7 @@ class HamobileBanhang {
         document.body.insertAdjacentHTML('beforeend', orderDetailHTML);
     }
 
-    detachDebtsMobileDetailViewport() {
-        if (this._debtsMobileDetailVvListener) {
-            const fn = this._debtsMobileDetailVvListener;
-            window.removeEventListener('resize', fn);
-            try { window.removeEventListener('orientationchange', fn); } catch (_) {}
-            if (window.visualViewport) {
-                window.visualViewport.removeEventListener('resize', fn);
-                window.visualViewport.removeEventListener('scroll', fn);
-            }
-            this._debtsMobileDetailVvListener = null;
-        }
-    }
-
-    /** Safari iOS: thanh địa chỉ / toolbar che footer fixed — bù theo visualViewport. */
-    applyDebtsMobileDetailViewport() {
-        const root = document.getElementById('debts-mobile-detail-root');
-        if (!root) return;
-        const footer = root.querySelector('.debts-m-footer');
-        const scroll = root.querySelector('.debts-m-scroll');
-        if (!footer) return;
-        const vv = window.visualViewport;
-        const browserUiInset = vv
-            ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
-            : 0;
-        footer.style.setProperty('bottom', `${browserUiInset}px`, 'important');
-        footer.style.setProperty('bottom', `max(${browserUiInset}px, env(safe-area-inset-bottom, 0px))`, 'important');
-        if (scroll) {
-            scroll.style.setProperty(
-                'padding-bottom',
-                `calc(96px + ${browserUiInset}px + env(safe-area-inset-bottom, 0px))`,
-                'important'
-            );
-        }
-    }
-
     closeDebtsMobileDetail() {
-        this.detachDebtsMobileDetailViewport();
         const el = document.getElementById('debts-mobile-detail-root');
         if (el) el.remove();
         try { document.body.style.overflow = ''; } catch (_) {}
@@ -12791,18 +12689,6 @@ class HamobileBanhang {
             </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
         try { document.body.style.overflow = 'hidden'; } catch (_) {}
-        this.detachDebtsMobileDetailViewport();
-        this._debtsMobileDetailVvListener = () => this.applyDebtsMobileDetailViewport();
-        this.applyDebtsMobileDetailViewport();
-        requestAnimationFrame(() => this.applyDebtsMobileDetailViewport());
-        setTimeout(() => this.applyDebtsMobileDetailViewport(), 50);
-        setTimeout(() => this.applyDebtsMobileDetailViewport(), 400);
-        window.addEventListener('resize', this._debtsMobileDetailVvListener);
-        try { window.addEventListener('orientationchange', this._debtsMobileDetailVvListener); } catch (_) {}
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', this._debtsMobileDetailVvListener);
-            window.visualViewport.addEventListener('scroll', this._debtsMobileDetailVvListener);
-        }
     }
     
     // Hiển thị chi tiết công nợ khách hàng (đơn hàng + sửa chữa)
