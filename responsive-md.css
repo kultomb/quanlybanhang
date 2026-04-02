@@ -2076,6 +2076,7 @@ select.edit-order-inp{
 }
 .debts-m-header{
   flex-shrink:0;
+  margin-top:auto;
   display:flex;
   align-items:center;
   gap:8px;
@@ -2118,6 +2119,8 @@ select.edit-order-inp{
   min-height:0;
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
+  display:flex;
+  flex-direction:column;
   padding:12px;
   /* Chừa chỗ cho thanh nút fixed + safe-area + buffer Safari/Chrome toolbar */
   padding-bottom:16px;
