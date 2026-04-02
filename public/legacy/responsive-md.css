@@ -2061,7 +2061,7 @@ select.edit-order-inp{
   }
 }
 
-/* 100svh = small viewport (UI trình duyệt mở tối đa) → khung modal khớp vùng nhìn thấy; 100dvh/vh hay kéo dài xuống dưới thanh Safari */
+/* inset:0, không height vh/svh — khớp viewport iframe. overflow:visible để footer position:fixed không bị clip (WebKit). */
 .debts-mobile-detail-root{
   position:fixed;
   inset:0;
@@ -2069,17 +2069,9 @@ select.edit-order-inp{
   background:#f3f4f6;
   display:flex;
   flex-direction:column;
-  height:100vh;
-  max-height:100vh;
   min-height:0;
   box-sizing:border-box;
-  overflow:hidden;
-}
-@supports (height:100svh){
-  .debts-mobile-detail-root{
-    height:100svh;
-    max-height:100svh;
-  }
+  overflow:visible;
 }
 .debts-m-header{
   flex-shrink:0;
@@ -2126,7 +2118,7 @@ select.edit-order-inp{
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
   padding:12px;
-  padding-bottom:12px;
+  padding-bottom:max(96px, calc(80px + env(safe-area-inset-bottom, 0px)));
   position:relative;
   z-index:1;
 }
@@ -2347,19 +2339,24 @@ select.edit-order-inp{
   font-size:14px;
   text-align:center;
 }
-/* Footer flex in-flow + padding đáy: safe-area (tai thỏ/home) + thêm ~16px cho thanh tab Safari (thường không nằm trong env) */
+/* Thanh hành động dạng app: fixed bottom + safe-area (không đặt trong ancestor overflow:hidden/transform) */
 .debts-m-footer{
-  flex-shrink:0;
-  position:relative;
-  z-index:10070;
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:10090;
   display:flex;
   gap:10px;
+  box-sizing:border-box;
   padding:14px 12px 12px;
-  padding-bottom:max(20px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+  padding-bottom:max(20px, calc(max(12px, env(safe-area-inset-bottom, 0px)) + 12px));
   background:#fff;
   border-top:1px solid #e5e7eb;
   border-radius:16px 16px 0 0;
-  box-shadow:0 -8px 24px rgba(15,23,42,.1);
+  box-shadow:0 -8px 24px rgba(15,23,42,.12);
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
 }
 .debts-m-btn{
   flex:1;

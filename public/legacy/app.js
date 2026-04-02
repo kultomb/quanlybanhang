@@ -12824,7 +12824,11 @@ class HamobileBanhang {
     
     // Hiển thị chi tiết công nợ khách hàng (đơn hàng + sửa chữa)
     showCustomerDebtDetail(customerId) {
-        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+        const isMobile =
+            typeof window !== 'undefined' &&
+            (window.matchMedia
+                ? window.matchMedia('(max-width: 768px)').matches
+                : window.innerWidth <= 768);
         if (isMobile) {
             return this.showCustomerDebtDetailMobile(customerId);
         }
