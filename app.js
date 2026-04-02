@@ -2006,7 +2006,7 @@ class HamobileBanhang {
                     </div>
                 </div>
                 <div class="quick-actions">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
                         <h2 class="section-title" style="margin:0;">Danh sách Sản phẩm</h2>
                         <button type="button" onclick="app.showAddProductForm()"
                             style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; min-height: 34px;">
