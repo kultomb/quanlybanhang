@@ -36,14 +36,53 @@ function PaymentRequiredContent() {
   }, [paymentRef, shop]);
 
   const checkStatus = useCallback(async (uid: string) => {
-    const snap = await get(ref(rtdb, `users/${uid}`));
-    const profile = (snap.val() || {}) as {
+    let profile: {
       shopSlug?: string;
       paymentStatus?: string;
       paymentRef?: string;
       registrationTrial?: unknown;
       upgradeTargetSlug?: string;
-    };
+    } = {};
+
+    try {
+      const u = auth.currentUser;
+      const token = u ? await u.getIdToken() : "";
+      const res = await fetch("/api/auth/payment-status", {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const j = (await res.json()) as {
+          paid?: boolean;
+          paymentStatus?: string;
+          shopSlug?: string;
+          paymentRef?: string;
+          registrationTrial?: unknown;
+          upgradeTargetSlug?: string;
+        };
+        profile = {
+          shopSlug: j.shopSlug,
+          paymentStatus: j.paymentStatus,
+          paymentRef: j.paymentRef,
+          registrationTrial: j.registrationTrial,
+          upgradeTargetSlug: j.upgradeTargetSlug,
+        };
+      }
+    } catch {
+      /* fallback RTDB client */
+    }
+
+    if (!profile.paymentStatus && !profile.shopSlug) {
+      try {
+        const snap = await get(ref(rtdb, `users/${uid}`));
+        profile = (snap.val() || {}) as typeof profile;
+      } catch {
+        setMessage((m) => m || "Không đọc được trạng thái tài khoản. Thử đăng xuất và đăng nhập lại.");
+        return false;
+      }
+    }
+
     const resolvedShop = String(profile.shopSlug || "");
     const upgradeTarget = String(profile.upgradeTargetSlug || "").trim();
     const paid = profile.paymentStatus === "active";
@@ -122,7 +161,7 @@ function PaymentRequiredContent() {
       const user = auth.currentUser;
       if (!user) return;
       void checkStatus(user.uid);
-    }, 12000);
+    }, 4000);
     return () => window.clearInterval(timer);
   }, [checking, checkStatus]);
 

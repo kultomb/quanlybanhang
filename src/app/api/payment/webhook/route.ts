@@ -39,6 +39,14 @@ function contentHasExactRef(content: string, paymentRef: string) {
   return rx.test(c);
 }
 
+/** Ngân hàng đôi khi bỏ dấu - / khoảng trong nội dung CK — so khớp chuỗi chỉ còn A-Z0-9. */
+function contentHasRefCompact(content: string, paymentRef: string) {
+  const c = normalizeCompact(content);
+  const r = normalizeCompact(paymentRef);
+  if (!c || !r || r.length < 12) return false;
+  return c.includes(r);
+}
+
 function toAmount(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -102,7 +110,8 @@ function findPaymentMatch(
     const matchedByCodeCompact = paymentCodeCompact
       ? paymentCodeCompact === payRefCompact
       : false;
-    const matchedByContent = contentHasExactRef(transferContent, payRef);
+    const matchedByContent =
+      contentHasExactRef(transferContent, payRef) || contentHasRefCompact(transferContent, payRef);
     if (!matchedByCode && !matchedByCodeCompact && !matchedByContent) return;
     if (amount < required) return;
     candidates.push({ uid, matchedRef: payRef });
@@ -118,8 +127,9 @@ export async function POST(request: Request) {
     }
 
     const payload = (await request.json().catch(() => ({}))) as GenericWebhookPayload;
-    const transferType = normalizeText(payload.transferType);
-    if (transferType && transferType !== "IN") {
+    const transferTypeLower = String(payload.transferType || "").trim().toLowerCase();
+    // SePay: transferType "in" = tiền vào; "out" = đi. Rỗng/không rõ vẫn thử khớp (tránh bỏ sót).
+    if (transferTypeLower === "out") {
       return Response.json({ success: true, ignored: true, reason: "not_incoming_transfer" });
     }
 
@@ -187,7 +197,13 @@ export async function POST(request: Request) {
         transferContent,
         status: statusNote,
       });
-      return Response.json({ success: true, matched: false });
+      return Response.json({
+        success: true,
+        matched: false,
+        hint: statusNote,
+        requiredAmount: required,
+        receivedAmount: amount,
+      });
     }
 
     const { uid: matchedUid, matchedRef } = match;
