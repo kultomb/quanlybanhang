@@ -39,13 +39,24 @@ function contentHasExactRef(content: string, paymentRef: string) {
   return rx.test(c);
 }
 
+/** Ngân hàng đôi khi bỏ dấu - / khoảng trong nội dung CK — so khớp chuỗi chỉ còn A-Z0-9. */
+function contentHasRefCompact(content: string, paymentRef: string) {
+  const c = normalizeCompact(content);
+  const r = normalizeCompact(paymentRef);
+  if (!c || !r || r.length < 12) return false;
+  return c.includes(r);
+}
+
 function toAmount(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
 function paymentAmountRequired() {
-  return Number(process.env.NEXT_PUBLIC_PAYMENT_AMOUNT || 299000);
+  const n = Number(
+    process.env.PAYMENT_AMOUNT || process.env.NEXT_PUBLIC_PAYMENT_AMOUNT || 299000,
+  );
+  return Number.isFinite(n) && n > 0 ? n : 299000;
 }
 
 function parseAcceptedApiKeys() {
@@ -102,7 +113,8 @@ function findPaymentMatch(
     const matchedByCodeCompact = paymentCodeCompact
       ? paymentCodeCompact === payRefCompact
       : false;
-    const matchedByContent = contentHasExactRef(transferContent, payRef);
+    const matchedByContent =
+      contentHasExactRef(transferContent, payRef) || contentHasRefCompact(transferContent, payRef);
     if (!matchedByCode && !matchedByCodeCompact && !matchedByContent) return;
     if (amount < required) return;
     candidates.push({ uid, matchedRef: payRef });
@@ -118,8 +130,9 @@ export async function POST(request: Request) {
     }
 
     const payload = (await request.json().catch(() => ({}))) as GenericWebhookPayload;
-    const transferType = normalizeText(payload.transferType);
-    if (transferType && transferType !== "IN") {
+    const transferTypeLower = String(payload.transferType || "").trim().toLowerCase();
+    // SePay: transferType "in" = tiền vào; "out" = đi. Rỗng/không rõ vẫn thử khớp (tránh bỏ sót).
+    if (transferTypeLower === "out") {
       return Response.json({ success: true, ignored: true, reason: "not_incoming_transfer" });
     }
 
@@ -141,8 +154,14 @@ export async function POST(request: Request) {
     const ingestRef = db.ref(`paymentWebhookIngest/${txnId}`);
     const legacyEventRef = db.ref(`paymentEvents/${txnId}`);
     const [ingestSnap, legacySnap] = await Promise.all([ingestRef.get(), legacyEventRef.get()]);
-    if (ingestSnap.exists() || legacySnap.exists()) {
-      return Response.json({ success: true, duplicated: true });
+    // Đã kích hoạt user (có paymentEvents) → idempotent.
+    if (legacySnap.exists()) {
+      return Response.json({ success: true, duplicated: true, reason: "already_credited" });
+    }
+    const priorIngest = ingestSnap.exists() ? (ingestSnap.val() as { outcome?: string }) : null;
+    // Lần trước unmatched vẫn lưu ingest → replay SePay phải được thử khớp lại (200 trùng txnId nhưng chưa active).
+    if (priorIngest?.outcome === "matched") {
+      return Response.json({ success: true, duplicated: true, reason: "already_matched_ingest" });
     }
 
     const required = paymentAmountRequired();
@@ -187,7 +206,13 @@ export async function POST(request: Request) {
         transferContent,
         status: statusNote,
       });
-      return Response.json({ success: true, matched: false });
+      return Response.json({
+        success: true,
+        matched: false,
+        hint: statusNote,
+        requiredAmount: required,
+        receivedAmount: amount,
+      });
     }
 
     const { uid: matchedUid, matchedRef } = match;
