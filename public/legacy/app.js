@@ -6481,9 +6481,72 @@ class HamobileBanhang {
             profit += revenue - cost; // Lợi nhuận = Doanh thu - Giá gốc (luôn trừ cost, kể cả khi cost=0)
         });
         // Trừ giảm giá cấp đơn hàng (bên mục Khách hàng) - giảm giá này làm giảm doanh thu thực tế
-        const orderDiscount = Math.max(0, Number(order.discount) || 0);
+        const orderDiscount = this.getEffectiveOrderLevelDiscount(order);
         // Cho phép âm khi giảm giá đến 0: lỗ = giá gốc hàng (phải trừ vào doanh thu/lợi nhuận)
         return profit - orderDiscount;
+    }
+
+    /** Doanh thu một dòng hàng sau giảm từng món, trước giảm cấp đơn (khớp calcOrderProfit). */
+    getOrderLineNetRevenueItem(item) {
+        const qty = Number(item.quantity) || 0;
+        const beforeDiscount = (Number(item.price) || 0) * qty;
+        const isVnd = (item.discountType || 'vnd') === 'vnd';
+        const discountVal = Number(item.discount) || 0;
+        const discountAmount = isVnd ? Math.min(discountVal, beforeDiscount) : (beforeDiscount * discountVal / 100);
+        return Math.max(0, beforeDiscount - discountAmount);
+    }
+
+    /** Chia giảm giá cấp đơn cho từng dòng theo tỷ lệ doanh thu dòng (làm tròn, dòng cuối hứng phần dư). */
+    allocateOrderDiscountByLineWeights(lineNets, orderDiscount) {
+        const n = lineNets.length;
+        const D = Math.max(0, Number(orderDiscount) || 0);
+        if (n === 0 || D <= 0) return lineNets.map(() => 0);
+        const sumNet = lineNets.reduce((a, b) => a + b, 0);
+        if (sumNet > 0) {
+            const out = [];
+            let used = 0;
+            for (let i = 0; i < n - 1; i++) {
+                const a = Math.floor((D * lineNets[i]) / sumNet);
+                out.push(a);
+                used += a;
+            }
+            out.push(D - used);
+            return out;
+        }
+        const base = Math.floor(D / n);
+        const out = [];
+        let used = 0;
+        for (let i = 0; i < n - 1; i++) {
+            out.push(base);
+            used += base;
+        }
+        out.push(D - used);
+        return out;
+    }
+
+    /**
+     * Giảm giá cấp đơn (VNĐ) để trừ vào doanh thu/lợi nhuận.
+     * Ưu tiên trường `discount`; nếu thiếu: suy từ totalGoods − total hoặc tổng subtotal dòng − total (đơn cũ / đồng bộ).
+     */
+    getEffectiveOrderLevelDiscount(order) {
+        if (!order) return 0;
+        const explicit = Math.max(0, Number(order.discount) || 0);
+        if (explicit > 0) return explicit;
+
+        const total = Number(order.total);
+        if (!Number.isFinite(total) || total < 0) return 0;
+
+        const totalGoods = Number(order.totalGoods);
+        if (Number.isFinite(totalGoods) && totalGoods >= 0) {
+            return Math.max(0, Math.round(totalGoods - total));
+        }
+
+        const sumSub = (order.products || []).reduce((s, p) => s + (Number(p.subtotal) || 0), 0);
+        if (sumSub > 0) {
+            return Math.max(0, Math.round(sumSub - total));
+        }
+
+        return 0;
     }
 
     calcRepairProfit(repair) {
@@ -18033,39 +18096,48 @@ class HamobileBanhang {
         // Sắp xếp đơn hàng trước khi tính toán
         const sortedFilteredOrders = this.sortOrdersByDate(filteredOrders);
         
-        // Tính toán top sản phẩm
+        // Tính toán top sản phẩm (doanh thu = sau giảm từng món + phân bổ giảm cấp đơn — khớp POS / calcOrderProfit)
         const productSales = {};
         sortedFilteredOrders.forEach(order => {
-            // Sử dụng order.products 
+            if (!this.isOrderFinalizedForRevenue(order)) return;
             const orderItems = order.products || [];
-            
-            if (Array.isArray(orderItems)) {
-                orderItems.forEach(item => {
-                    const productId = item.id || item.productId;
-                    if (!productSales[productId]) {
-                        let product = this.demoData.products.find(p => p.id === productId);
-                        if (!product && item.name) {
-                            product = this.demoData.products.find(p => (p.name || '').trim() === (item.name || '').trim());
-                        }
-                        productSales[productId] = {
-                            id: productId,
-                            name: item.name || (product ? product.name : 'N/A'),
-                            price: item.price,
-                            importPrice: product && (product.importPrice != null && product.importPrice !== '') ? Number(product.importPrice) : 0,
-                            sold: 0,
-                            revenue: 0,
-                            cost: 0,
-                            stock: product ? ((product.hasImei && product.imeis) ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0)) : 0
-                        };
-                    }
-                    const quantity = item.quantity || 1;
-                    const price = item.price || 0;
-                    const importPrice = productSales[productId].importPrice || 0;
-                    productSales[productId].sold += quantity;
-                    productSales[productId].revenue += quantity * price;
-                    productSales[productId].cost += quantity * importPrice;
-                });
-            }
+            if (!Array.isArray(orderItems) || orderItems.length === 0) return;
+
+            const lineNets = orderItems.map(it => this.getOrderLineNetRevenueItem(it));
+            const orderDiscountAlloc = this.allocateOrderDiscountByLineWeights(lineNets, this.getEffectiveOrderLevelDiscount(order));
+
+            orderItems.forEach((item, idx) => {
+                const productId = item.id || item.productId;
+                let product = this.demoData.products.find(p => p.id === productId);
+                if (!product && item.name) {
+                    product = this.demoData.products.find(p => (p.name || '').trim() === (item.name || '').trim());
+                }
+                const key = product ? product.id : productId;
+                if (key == null && !item.name) return;
+
+                if (!productSales[key]) {
+                    productSales[key] = {
+                        id: key,
+                        name: item.name || (product ? product.name : 'N/A'),
+                        price: item.price,
+                        importPrice: product && (product.importPrice != null && product.importPrice !== '') ? Number(product.importPrice) : 0,
+                        sold: 0,
+                        revenue: 0,
+                        cost: 0,
+                        stock: product ? ((product.hasImei && product.imeis) ? (product.stock != null ? product.stock : product.imeis.length) : (product.stock || 0)) : 0
+                    };
+                }
+                const quantity = item.quantity || 1;
+                const lineNet = lineNets[idx];
+                const alloc = orderDiscountAlloc[idx] || 0;
+                const actualRevenue = Math.max(0, lineNet - alloc);
+                const importPrice =
+                    product && (product.importPrice != null && product.importPrice !== '') ? Number(product.importPrice) : 0;
+
+                productSales[key].sold += quantity;
+                productSales[key].revenue += actualRevenue;
+                productSales[key].cost += quantity * importPrice;
+            });
         });
 
         const topProducts = Object.values(productSales)
