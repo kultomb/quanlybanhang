@@ -2114,13 +2114,12 @@ select.edit-order-inp{
   flex-shrink:0;
 }
 .debts-m-scroll{
-  flex:1;
-  min-height:100vh;
-  min-height:100dvh;
+  flex:1 1 0;
+  min-height:0;
   overflow-y:auto;
+  overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
-  display:flex;
-  flex-direction:column;
+  overscroll-behavior-y:contain;
   padding:12px;
   padding-bottom:16px;
   position:relative;
@@ -2343,13 +2342,12 @@ select.edit-order-inp{
   font-size:14px;
   text-align:center;
 }
-/* Thanh hành động dạng app: fixed bottom + safe-area (không đặt trong ancestor overflow:hidden/transform) */
+/* Thanh hành động: sibling của vùng cuộn trong cột flex — luôn nằm trong viewport, không cuộn theo nội dung */
 .debts-m-footer{
   z-index:10;
   flex-shrink:0;
   display:flex;
   gap:10px;
-  margin-top:auto;
   box-sizing:border-box;
   padding:12px;
   padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 12px);
