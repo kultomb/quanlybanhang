@@ -11,8 +11,12 @@ export default function ShopPosClient({ pathShopFromUrl }: { pathShopFromUrl: st
         <main
           style={{
             position: "relative",
-            width: "100vw",
-            height: "100vh",
+            width: "100%",
+            maxWidth: "100%",
+            /* 100vh trên mobile (Safari/Chrome) thường cao hơn màn hình thật → iframe legacy lệch; dvh bám viewport động */
+            height: "100dvh",
+            minHeight: "100dvh",
+            maxHeight: "100dvh",
             margin: 0,
             overflow: "hidden",
           }}
