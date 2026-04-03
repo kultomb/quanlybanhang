@@ -6984,19 +6984,12 @@ class HamobileBanhang {
                                 Trạng thái: <span id="backup-status">${autoBackupEnabled ? (backupInterval === '0' ? '🟢 Ngay khi thay đổi' : '🟢 Đang hoạt động') : '🔴 Tắt'}</span><br>
                                 Lần cuối: <span id="backup-last-time">${lastBackupStr}</span>
                             </div>
-                            <p style="font-size: 12px; color: #047857; margin-top: 12px; line-height: 1.45;">
-                                <strong>Bản lịch sử trên đám mây:</strong> mỗi lần chạy (vd. 15 phút) ghi thêm một file riêng tại
-                                <code style="font-size:11px;">backups/&lt;khóa&gt;/snapshots/&lt;mốc thời gian&gt;.json</code>
-                                — <strong>không ghi đè</strong> lên nhau; giữ tối đa ${window.FirebaseStorage.MAX_ROLLING_SNAPSHOTS} bản gần nhất.
-                                File <code>app.json</code> vẫn là bản làm việc (đồng bộ thường xuyên).
-                            </p>
                         </div>
                         
                         <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid #e5e7eb;">
                             <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
                                 <span>💾</span> Sao lưu thủ công
                             </h3>
-                            <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">Chọn "Ngay khi có thay đổi" để sao lưu lên đám mây mỗi thao tác. Dữ liệu trên đám mây <strong>không mất</strong> khi ẩn danh / xóa cache / đổi máy.</p>
                             <button onclick="app.manualBackup()" 
                                     style="width: 100%; background: var(--success-gradient); color: white; padding: 12px; 
                                            border: none; border-radius: 8px; cursor: pointer; margin-bottom: 12px; font-weight: 600;">
