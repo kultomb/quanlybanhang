@@ -2123,7 +2123,7 @@ class HamobileBanhang {
 
         return `
             <div class="fade-in products-page-compact">
-                <div class="stats-grid products-stats">
+                <div class="stats-grid products-stats" style="display: ${typeof window !== 'undefined' && window.innerWidth <= 768 ? 'none' : 'grid'};">
                     <div class="stat-card products">
                         <div class="stat-header">
                             <span class="stat-title">Tổng sản phẩm</span>
