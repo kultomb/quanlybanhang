@@ -2146,9 +2146,7 @@ class HamobileBanhang {
                     </div>
                 </div>
                 <div class="quick-actions">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                        <h2 class="section-title" style="margin:0;">Danh sách Sản phẩm</h2>
-                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"></div>
                     <div class="action-grid products-actions products-actions-desktop" style="grid-template-columns: repeat(3, 1fr);">
                         <div class="action-button" onclick="app.showAddProductForm()">
                             <div class="action-icon">📦➕</div>
@@ -2169,7 +2167,7 @@ class HamobileBanhang {
                     </div>
                     <div class="products-filters-row" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
-                            <input type="text" id="products-search-input" value="${(this.productsSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setProductsSearch(this.value)" placeholder="Theo tên hàng..." style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
+                            <input type="text" id="products-search-input" value="${(this.productsSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setProductsSearch(this.value)" placeholder="Theo tên hàng, IMEI, mã SP" style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                         </div>
                         <select id="products-category-filter" onchange="app.setProductsCategoryFilter(this.value)" style="min-width: 180px; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white; cursor: pointer;">
                             ${this.getProductsCategoryFilterOptions()}
