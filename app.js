@@ -2003,7 +2003,7 @@ class HamobileBanhang {
 
         return `
             <div class="fade-in products-page-compact">
-                <div class="stats-grid products-stats">
+                <div class="stats-grid products-stats" style="display: ${typeof window !== 'undefined' && window.innerWidth <= 768 ? 'none' : 'grid'};">
                     <div class="stat-card products">
                         <div class="stat-header">
                             <span class="stat-title">Tổng sản phẩm</span>
@@ -2026,13 +2026,7 @@ class HamobileBanhang {
                     </div>
                 </div>
                 <div class="quick-actions">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-                        <h2 class="section-title" style="margin:0;">Danh sách Sản phẩm</h2>
-                        <button type="button" onclick="app.showAddProductForm()"
-                            style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 13px; line-height: 1; display: ${isMobile ? 'inline-flex' : 'none'}; align-items: center; justify-content: center; white-space: nowrap; min-height: 34px;">
-                            Thêm sản phẩm
-                        </button>
-                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"></div>
                     <div class="action-grid products-actions products-actions-desktop" style="grid-template-columns: repeat(3, 1fr);">
                         <div class="action-button" onclick="app.showAddProductForm()">
                             <div class="action-icon">📦➕</div>
@@ -2053,7 +2047,7 @@ class HamobileBanhang {
                     </div>
                     <div class="products-filters-row" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
-                            <input type="text" id="products-search-input" value="${(this.productsSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setProductsSearch(this.value)" placeholder="Theo tên hàng..." style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
+                            <input type="text" id="products-search-input" value="${(this.productsSearchQuery || '').replace(/"/g, '&quot;')}" oninput="app.setProductsSearch(this.value)" placeholder="Theo tên hàng, IMEI, mã SP" style="width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" autocomplete="off">
                         </div>
                         <select id="products-category-filter" onchange="app.setProductsCategoryFilter(this.value)" style="min-width: 180px; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white; cursor: pointer;">
                             ${this.getProductsCategoryFilterOptions()}
@@ -2109,7 +2103,7 @@ class HamobileBanhang {
     getProductsMobileListHtml(filtered) {
         if (!filtered || filtered.length === 0) {
             if (!(this.demoData.products && this.demoData.products.length)) {
-                return '<div class="products-mobile-empty" style="text-align:center;padding:20px;"><div style="font-weight:600;color:#374151;margin-bottom:8px;">Chưa có sản phẩm</div><div style="font-size:14px;color:#6b7280;margin-bottom:14px;">Thêm sản phẩm đầu tiên hoặc nhập từ Excel.</div><button type="button" onclick="app.showAddProductForm()" style="background:var(--primary-green);color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:600;">+ Thêm sản phẩm</button></div>';
+                return '<div class="products-mobile-empty" style="text-align:center;padding:20px;"><div style="font-weight:600;color:#374151;margin-bottom:8px;">Chưa có sản phẩm</div><div style="font-size:14px;color:#6b7280;margin-bottom:14px;">Thêm sản phẩm đầu tiên hoặc nhập từ Excel.</div></div>';
             }
             return '<div class="products-mobile-empty">Không có sản phẩm phù hợp tìm kiếm hoặc bộ lọc.</div>';
         }
@@ -2166,7 +2160,7 @@ class HamobileBanhang {
     getProductTableRowsHtml(filtered) {
         if (!filtered || filtered.length === 0) {
             if (!(this.demoData.products && this.demoData.products.length)) {
-                return '<tr><td colspan="8" style="padding: 32px; text-align: center; color: #6b7280;"><div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 8px;">Chưa có sản phẩm</div><div style="font-size: 14px;">Thêm sản phẩm đầu tiên hoặc nhập từ Excel.</div><div style="margin-top: 14px;"><button type="button" onclick="app.showAddProductForm()" style="background: var(--primary-green); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600;">+ Thêm sản phẩm</button></div></td></tr>';
+                return '<tr><td colspan="8" style="padding: 32px; text-align: center; color: #6b7280;"><div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 8px;">Chưa có sản phẩm</div><div style="font-size: 14px;">Thêm sản phẩm đầu tiên hoặc nhập từ Excel.</div></td></tr>';
             }
             return '<tr><td colspan="8" style="padding: 24px; text-align: center; color: #6b7280;">Không có sản phẩm phù hợp tìm kiếm hoặc bộ lọc.</td></tr>';
         }
@@ -3147,7 +3141,6 @@ class HamobileBanhang {
                         <div class="pos-products-header" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; flex-shrink: 0;">
                             <div style="font-weight: 700; font-size: 16px; color: #1f2937;">📦 Hàng hóa</div>
                             <input type="text" id="pos-product-search-mobile" class="pos-mobile-search-input" placeholder="Tên, mã hàng, mã vạch..." oninput="app.syncPosSearch(this.value)" style="display: none;">
-                            <button type="button" class="pos-mobile-btn-add" onclick="location.href='#products'" title="Thêm hàng hóa" style="display: none;">+</button>
                         </div>
                         <div id="pos-product-list" class="pos-product-list-inner" style="flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;">${productPlaceholder}</div>
                     </div>
