@@ -1969,6 +1969,7 @@ class HamobileBanhang {
         if (this.productsPage === undefined) this.productsPage = 1;
         if (this.productsPerPage === undefined) this.productsPerPage = 50;
         if (!Array.isArray(this.demoData.products)) this.demoData.products = [];
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const q = (this.productsSearchQuery || '').trim().toLowerCase();
         const catFilter = (this.productsCategoryFilter || '').trim();
         let filtered = this.demoData.products;
@@ -2028,7 +2029,7 @@ class HamobileBanhang {
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
                         <h2 class="section-title" style="margin:0;">Danh sách Sản phẩm</h2>
                         <button type="button" onclick="app.showAddProductForm()"
-                            style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; min-height: 34px;">
+                            style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 13px; line-height: 1; display: ${isMobile ? 'inline-flex' : 'none'}; align-items: center; justify-content: center; white-space: nowrap; min-height: 34px;">
                             Thêm sản phẩm
                         </button>
                     </div>
