@@ -1728,6 +1728,11 @@ class HamobileBanhang {
             // FAB mobile removed; no DOM reparenting needed.
         }, 500);
         }
+
+    // FAB mobile đã bỏ; giữ hàm no-op để tương thích các call cũ.
+    ensureProductsFabMobile() {
+        return;
+    }
     
     getPageTitles(pageName) {
         const titles = {
