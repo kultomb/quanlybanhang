@@ -53,7 +53,10 @@ function toAmount(v: unknown) {
 }
 
 function paymentAmountRequired() {
-  return Number(process.env.NEXT_PUBLIC_PAYMENT_AMOUNT || 299000);
+  const n = Number(
+    process.env.PAYMENT_AMOUNT || process.env.NEXT_PUBLIC_PAYMENT_AMOUNT || 299000,
+  );
+  return Number.isFinite(n) && n > 0 ? n : 299000;
 }
 
 function parseAcceptedApiKeys() {
@@ -151,8 +154,14 @@ export async function POST(request: Request) {
     const ingestRef = db.ref(`paymentWebhookIngest/${txnId}`);
     const legacyEventRef = db.ref(`paymentEvents/${txnId}`);
     const [ingestSnap, legacySnap] = await Promise.all([ingestRef.get(), legacyEventRef.get()]);
-    if (ingestSnap.exists() || legacySnap.exists()) {
-      return Response.json({ success: true, duplicated: true });
+    // Đã kích hoạt user (có paymentEvents) → idempotent.
+    if (legacySnap.exists()) {
+      return Response.json({ success: true, duplicated: true, reason: "already_credited" });
+    }
+    const priorIngest = ingestSnap.exists() ? (ingestSnap.val() as { outcome?: string }) : null;
+    // Lần trước unmatched vẫn lưu ingest → replay SePay phải được thử khớp lại (200 trùng txnId nhưng chưa active).
+    if (priorIngest?.outcome === "matched") {
+      return Response.json({ success: true, duplicated: true, reason: "already_matched_ingest" });
     }
 
     const required = paymentAmountRequired();
