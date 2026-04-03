@@ -14,7 +14,7 @@
  *   `trial_backup_required`, `production_backup_required`.
  * - 400 JSON: `missing_write_version` nếu PUT `app` thiếu `meta.clientBaseWriteVersion` (số hợp lệ).
  * - 403 JSON: `delete_forbidden` — DELETE chỉ whitelist `…/snapshots/{timestamp}`.
- * - 409 JSON: `demo_seed_forbidden`, `stale_data` (`meta.clientBaseWriteVersion` bắt buộc và phải khớp `meta.writeVersion` trên server).
+ * - 409 JSON: `demo_seed_forbidden`; nếu transaction RTDB hủy thì trả `transaction_aborted`.
  *
  * Khác ví dụ Firestore (doc users/{uid} với field products[]): đây là RTDB + một file JSON backup; hành vi đúng
  * vẫn là: chỉ seed demo khi cloud thật sự trống và user xác nhận (xem initAsync trong app.js).
@@ -287,25 +287,18 @@ async function proxy(
         working = stripDemoSeedFlagFromPayload(working) as Record<string, unknown>;
       }
 
-      let rejectCode: "stale_data" | "demo_seed_forbidden" | null = null;
+      let rejectCode: "demo_seed_forbidden" | null = null;
       let rejectServerWriteVersion = 0;
       const tx = await dbRef.transaction((current) => {
         const srvNorm = normalizePosBackupJsonForGet(current) as { meta?: Record<string, unknown> };
-        const srvWrite =
-          typeof srvNorm?.meta?.writeVersion === "number" && Number.isFinite(srvNorm.meta.writeVersion)
-            ? srvNorm.meta.writeVersion
-            : 0;
-        rejectServerWriteVersion = srvWrite;
+        const srvWrite = Number(srvNorm?.meta?.writeVersion);
+        const safeSrvWrite = Number.isFinite(srvWrite) ? srvWrite : 0;
+        rejectServerWriteVersion = safeSrvWrite;
 
         if (isDemoSeed && shouldRejectDemoSeedOverwrite(current)) {
           rejectCode = "demo_seed_forbidden";
           return;
         }
-        if (clientBase !== srvWrite) {
-          rejectCode = "stale_data";
-          return;
-        }
-
         const merged = JSON.parse(JSON.stringify(working)) as Record<string, unknown>;
         const existingMeta =
           srvNorm.meta && typeof srvNorm.meta === "object" && !Array.isArray(srvNorm.meta)
@@ -317,7 +310,7 @@ async function proxy(
             : {};
         delete incomingMeta.clientBaseWriteVersion;
         delete incomingMeta.isDemoSeed;
-        incomingMeta.writeVersion = srvWrite + 1;
+        incomingMeta.writeVersion = safeSrvWrite + 1;
         incomingMeta.updatedAt = Date.now();
         merged.meta = { ...existingMeta, ...incomingMeta };
         return merged;
@@ -337,18 +330,15 @@ async function proxy(
             "Từ chối ghi dữ liệu mẫu: shop đã có dữ liệu thật (đơn hàng hoặc đã khởi tạo trên đám mây).",
           );
         }
-        logRtdb("STALE_WRITE_REJECTED", {
+        logRtdb("WRITE_ABORTED", {
           uid: decoded.uid,
           shop: allowedShopKey,
           path: targetPath,
+          reason: "transaction_not_committed",
           clientBaseWriteVersion: clientBase,
           serverWriteVersion: rejectServerWriteVersion,
         });
-        return jsonError(
-          409,
-          "stale_data",
-          "Dữ liệu trên server đã thay đổi (có thể do tab khác đang mở). Hãy tải lại trang để đồng bộ trước khi lưu.",
-        );
+        return jsonError(409, "transaction_aborted", "Giao dịch không hoàn tất. Vui lòng thử lại.");
       }
 
       valueToSet = tx.snapshot?.val() ?? null;
