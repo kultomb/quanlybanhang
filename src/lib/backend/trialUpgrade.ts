@@ -16,7 +16,7 @@ export async function liftLegacyTrialBackupToTrialBackups(db: Database, shopKey:
 }
 
 /**
- * Copy toàn bộ cây POS (app.json, snapshots/…) từ trial_backups → backups, tạo shops/{toSlug}, xóa trialShops/{fromSlug}.
+ * Copy toàn bộ cây POS (app.json, snapshots/…) từ trial_backups → backups, tạo shops/{toSlug}, trialShops/{fromSlug} → stub upgradedTo (không xóa — tránh 404 URL cũ).
  * Đọc kho trial (getShopPaths(from, true).backup) trước; nếu không có (dữ liệu cũ) fallback kho pro cùng slug.
  */
 export async function migrateTrialShopToProduction(
@@ -44,7 +44,15 @@ export async function migrateTrialShopToProduction(
   await db.ref(trialRoot).remove().catch(() => undefined);
   await db.ref(legacyRoot).remove().catch(() => undefined);
 
-  await db.ref(getShopPaths(fromSlug, true).shop).remove().catch(() => undefined);
+  /**
+   * Giữ bản ghi trialShops/{fromSlug} (stub) thay vì xóa hẳn — để /[fromSlug] không 404 sau khi nâng cấp.
+   * Người đăng nhập vào link cũ vẫn được redirectIfShopUrlMismatch → slug chính thức.
+   */
+  await db.ref(getShopPaths(fromSlug, true).shop).set({
+    slug: fromSlug,
+    upgradedTo: toSlug,
+    upgradedAt: admin.database.ServerValue.TIMESTAMP,
+  });
   await db.ref(getShopPaths(toSlug, false).shop).set({
     slug: toSlug,
     ownerUid: uid,

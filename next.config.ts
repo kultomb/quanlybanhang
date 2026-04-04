@@ -5,6 +5,23 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  /**
+   * `next dev` + tunnel (ngrok, cloudflared, …): HMR WebSocket gửi Origin là host tunnel.
+   * Không khai báo → console lỗi web-socket.js / treo tải dev. Wildcard theo CSRF helper của Next.
+   * Thêm host cố định: NEXT_DEV_EXTRA_ORIGINS=host1.example.com,host2.example.com
+   */
+  allowedDevOrigins: [
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+    "*.ngrok.app",
+    "*.ngrok-free.dev",
+    "*.trycloudflare.com",
+    "*.loca.lt",
+    ...(process.env.NEXT_DEV_EXTRA_ORIGINS || "")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  ],
   experimental: {
     optimizePackageImports: ["firebase/app", "firebase/auth", "firebase/firestore", "firebase/database"],
   },

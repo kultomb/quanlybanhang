@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Montserrat } from "next/font/google";
 import { ConfirmDialogProvider } from "@/components/confirm-dialog";
+import TrialBannerOutlet from "@/components/TrialBannerOutlet";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -29,8 +30,29 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className={montserrat.variable}>
-      <body>
-        <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+      <body
+        style={{
+          margin: 0,
+          minHeight: "100dvh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <ConfirmDialogProvider>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            <TrialBannerOutlet />
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              {children}
+            </div>
+          </div>
+        </ConfirmDialogProvider>
       </body>
     </html>
   );

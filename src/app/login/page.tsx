@@ -95,13 +95,19 @@ function LoginContent() {
 
   useEffect(() => {
     let active = true;
-    void auth
-      .authStateReady()
-      .catch(() => undefined)
-      .finally(() => {
+    /** Tunnel (ngrok) / mạng chặn có thể làm authStateReady() không bao giờ resolve — không kẹt spinner vô hạn. */
+    const capMs = 8000;
+    void (async () => {
+      try {
+        await Promise.race([
+          auth.authStateReady().catch(() => undefined),
+          new Promise<void>((r) => setTimeout(r, capMs)),
+        ]);
+      } finally {
         if (!active) return;
         if (!auth.currentUser) setAuthBootstrapping(false);
-      });
+      }
+    })();
     return () => {
       active = false;
     };
@@ -109,29 +115,45 @@ function LoginContent() {
 
   useEffect(() => {
     let forcingLogout = false;
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user || submittingRef.current) {
-        if (!user) setAuthBootstrapping(false);
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (submittingRef.current) return;
+      if (!user) {
+        setAuthBootstrapping(false);
         return;
       }
       setAuthBootstrapping(true);
-      const profile = await resolveUserProfile(user.uid);
-      if (!hasValidShopSlug(profile.shopSlug)) {
-        if (forcingLogout) return;
-        forcingLogout = true;
-        await forceLogoutMissingShop();
-        return;
-      }
-      syncTrialUiSessionFlag({
-        shopSlug: profile.shopSlug,
-        registrationTrial: profile.registrationTrial,
-      });
-      if (!paymentAllowsAppAccess(profile.paymentStatus)) {
-        router.replace(toPaymentRequiredPath(profile.shopSlug));
-        return;
-      }
-      if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
-      else router.replace("/account");
+      /** signOut / redirect có thể treo qua ngrok — luôn tắt spinner sau tối đa ~20s. */
+      const safetyMs = 20000;
+      const safetyId = window.setTimeout(() => setAuthBootstrapping(false), safetyMs);
+      void (async () => {
+        try {
+          const profile = await resolveUserProfile(user.uid);
+          if (!hasValidShopSlug(profile.shopSlug)) {
+            if (forcingLogout) return;
+            forcingLogout = true;
+            await Promise.race([
+              forceLogoutMissingShop(),
+              new Promise<void>((r) => setTimeout(r, 12000)),
+            ]);
+            return;
+          }
+          syncTrialUiSessionFlag({
+            shopSlug: profile.shopSlug,
+            registrationTrial: profile.registrationTrial,
+          });
+          if (!paymentAllowsAppAccess(profile.paymentStatus)) {
+            router.replace(toPaymentRequiredPath(profile.shopSlug));
+            return;
+          }
+          if (profile.shopSlug) router.replace(shopAppPath(profile.shopSlug, profile.registrationTrial));
+          else router.replace("/account");
+        } catch {
+          // Mạng / tunnel: cho phép đăng nhập lại tay
+        } finally {
+          window.clearTimeout(safetyId);
+          window.setTimeout(() => setAuthBootstrapping(false), 250);
+        }
+      })();
     });
     return () => unsub();
   }, [router]);

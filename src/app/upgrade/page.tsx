@@ -2,31 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { auth, rtdb } from "@/lib/backend/client";
 import RequireAuth from "@/components/RequireAuth";
 import { postSessionCookieWithRetries } from "@/lib/client-auth";
-import {
-  getTrialShopPrefix,
-  isEffectiveTrialAccount,
-  productionSlugFromTrialSlug,
-} from "@/lib/trial-shop";
+import { isEffectiveTrialAccount } from "@/lib/trial-shop";
 
 function UpgradeForm() {
   const router = useRouter();
-  const trialPrefix = getTrialShopPrefix();
-  const [customSlug, setCustomSlug] = useState("");
-  const [useCustomName, setUseCustomName] = useState(false);
   const [currentShop, setCurrentShop] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const suggestedSlug = useMemo(
-    () => (currentShop ? productionSlugFromTrialSlug(currentShop, trialPrefix) : ""),
-    [currentShop, trialPrefix],
-  );
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -51,7 +39,7 @@ function UpgradeForm() {
             router.replace("/");
             return;
           }
-          if (!isEffectiveTrialAccount(reg, slug, trialPrefix)) {
+          if (!isEffectiveTrialAccount(reg, slug)) {
             router.replace(`/${slug}`);
             return;
           }
@@ -62,15 +50,11 @@ function UpgradeForm() {
         .catch(() => undefined);
     });
     return () => unsub();
-  }, [router, trialPrefix]);
+  }, [router]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
-    if (useCustomName && !customSlug.trim()) {
-      setError("Vui lòng nhập tên shop chính thức.");
-      return;
-    }
     setLoading(true);
     try {
       const user = auth.currentUser;
@@ -79,27 +63,22 @@ function UpgradeForm() {
         return;
       }
       const idToken = await user.getIdToken();
-      const targetSlug =
-        useCustomName && customSlug.trim() ? customSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "") : "";
       const res = await fetch("/api/upgrade/prepare", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ idToken, targetSlug }),
+        body: JSON.stringify({ idToken }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
         if (data.error === "slug_taken") {
-          setError("Tên shop sau nâng cấp đã có người dùng. Bật “Đặt tên khác” và chọn tên khác.");
-          setUseCustomName(true);
+          setError(
+            "Tên shop sau khi bỏ tiền tố dùng thử đã có người dùng. Vui lòng liên hệ hỗ trợ hoặc đăng ký tài khoản mới với tên shop khác.",
+          );
         } else if (data.error === "slug_too_short_after_strip") {
           setError(
-            `Sau khi bỏ “${trialPrefix}-”, tên còn lại ngắn hơn 3 ký tự. Hãy bật “Đặt tên khác” và nhập tên shop chính thức.`,
+            "Sau khi bỏ tiền tố dùng thử, tên shop còn quá ngắn (cần 3–30 ký tự). Vui lòng đăng ký tài khoản mới với tên shop đủ dài.",
           );
-          setUseCustomName(true);
-        } else if (data.error === "no_trial_prefix")
-          setError(`Tên shop chính thức không được bắt đầu bằng “${trialPrefix}-”.`);
-        else if (data.error === "invalid_slug") setError("Tên chỉ gồm chữ thường, số, dấu gạch; 3–30 ký tự.");
-        else if (data.error === "not_trial") setError("Chỉ tài khoản dùng thử mới nâng cấp tại đây.");
+        } else if (data.error === "not_trial") setError("Chỉ tài khoản dùng thử mới nâng cấp tại đây.");
         else setError("Không tạo được yêu cầu nâng cấp. Thử lại sau.");
         return;
       }
@@ -143,54 +122,9 @@ function UpgradeForm() {
           Nâng cấp lên bản chính thức
         </h1>
         <p style={{ margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.55 }}>
-          Giữ nguyên <strong>email và mật khẩu</strong>. Sau khi chuyển khoản, hệ thống bỏ tiền tố thử trên tên
-          shop và copy dữ liệu POS sang tên mới — giống cách nhiều dịch vụ vẫn làm.
+          Giữ nguyên email và mật khẩu. Sau khi chuyển khoản, hệ thống copy dữ liệu POS sang địa chỉ chính thức
+          tương ứng.
         </p>
-        {currentShop ? (
-          <div
-            style={{
-              padding: "12px 14px",
-              background: "#f0fdf4",
-              border: "1px solid #bbf7d0",
-              borderRadius: 10,
-              fontSize: 14,
-              color: "#14532d",
-            }}
-          >
-            <div>
-              Shop thử: <strong>{currentShop}</strong>
-            </div>
-            <div style={{ marginTop: 6 }}>
-              → Shop chính thức (mặc định): <strong>{suggestedSlug || "…"}</strong>
-            </div>
-          </div>
-        ) : null}
-
-        <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", fontSize: 14 }}>
-          <input
-            type="checkbox"
-            checked={useCustomName}
-            onChange={(e) => setUseCustomName(e.target.checked)}
-          />
-          <span>Đặt tên shop chính thức khác (không dùng mặc định bỏ “{trialPrefix}-”)</span>
-        </label>
-
-        {useCustomName ? (
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Tên shop chính thức</span>
-            <input
-              value={customSlug}
-              onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-              placeholder=""
-              style={{
-                border: "1px solid #a7f3d0",
-                borderRadius: 10,
-                padding: "11px 12px",
-                fontSize: 14,
-              }}
-            />
-          </label>
-        ) : null}
 
         {error ? (
           <div

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { auth } from "@/lib/backend/client";
 import AccountBar from "@/components/AccountBar";
-import TrialModeBanner from "@/components/TrialModeBanner";
 import { confirmDialog } from "@/components/confirm-dialog";
 import type { ConfirmDialogOptions } from "@/components/confirm-dialog";
 
@@ -106,7 +105,6 @@ export default function ShopLegacyFrame({ shop }: ShopLegacyFrameProps) {
         overflow: "hidden",
       }}
     >
-      <TrialModeBanner shopSlug={shop} />
       <iframe
         ref={iframeRef}
         src={src}

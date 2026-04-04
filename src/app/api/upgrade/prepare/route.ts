@@ -23,9 +23,8 @@ function createUpgradePaymentRef(targetSlug: string) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { idToken?: string; targetSlug?: string };
+    const body = (await request.json()) as { idToken?: string };
     const idToken = String(body?.idToken || "").trim();
-    const targetRaw = String(body?.targetSlug ?? "").trim();
 
     if (!idToken) {
       return Response.json({ error: "missing_token" }, { status: 400 });
@@ -44,16 +43,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "not_trial" }, { status: 403 });
     }
 
-    const targetSlug = targetRaw
-      ? normalizeShopSlug(targetRaw)
-      : normalizeShopSlug(productionSlugFromTrialSlug(fromSlug, p));
+    const targetSlug = normalizeShopSlug(productionSlugFromTrialSlug(fromSlug, p));
     if (!/^[a-z0-9-]{3,30}$/.test(targetSlug)) {
-      return Response.json(
-        {
-          error: targetRaw ? "invalid_slug" : "slug_too_short_after_strip",
-        },
-        { status: 400 },
-      );
+      return Response.json({ error: "slug_too_short_after_strip" }, { status: 400 });
     }
     if (targetSlug.startsWith(`${p}-`)) {
       return Response.json({ error: "no_trial_prefix" }, { status: 400 });

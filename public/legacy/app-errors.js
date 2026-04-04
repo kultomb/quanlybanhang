@@ -21,6 +21,16 @@
         demo_seed_forbidden: 'Không thể tạo dữ liệu mẫu vì cửa hàng đã có dữ liệu.',
         network_error: 'Kết nối không ổn định. Vui lòng kiểm tra mạng.',
         unknown_error: 'Có lỗi xảy ra. Vui lòng thử lại.',
+        trial_expired:
+            'Thời gian dùng thử đã hết. Bạn không thể tải hoặc lưu dữ liệu bán hàng cho đến khi nâng cấp và thanh toán theo hướng dẫn. Bấm «Nâng cấp ngay» để nhận thông tin chuyển khoản.',
+        trial_slug_mismatch:
+            'Tài khoản dùng thử và địa chỉ cửa hàng trên trình duyệt hiện không khớp. Hãy đăng xuất rồi đăng nhập lại, hoặc mở đúng link cửa hàng mà hệ thống đã cấp.',
+        production_trial_prefix_forbidden:
+            'Tên cửa hàng không phù hợp với trạng thái tài khoản (đã kích hoạt). Vui lòng liên hệ hỗ trợ nếu bạn cần chỉnh sửa.',
+        trial_backup_required:
+            'Dữ liệu cửa hàng dùng thử phải nằm trong kho dùng thử. Vui lòng tải lại trang hoặc đăng nhập lại.',
+        production_backup_required:
+            'Dữ liệu cửa hàng đã kích hoạt phải nằm trong kho chính. Vui lòng tải lại trang hoặc đăng nhập lại.',
     };
 
     /** Backend / internal codes → canonical user-facing code */
@@ -255,9 +265,16 @@
         else if (status === 400) {
             if (serverError === 'missing_write_version') code = 'missing_write_version';
             else code = 'unknown_error';
-        } else if (status === 403) {
+        }         else if (status === 403) {
             if (serverError === 'missing_shop_slug') code = 'missing_shop_context';
             else if (serverError === 'delete_forbidden') code = 'unknown_error';
+            else if (serverError === 'trial_expired') code = 'trial_expired';
+            else if (serverError === 'trial_slug_mismatch') code = 'trial_slug_mismatch';
+            else if (serverError === 'production_trial_prefix_forbidden')
+                code = 'production_trial_prefix_forbidden';
+            else if (serverError === 'trial_backup_required') code = 'trial_backup_required';
+            else if (serverError === 'production_backup_required')
+                code = 'production_backup_required';
             else code = 'unknown_error';
         } else if (status === 409) {
             if (serverError === 'stale_data') code = 'stale_data';
@@ -453,28 +470,79 @@
         var code = (le && le.code) || 'unknown_error';
         var dbg = (le && le.debug) || {};
         var needLogin = code === 'unauthorized' || code === 'missing_shop_context';
-        handleAppError(code, dbg, {
-            skipLog: true,
-            silent: false,
-            ui: 'fullscreen',
-            container: container,
-            title: opts.title || 'Không tải được dữ liệu',
-            primaryLabel: opts.primaryLabel || 'Thử lại',
-            onPrimary: opts.onPrimary,
-            secondaryLabel:
+        var trialEnded = code === 'trial_expired';
+        var slugMismatch =
+            code === 'trial_slug_mismatch' || code === 'production_trial_prefix_forbidden';
+        var backupMismatch =
+            code === 'trial_backup_required' || code === 'production_backup_required';
+
+        var defaultTitle = 'Không tải được dữ liệu';
+        if (trialEnded) defaultTitle = 'Hết hạn dùng thử';
+        else if (slugMismatch) defaultTitle = 'Cửa hàng và tài khoản chưa khớp';
+        else if (backupMismatch) defaultTitle = 'Không truy cập được kho dữ liệu';
+
+        var primaryLabel;
+        var onPrimary;
+        var secondaryLabel;
+        var onSecondary;
+
+        if (trialEnded) {
+            primaryLabel = 'Nâng cấp ngay';
+            onPrimary = function () {
+                var t = window.top || window;
+                try {
+                    t.location.href = t.location.origin + '/upgrade';
+                } catch (e) {
+                    window.location.href = '/upgrade';
+                }
+            };
+            secondaryLabel = 'Về trang chủ';
+            onSecondary = function () {
+                var t = window.top || window;
+                try {
+                    t.location.href = t.location.origin + '/';
+                } catch (e) {
+                    window.location.href = '/';
+                }
+            };
+        } else if (slugMismatch || backupMismatch) {
+            primaryLabel = 'Đăng nhập lại';
+            onPrimary = function () {
+                window.location.href = '/login';
+            };
+            secondaryLabel = 'Thử lại';
+            onSecondary = function () {
+                window.location.reload();
+            };
+        } else {
+            primaryLabel = opts.primaryLabel !== undefined ? opts.primaryLabel : 'Thử lại';
+            onPrimary = opts.onPrimary;
+            secondaryLabel =
                 opts.secondaryLabel !== undefined
                     ? opts.secondaryLabel
                     : needLogin
                       ? 'Đăng nhập lại'
-                      : '',
-            onSecondary:
+                      : '';
+            onSecondary =
                 opts.onSecondary !== undefined
                     ? opts.onSecondary
                     : needLogin
                       ? function () {
                             window.location.href = '/login';
                         }
-                      : undefined,
+                      : undefined;
+        }
+
+        handleAppError(code, dbg, {
+            skipLog: true,
+            silent: false,
+            ui: 'fullscreen',
+            container: container,
+            title: opts.title || defaultTitle,
+            primaryLabel: primaryLabel,
+            onPrimary: onPrimary,
+            secondaryLabel: secondaryLabel,
+            onSecondary: onSecondary,
         });
     }
 

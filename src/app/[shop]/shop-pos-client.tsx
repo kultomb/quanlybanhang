@@ -13,12 +13,12 @@ export default function ShopPosClient({ pathShopFromUrl }: { pathShopFromUrl: st
             position: "relative",
             width: "100%",
             maxWidth: "100%",
-            /* 100vh trên mobile (Safari/Chrome) thường cao hơn màn hình thật → iframe legacy lệch; dvh bám viewport động */
-            height: "100dvh",
-            minHeight: "100dvh",
-            maxHeight: "100dvh",
+            flex: 1,
+            minHeight: 0,
             margin: 0,
             overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
           <ShopLegacyFrame shop={shopSlug} />

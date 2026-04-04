@@ -53,7 +53,9 @@ async function lazySyncFirestoreFromRtdb(uid: string, slug: string, ownerEmail: 
 }
 
 /**
- * Ưu tiên mapping Firestore (users → shopId → shops.slug), sau đó RTDB + heal bảng shops.
+ * Firestore (users → shopId → shops.slug) + RTDB users/{uid} + heal bảng shops.
+ * Khi Firestore và RTDB lệch shopSlug: **ưu tiên RTDB** — webhook thanh toán / nâng cấp chỉ ghi RTDB;
+ * Firestore có thể còn slug thử cũ → tránh ép URL /hamobile… về /try-hamobile…
  */
 export async function resolveUserShopContext(uid: string): Promise<UserShopContext> {
   const snap = await adminDb().ref(`users/${uid}`).get();
@@ -97,7 +99,11 @@ export async function resolveUserShopContext(uid: string): Promise<UserShopConte
     // Firestore chưa kích hoạt hoặc lỗi — dùng RTDB.
   }
 
-  if (!slug) slug = rtdbSlug;
+  if (!slug) {
+    slug = rtdbSlug;
+  } else if (rtdbSlug && normalizeShopSlug(slug) !== rtdbSlug) {
+    slug = rtdbSlug;
+  }
 
   async function healSlugFromTable(isTrial: boolean) {
     const table = getShopTableRoot(isTrial);

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { useEffect, useState } from "react";
@@ -102,9 +101,11 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
       <span style={{ pointerEvents: "auto" }}>
         {expired ? (
           <>
-            ⏱️ <strong>Thời hạn dùng thử đã hết.</strong> Không còn đồng bộ đám mây.{" "}
-            <Link
+            Bản dùng thử của bạn đã hết hạn.{" "}
+            <a
               href="/upgrade"
+              target="_top"
+              rel="noopener noreferrer"
               style={{
                 color: "#991b1b",
                 fontWeight: 800,
@@ -113,17 +114,18 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
               }}
             >
               Nâng cấp tài khoản
-            </Link>
-            {" "}
-            — bước tiếp theo là <strong>thanh toán chuyển khoản</strong> (QR / mã thanh toán).
+            </a>{" "}
+            để tiếp tục trải nghiệm nhé!
           </>
         ) : (
           <>
             🧪 Đang ở chế độ dùng thử — dữ liệu có thể bị xóa hoặc hết hạn; không dùng cho vận hành thật.
             {daysLeft != null ? ` · Còn khoảng ${daysLeft} ngày.` : null}
             {" · "}
-            <Link
+            <a
               href="/upgrade"
+              target="_top"
+              rel="noopener noreferrer"
               style={{
                 color: "#92400e",
                 fontWeight: 800,
@@ -132,7 +134,7 @@ export default function TrialModeBanner({ shopSlug }: TrialModeBannerProps) {
               }}
             >
               Nâng cấp tài khoản
-            </Link>
+            </a>
           </>
         )}
       </span>

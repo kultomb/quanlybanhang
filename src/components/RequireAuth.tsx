@@ -189,6 +189,10 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
       await auth.authStateReady();
       if (disposed) return;
 
+      /** Trang chỉ bọc children (vd. /upgrade, /account): đã đăng nhập Firebase thì hiện UI ngay; đồng bộ cookie / RTDB chạy nền. */
+      const simpleClientGate = !renderShop && pathShopFromUrl === undefined;
+      const bootUser = auth.currentUser;
+
       unsub = onIdTokenChanged(auth, (user) => {
         settled = true;
         if (logoutDebounce !== undefined) {
@@ -213,6 +217,15 @@ export default function RequireAuth({ children, renderShop, pathShopFromUrl }: R
 
         void processSignedInUser(user);
       });
+
+      settled = true;
+      if (bootUser && simpleClientGate) {
+        setReady(true);
+        setAuthed(true);
+      }
+      if (bootUser) {
+        void processSignedInUser(bootUser);
+      }
     })();
 
     const fallbackTimer = window.setTimeout(() => {
