@@ -50,6 +50,7 @@ export async function migrateTrialShopToProduction(
    */
   await db.ref(getShopPaths(fromSlug, true).shop).set({
     slug: fromSlug,
+    ownerUid: uid,
     upgradedTo: toSlug,
     upgradedAt: admin.database.ServerValue.TIMESTAMP,
   });
