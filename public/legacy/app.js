@@ -1472,6 +1472,77 @@ class HamobileBanhang {
         // Lấy thời gian hiện tại theo múi giờ Việt Nam (Asia/Ho_Chi_Minh)
         return new Date(now.toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
     }
+
+    /** Ngày lịch Việt Nam YYYY-MM-DD (Asia/Ho_Chi_Minh). Không dùng toISOString() vì luôn theo UTC, dễ lệch “hôm nay/hôm qua”. */
+    getVietnamDateString(date = new Date()) {
+        return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+    }
+
+    /** Giờ đồng hồ Việt Nam HH:MM:SS */
+    getVietnamTimeString(date = new Date()) {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Asia/Ho_Chi_Minh',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            hourCycle: 'h23'
+        }).formatToParts(date);
+        const pad = (x) => String(x).padStart(2, '0');
+        const h = parts.find((p) => p.type === 'hour').value;
+        const m = parts.find((p) => p.type === 'minute').value;
+        const s = parts.find((p) => p.type === 'second').value;
+        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+
+    getVietnamTimeStringShort(date = new Date()) {
+        return this.getVietnamTimeString(date).slice(0, 5);
+    }
+
+    shiftVietnamYmd(ymdStr, deltaDays) {
+        const m = String(ymdStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return this.getVietnamDateString(new Date());
+        const y = +m[1], mo = +m[2], d = +m[3];
+        const dt = new Date(Date.UTC(y, mo - 1, d + deltaDays));
+        const yy = dt.getUTCFullYear();
+        const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getUTCDate()).padStart(2, '0');
+        return `${yy}-${mm}-${dd}`;
+    }
+
+    /** Thứ Hai đầu tuần (ISO) của ngày lịch ymdStr, theo lịch Gregorian. */
+    getVietnamWeekMondayYmd(ymdStr) {
+        const m = String(ymdStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return this.getVietnamDateString(new Date());
+        const y = +m[1], mo = +m[2], d = +m[3];
+        const wd = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+        const delta = wd === 0 ? -6 : 1 - wd;
+        return this.shiftVietnamYmd(`${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`, delta);
+    }
+
+    /** Biên ngày dùng chung cho lọc đơn / công nợ / báo cáo (múi Asia/Ho_Chi_Minh). */
+    getVietnamPeriodBounds() {
+        const todayStr = this.getVietnamDateString(new Date());
+        const yesterdayStr = this.shiftVietnamYmd(todayStr, -1);
+        const last7StartStr = this.shiftVietnamYmd(todayStr, -6);
+        const weekStartStr = this.getVietnamWeekMondayYmd(todayStr);
+        const lastWeekMondayStr = this.shiftVietnamYmd(weekStartStr, -7);
+        const lastWeekSundayStr = this.shiftVietnamYmd(weekStartStr, -1);
+        const [ys, ms] = todayStr.split('-');
+        const thisMonthPrefix = `${ys}-${ms}`;
+        const prevMonthAnchor = new Date(Date.UTC(+ys, +ms - 2, 1));
+        const lastMonthPrefix = `${prevMonthAnchor.getUTCFullYear()}-${String(prevMonthAnchor.getUTCMonth() + 1).padStart(2, '0')}`;
+        return {
+            todayStr,
+            yesterdayStr,
+            last7StartStr,
+            weekStartStr,
+            lastWeekMondayStr,
+            lastWeekSundayStr,
+            thisMonthPrefix,
+            lastMonthPrefix
+        };
+    }
     
     // Tính toán khoảng thời gian từ thời điểm hiện tại
     getTimeAgo(pastTime) {
@@ -1793,10 +1864,9 @@ class HamobileBanhang {
         const orders = data.orders || [];
         const customers = data.customers || [];
         const products = data.products || [];
-        const todayStr = this.getVietnamTime().toISOString().split('T')[0];
-        const yesterday = new Date(this.getVietnamTime());
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const b = this.getVietnamPeriodBounds();
+        const todayStr = b.todayStr;
+        const yesterdayStr = b.yesterdayStr;
         const todayOrders = orders.filter(o => o && o.date === todayStr);
         const yesterdayOrders = orders.filter(o => o && o.date === yesterdayStr);
         const repairs = data.repairs || [];
@@ -2382,37 +2452,19 @@ class HamobileBanhang {
         if (!order) return false;
         const p = period || 'all';
         if (p === 'all') return true;
-        const d = order.date;
-        if (!d) return false;
-        const vn = this.getVietnamTime();
-        const todayStr = vn.toISOString().split('T')[0];
-        const yesterday = new Date(vn);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-        const last7Start = new Date(vn);
-        last7Start.setDate(last7Start.getDate() - 6);
-        const last7StartStr = last7Start.toISOString().split('T')[0];
-        const weekStart = (() => {
-            const dd = new Date(vn);
-            const day = dd.getDay();
-            dd.setDate(dd.getDate() - day + (day === 0 ? -6 : 1));
-            return dd.toISOString().split('T')[0];
-        })();
-        if (p === 'today') return d === todayStr;
-        if (p === 'yesterday') return d === yesterdayStr;
-        if (p === 'last7') return d >= last7StartStr && d <= todayStr;
-        if (p === 'week') return d >= weekStart;
-        const y = vn.getFullYear();
-        const m = vn.getMonth() + 1;
-        const thisPrefix = `${y}-${String(m).padStart(2, '0')}`;
-        if (p === 'this_month') return d.startsWith(`${thisPrefix}-`);
-        const prev = new Date(vn);
-        prev.setMonth(prev.getMonth() - 1);
-        const lastPrefix = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
-        if (p === 'last_month') return d.startsWith(`${lastPrefix}-`);
+        const d = String(order.date || '').split('T')[0];
+        if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+        const b = this.getVietnamPeriodBounds();
+        if (p === 'today') return d === b.todayStr;
+        if (p === 'yesterday') return d === b.yesterdayStr;
+        if (p === 'last7') return d >= b.last7StartStr && d <= b.todayStr;
+        if (p === 'week') return d >= b.weekStartStr && d <= b.todayStr;
+        if (p === 'last_week') return d >= b.lastWeekMondayStr && d <= b.lastWeekSundayStr;
+        if (p === 'this_month') return d.startsWith(`${b.thisMonthPrefix}-`);
+        if (p === 'last_month') return d.startsWith(`${b.lastMonthPrefix}-`);
         if (p === 'custom') {
-            const from = this.ordersFilterCustomFrom || todayStr;
-            const to = this.ordersFilterCustomTo || todayStr;
+            const from = this.ordersFilterCustomFrom || b.todayStr;
+            const to = this.ordersFilterCustomTo || b.todayStr;
             return d >= from && d <= to;
         }
         return true;
@@ -2424,6 +2476,7 @@ class HamobileBanhang {
             yesterday: ' hôm qua',
             last7: ' 7 ngày qua',
             week: ' tuần này',
+            last_week: ' tuần trước',
             this_month: ' tháng này',
             last_month: ' tháng trước',
             custom: ' (tùy chỉnh)',
@@ -2438,6 +2491,7 @@ class HamobileBanhang {
             yesterday: 'hôm qua',
             last7: '7 ngày qua',
             week: 'tuần này',
+            last_week: 'tuần trước',
             this_month: 'tháng này',
             last_month: 'tháng trước',
             custom: 'theo khoảng tùy chỉnh',
@@ -2459,11 +2513,10 @@ class HamobileBanhang {
     }
     repairMatchesPeriod(repair, period) {
         if (!repair) return false;
-        const vn = this.getVietnamTime();
-        const todayStr = vn.toISOString().split('T')[0];
-        const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
-        if (period === 'today') return repair.date === todayStr;
-        if (period === 'week') return !!repair.date && repair.date >= weekStart;
+        const b = this.getVietnamPeriodBounds();
+        const rd = String(repair.date || '').split('T')[0];
+        if (period === 'today') return rd === b.todayStr;
+        if (period === 'week') return !!rd && rd >= b.weekStartStr && rd <= b.todayStr;
         return true;
     }
     getCustomerSearchText(customer) {
@@ -4362,9 +4415,9 @@ class HamobileBanhang {
             this.showNotification(stockWarnings[0] || 'Không đủ hàng', 'error');
             return;
         }
-        const vietnamTime = this.getVietnamTime();
-        const dateStr = vietnamTime.toISOString().split('T')[0];
-        const timeStr = vietnamTime.toTimeString().slice(0, 8);
+        const now = new Date();
+        const dateStr = this.getVietnamDateString(now);
+        const timeStr = this.getVietnamTimeString(now);
         const totalGoods = products.reduce((s, x) => s + x.subtotal, 0);
         const discount = Math.max(0, parseInt(this.posCart.discount, 10) || 0);
         const total = Math.max(0, totalGoods - discount);
@@ -4605,28 +4658,17 @@ class HamobileBanhang {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
         const p = period || 'all';
         if (p === 'all') return true;
-        const vn = this.getVietnamTime();
-        const todayStr = vn.toISOString().split('T')[0];
-        const yesterday = new Date(vn);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-        const last7Start = new Date(vn);
-        last7Start.setDate(last7Start.getDate() - 6);
-        const last7StartStr = last7Start.toISOString().split('T')[0];
-        if (p === 'today') return d === todayStr;
-        if (p === 'yesterday') return d === yesterdayStr;
-        if (p === 'last7') return d >= last7StartStr && d <= todayStr;
-        const y = vn.getFullYear();
-        const m = vn.getMonth() + 1;
-        const thisPrefix = `${y}-${String(m).padStart(2, '0')}`;
-        if (p === 'this_month') return d.startsWith(`${thisPrefix}-`);
-        const prev = new Date(vn);
-        prev.setMonth(prev.getMonth() - 1);
-        const lastPrefix = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
-        if (p === 'last_month') return d.startsWith(`${lastPrefix}-`);
+        const b = this.getVietnamPeriodBounds();
+        if (p === 'today') return d === b.todayStr;
+        if (p === 'yesterday') return d === b.yesterdayStr;
+        if (p === 'last7') return d >= b.last7StartStr && d <= b.todayStr;
+        if (p === 'week') return d >= b.weekStartStr && d <= b.todayStr;
+        if (p === 'last_week') return d >= b.lastWeekMondayStr && d <= b.lastWeekSundayStr;
+        if (p === 'this_month') return d.startsWith(`${b.thisMonthPrefix}-`);
+        if (p === 'last_month') return d.startsWith(`${b.lastMonthPrefix}-`);
         if (p === 'custom') {
-            const from = customFrom || todayStr;
-            const to = customTo || todayStr;
+            const from = customFrom || b.todayStr;
+            const to = customTo || b.todayStr;
             return d >= from && d <= to;
         }
         return true;
@@ -4673,7 +4715,7 @@ class HamobileBanhang {
     getDebtsContent() {
         const customersWithActualDebt = this.getCustomersWithDebt();
         const totalActualDebt = customersWithActualDebt.reduce((sum, c) => sum + this.getActualDebtForCustomer(c), 0);
-        const todayStr = this.getVietnamTime().toISOString().split('T')[0];
+        const todayStr = this.getVietnamDateString(new Date());
         const todayPayments = (this.demoData.debtPayments || []).filter(p => p.date === todayStr);
         const todayCollected = todayPayments.reduce((s, p) => s + (p.amount || 0), 0);
         const paymentNames = [...new Set(todayPayments.map(p => p.customerName))].slice(0, 3).join(', ');
@@ -4848,7 +4890,7 @@ class HamobileBanhang {
     setDebtsMobilePeriod(period) {
         this.debtsMobilePeriod = period || 'all';
         if (this.debtsMobilePeriod === 'custom') {
-            const t = this.getVietnamTime().toISOString().split('T')[0];
+            const t = this.getVietnamDateString(new Date());
             if (!this.debtsMobileCustomFrom) this.debtsMobileCustomFrom = t;
             if (!this.debtsMobileCustomTo) this.debtsMobileCustomTo = t;
         }
@@ -4924,8 +4966,7 @@ class HamobileBanhang {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         const isTablet = typeof window !== 'undefined' && window.innerWidth > 768 && window.innerWidth <= 1024;
         const orders = this.demoData.orders || [];
-        const vietnamTime = this.getVietnamTime();
-        const todayStr = vietnamTime.toISOString().split('T')[0];
+        const todayStr = this.getVietnamDateString(new Date());
         let filtered = orders.filter(o => o && o.id);
         const periodKey = this.ordersFilterPeriod || 'last7';
         filtered = filtered.filter(o => this.orderMatchesPeriod(o, periodKey));
@@ -4961,6 +5002,7 @@ class HamobileBanhang {
                                         <option value="yesterday" ${periodSel === 'yesterday' ? 'selected' : ''}>Hôm qua</option>
                                         <option value="last7" ${periodSel === 'last7' ? 'selected' : ''}>7 ngày qua</option>
                                         <option value="week" ${periodSel === 'week' ? 'selected' : ''}>Tuần này</option>
+                                        <option value="last_week" ${periodSel === 'last_week' ? 'selected' : ''}>Tuần trước</option>
                                         <option value="this_month" ${periodSel === 'this_month' ? 'selected' : ''}>Tháng này</option>
                                         <option value="last_month" ${periodSel === 'last_month' ? 'selected' : ''}>Tháng trước</option>
                                         <option value="custom" ${periodSel === 'custom' ? 'selected' : ''}>Tùy chỉnh</option>
@@ -4996,7 +5038,11 @@ class HamobileBanhang {
                         <div class="orders-orders-desktop-only" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
                             <button type="button" onclick="app.showCreateOrderForm()" title="Thêm đơn hàng" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '➕' : 'Thêm đơn hàng'}</button>
                             <button type="button" id="orders-filter-today" onclick="app.setOrdersFilterPeriod('today')" title="Lọc: Hôm nay" style="background: ${this.ordersFilterPeriod === 'today' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'today' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'today' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📅' : 'Hôm nay'}</button>
+                            <button type="button" id="orders-filter-yesterday" onclick="app.setOrdersFilterPeriod('yesterday')" title="Lọc: Hôm qua" style="background: ${this.ordersFilterPeriod === 'yesterday' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'yesterday' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'yesterday' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '🌙' : 'Hôm qua'}</button>
                             <button type="button" id="orders-filter-week" onclick="app.setOrdersFilterPeriod('week')" title="Lọc: Tuần này" style="background: ${this.ordersFilterPeriod === 'week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '🗓' : 'Tuần này'}</button>
+                            <button type="button" id="orders-filter-last-week" onclick="app.setOrdersFilterPeriod('last_week')" title="Lọc: Tuần trước" style="background: ${this.ordersFilterPeriod === 'last_week' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'last_week' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'last_week' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '⏮' : 'Tuần trước'}</button>
+                            <button type="button" id="orders-filter-this-month" onclick="app.setOrdersFilterPeriod('this_month')" title="Lọc: Tháng này" style="background: ${this.ordersFilterPeriod === 'this_month' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'this_month' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'this_month' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📊' : 'Tháng này'}</button>
+                            <button type="button" id="orders-filter-last-month" onclick="app.setOrdersFilterPeriod('last_month')" title="Lọc: Tháng trước" style="background: ${this.ordersFilterPeriod === 'last_month' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'last_month' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'last_month' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📉' : 'Tháng trước'}</button>
                             <button type="button" id="orders-filter-all" onclick="app.setOrdersFilterPeriod('all')" title="Lọc: Tất cả" style="background: ${this.ordersFilterPeriod === 'all' ? '#dbeafe' : '#f8fafc'}; color: ${this.ordersFilterPeriod === 'all' ? '#1d4ed8' : '#374151'}; border: 1px solid ${this.ordersFilterPeriod === 'all' ? '#93c5fd' : '#e5e7eb'}; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📌' : 'Tất cả'}</button>
                             <button type="button" onclick="app.exportOrdersReport()" title="Xuất báo cáo" style="background: white; color: #374151; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">${isTablet ? '📤' : 'Xuất báo cáo'}</button>
                         </div>
@@ -5199,8 +5245,7 @@ class HamobileBanhang {
     setOrdersFilterPeriod(period) {
         this.ordersFilterPeriod = period != null && period !== '' ? period : 'last7';
         if (this.ordersFilterPeriod === 'custom') {
-            const vn = this.getVietnamTime();
-            const t = vn.toISOString().split('T')[0];
+            const t = this.getVietnamDateString(new Date());
             if (!this.ordersFilterCustomFrom) this.ordersFilterCustomFrom = t;
             if (!this.ordersFilterCustomTo) this.ordersFilterCustomTo = t;
         }
@@ -5228,7 +5273,11 @@ class HamobileBanhang {
         const active = this.ordersFilterPeriod || 'last7';
         const configs = [
             { id: 'orders-filter-today', period: 'today' },
+            { id: 'orders-filter-yesterday', period: 'yesterday' },
             { id: 'orders-filter-week', period: 'week' },
+            { id: 'orders-filter-last-week', period: 'last_week' },
+            { id: 'orders-filter-this-month', period: 'this_month' },
+            { id: 'orders-filter-last-month', period: 'last_month' },
             { id: 'orders-filter-all', period: 'all' }
         ];
         configs.forEach(cfg => {
@@ -5360,12 +5409,12 @@ class HamobileBanhang {
         if (this.repairsSearchQuery === undefined) this.repairsSearchQuery = '';
         if (this.repairsFilterPeriod === undefined) this.repairsFilterPeriod = 'all';
         const repairs = this.demoData.repairs || [];
-        const vietnamTime = this.getVietnamTime();
-        const todayStr = vietnamTime.toISOString().split('T')[0];
-        const weekStart = (() => { const d = new Date(vietnamTime); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); d.setDate(diff); return d.toISOString().split('T')[0]; })();
+        const b = this.getVietnamPeriodBounds();
+        const todayStr = b.todayStr;
+        const weekStart = b.weekStartStr;
         let filteredRepairs = repairs;
         if (this.repairsFilterPeriod === 'today') filteredRepairs = filteredRepairs.filter(r => r && r.date === todayStr);
-        else if (this.repairsFilterPeriod === 'week') filteredRepairs = filteredRepairs.filter(r => r && r.date && r.date >= weekStart);
+        else if (this.repairsFilterPeriod === 'week') filteredRepairs = filteredRepairs.filter(r => r && r.date && r.date >= weekStart && r.date <= todayStr);
         const rq = (this.repairsSearchQuery || '').trim();
         if (rq) filteredRepairs = filteredRepairs.filter(r => this.repairMatchesSearch(r, rq));
         const repairsTable = repairs.length === 0 ? `
@@ -5495,11 +5544,11 @@ class HamobileBanhang {
             const periodText = this.repairsFilterPeriod === 'today' ? ' hôm nay' : this.repairsFilterPeriod === 'week' ? ' tuần này' : '';
             const allRepairs = this.demoData.repairs || [];
             let periodRepairs = allRepairs;
-            const vn = this.getVietnamTime();
-            const todayStr = vn.toISOString().split('T')[0];
-            const weekStart = (() => { const d = new Date(vn); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); return d.toISOString().split('T')[0]; })();
+            const rb = this.getVietnamPeriodBounds();
+            const todayStr = rb.todayStr;
+            const weekStart = rb.weekStartStr;
             if (this.repairsFilterPeriod === 'today') periodRepairs = allRepairs.filter(r => r && r.date === todayStr);
-            else if (this.repairsFilterPeriod === 'week') periodRepairs = allRepairs.filter(r => r && r.date && r.date >= weekStart);
+            else if (this.repairsFilterPeriod === 'week') periodRepairs = allRepairs.filter(r => r && r.date && r.date >= weekStart && r.date <= todayStr);
             title.innerHTML = `<span>🔧</span> Danh sách phiếu sửa chữa${periodText} (${visibleCount}${visibleCount !== periodRepairs.length ? '/' + periodRepairs.length : ''})`;
         }
         this.updateRepairsFilterButtonsUI();
@@ -5845,7 +5894,7 @@ class HamobileBanhang {
                 return;
             }
         }
-        const vietnamTime = this.getVietnamTime();
+        const now = new Date();
         const count = (this.demoData.repairs || []).length;
         const newRepair = {
             id: 'SC' + String(count + 1).padStart(4, '0'),
@@ -5866,8 +5915,8 @@ class HamobileBanhang {
             warrantyPeriod: formData.get('warrantyPeriod') || '',
             status: formData.get('status') || 'Đang sửa',
             notes: formData.get('notes') || '',
-            date: vietnamTime.toISOString().split('T')[0],
-            time: vietnamTime.toTimeString().split(' ')[0].substring(0, 5)
+            date: this.getVietnamDateString(now),
+            time: this.getVietnamTimeStringShort(now)
         };
         parts.forEach(p => {
             if (!p.productId) return;
@@ -6626,8 +6675,8 @@ class HamobileBanhang {
                                 <label style="display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-secondary);">Lựa chọn nhanh:</label>
                                 <select id="filter-quick-select" onchange="app.applyQuickFilter(this.value)"
                                         style="width: 100%; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-                                    <option value="" ${!(fromDate === toDate && fromDate === this.getVietnamTime().toISOString().split('T')[0]) ? 'selected' : ''}>Tùy chỉnh</option>
-                                    <option value="today" ${fromDate === toDate && fromDate === this.getVietnamTime().toISOString().split('T')[0] ? 'selected' : ''}>Hôm nay</option>
+                                    <option value="" ${!(fromDate === toDate && fromDate === this.getVietnamDateString(new Date())) ? 'selected' : ''}>Tùy chỉnh</option>
+                                    <option value="today" ${fromDate === toDate && fromDate === this.getVietnamDateString(new Date()) ? 'selected' : ''}>Hôm nay</option>
                                     <option value="yesterday">Hôm qua</option>
                                     <option value="this-week">Tuần này</option>
                                     <option value="last-week">Tuần trước</option>
@@ -6840,7 +6889,7 @@ class HamobileBanhang {
             if (isNaN(orderDateTime.getTime())) orderDateTime = new Date(order.date);
             if (isNaN(orderDateTime.getTime())) orderDateTime = now;
             
-            const todayStr = now.toISOString().split('T')[0];
+            const todayStr = this.getVietnamDateString(new Date());
             let activityTime;
             if (order.date === todayStr) {
                 activityTime = orderDateTime;
@@ -8730,7 +8779,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `khach_hang_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `khach_hang_${this.getVietnamDateString(new Date())}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -9855,7 +9904,7 @@ class HamobileBanhang {
         
         const newSale = {
             id: 'DH' + String(this.demoData.sales.length + 1).padStart(3, '0'),
-            date: this.getVietnamTime().toISOString().split('T')[0],
+            date: this.getVietnamDateString(new Date()),
             customer: customerInfo.name,
             customOrderPhone: customerInfo.phone,
             customerAddress: customerInfo.address,
@@ -12412,7 +12461,7 @@ class HamobileBanhang {
         );
         if (customer && amount > 0) {
             const oldDebt = this.getActualDebtForCustomer(customer);
-            const todayStr = this.getVietnamTime().toISOString().split('T')[0];
+            const todayStr = this.getVietnamDateString(new Date());
             (this.demoData.debtPayments || []).push({ customerId, customerName: customer.name, amount, date: todayStr });
             
             let remaining = amount;
@@ -13487,7 +13536,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `mua_hang_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `mua_hang_${this.getVietnamDateString(new Date())}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -13522,7 +13571,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `nha_cung_cap_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `nha_cung_cap_${this.getVietnamDateString(new Date())}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -13558,7 +13607,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `san_pham_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `san_pham_${this.getVietnamDateString(new Date())}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -13605,7 +13654,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `danh_muc_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `danh_muc_${this.getVietnamDateString(new Date())}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -14150,9 +14199,9 @@ class HamobileBanhang {
             const discountAmount = isVnd ? Math.min(product.discount || 0, beforeDiscount) : (beforeDiscount * (product.discount || 0) / 100);
             return sum + Math.max(0, beforeDiscount - discountAmount);
         }, 0);
-        // Sử dụng ngày giờ Việt Nam (UTC+7) cho đơn hàng mới  
-        const vietnamTime = this.getVietnamTime();
-        
+        // Sử dụng ngày giờ lịch Việt Nam (Asia/Ho_Chi_Minh) cho đơn hàng mới
+        const now = new Date();
+
         // Get payment status to determine order status
         const paymentStatus = formData.get('paymentStatus') || 'Đã thanh toán';
         let amountPaid = this.parsePrice(formData.get('amountPaid'));
@@ -14164,8 +14213,8 @@ class HamobileBanhang {
             id: 'DH' + String(orderCount + 1).padStart(4, '0'),
             customerId: customer.id,
             customerName: customer.name,
-            date: vietnamTime.toISOString().split('T')[0],
-            time: vietnamTime.toTimeString().split(' ')[0].substring(0, 5),
+            date: this.getVietnamDateString(now),
+            time: this.getVietnamTimeStringShort(now),
             products: products,
             notes: formData.get('orderNotes') || '',
             total: total,
@@ -15565,8 +15614,7 @@ class HamobileBanhang {
                 customRow.style.display = per === 'custom' ? 'flex' : 'none';
                 const cf = document.getElementById('orders-mobile-custom-from');
                 const ct = document.getElementById('orders-mobile-custom-to');
-                const vn = this.getVietnamTime();
-                const td = vn.toISOString().split('T')[0];
+                const td = this.getVietnamDateString(new Date());
                 if (per === 'custom' && cf && ct) {
                     cf.value = this.ordersFilterCustomFrom || td;
                     ct.value = this.ordersFilterCustomTo || td;
@@ -15635,7 +15683,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `don_hang_${this.getVietnamTime().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("download", `don_hang_${this.getVietnamDateString(new Date())}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -17393,13 +17441,13 @@ class HamobileBanhang {
     }
 
     getDefaultFromDate() {
-        // Mặc định là hôm nay (giờ Việt Nam)
-        return this.getVietnamTime().toISOString().split('T')[0];
+        // Mặc định là hôm nay (lịch Việt Nam)
+        return this.getVietnamDateString(new Date());
     }
 
     getDefaultToDate() {
-        // Mặc định là hôm nay (giờ Việt Nam)
-        return this.getVietnamTime().toISOString().split('T')[0];
+        // Mặc định là hôm nay (lịch Việt Nam)
+        return this.getVietnamDateString(new Date());
     }
 
     formatDateForDisplay(dateString) {
@@ -17432,56 +17480,62 @@ class HamobileBanhang {
         const { fromDate, toDate } = range;
 
         if (fromDate && toDate) {
-            fromDateInput.value = fromDate.toISOString ? fromDate.toISOString().split('T')[0] : fromDate;
-            toDateInput.value = toDate.toISOString ? toDate.toISOString().split('T')[0] : toDate;
+            fromDateInput.value = fromDate;
+            toDateInput.value = toDate;
             this.applyDateFilter();
         }
     }
     getQuickDateRange(value) {
-        const today = this.getVietnamTime();
+        const b = this.getVietnamPeriodBounds();
+        const todayStr = b.todayStr;
         let fromDate, toDate;
-        switch(value) {
+        switch (value) {
             case 'today':
-                fromDate = toDate = new Date(today.getTime());
+                fromDate = toDate = todayStr;
                 break;
             case 'yesterday':
-                fromDate = toDate = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+                fromDate = toDate = b.yesterdayStr;
                 break;
             case 'this-week':
-                fromDate = new Date(today);
-                fromDate.setDate(today.getDate() - today.getDay() + 1);
-                toDate = today;
+                fromDate = b.weekStartStr;
+                toDate = todayStr;
                 break;
             case 'last-week':
-                fromDate = new Date(today);
-                fromDate.setDate(today.getDate() - today.getDay() - 6);
-                toDate = new Date(today);
-                toDate.setDate(today.getDate() - today.getDay());
+                fromDate = b.lastWeekMondayStr;
+                toDate = b.lastWeekSundayStr;
                 break;
             case 'this-month':
-                fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
-                toDate = today;
+                fromDate = `${b.thisMonthPrefix}-01`;
+                toDate = todayStr;
                 break;
-            case 'last-month':
-                fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                toDate = new Date(today.getFullYear(), today.getMonth(), 0);
+            case 'last-month': {
+                const [yy, mm] = b.thisMonthPrefix.split('-').map(Number);
+                const firstPrev = new Date(Date.UTC(yy, mm - 2, 1));
+                const lastPrev = new Date(Date.UTC(yy, mm - 1, 0));
+                fromDate = `${firstPrev.getUTCFullYear()}-${String(firstPrev.getUTCMonth() + 1).padStart(2, '0')}-01`;
+                toDate = `${lastPrev.getUTCFullYear()}-${String(lastPrev.getUTCMonth() + 1).padStart(2, '0')}-${String(lastPrev.getUTCDate()).padStart(2, '0')}`;
                 break;
+            }
             case 'last-30-days':
-                fromDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-                toDate = today;
+                fromDate = this.shiftVietnamYmd(todayStr, -29);
+                toDate = todayStr;
                 break;
             case 'last-90-days':
-                fromDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
-                toDate = today;
+                fromDate = this.shiftVietnamYmd(todayStr, -89);
+                toDate = todayStr;
                 break;
-            case 'this-year':
-                fromDate = new Date(today.getFullYear(), 0, 1);
-                toDate = today;
+            case 'this-year': {
+                const y = todayStr.slice(0, 4);
+                fromDate = `${y}-01-01`;
+                toDate = todayStr;
                 break;
-            case 'last-year':
-                fromDate = new Date(today.getFullYear() - 1, 0, 1);
-                toDate = new Date(today.getFullYear() - 1, 11, 31);
+            }
+            case 'last-year': {
+                const y = String(+todayStr.slice(0, 4) - 1);
+                fromDate = `${y}-01-01`;
+                toDate = `${y}-12-31`;
                 break;
+            }
             default:
                 return null;
         }
@@ -17493,8 +17547,8 @@ class HamobileBanhang {
         const fromInput = document.getElementById(prefix + 'FromDate');
         const toInput = document.getElementById(prefix + 'ToDate');
         if (!fromInput || !toInput) return;
-        fromInput.value = range.fromDate.toISOString().split('T')[0];
-        toInput.value = range.toDate.toISOString().split('T')[0];
+        fromInput.value = range.fromDate;
+        toInput.value = range.toDate;
     }
 
     // Áp dụng bộ lọc ngày tháng
@@ -18479,7 +18533,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            const filename = `ton_kho_${inventoryFilter}_${this.getVietnamTime().toISOString().split('T')[0]}.csv`;
+            const filename = `ton_kho_${inventoryFilter}_${this.getVietnamDateString(new Date())}.csv`;
             link.setAttribute("download", filename);
             document.body.appendChild(link);
             link.click();
@@ -18665,7 +18719,7 @@ class HamobileBanhang {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            const filename = `cong_no_${debtFilter}_${this.getVietnamTime().toISOString().split('T')[0]}.csv`;
+            const filename = `cong_no_${debtFilter}_${this.getVietnamDateString(new Date())}.csv`;
             link.setAttribute("download", filename);
             document.body.appendChild(link);
             link.click();
