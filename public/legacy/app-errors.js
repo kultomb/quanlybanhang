@@ -278,6 +278,7 @@
             else code = 'unknown_error';
         } else if (status === 409) {
             if (serverError === 'stale_data') code = 'stale_data';
+            else if (serverError === 'transaction_aborted') code = 'stale_data';
             else if (serverError === 'demo_seed_forbidden') code = 'demo_seed_forbidden';
             else code = 'unknown_error';
         } else if (status >= 500 || status === 0) code = 'network_error';
@@ -415,6 +416,10 @@
      *   durationMs?: number
      * }} [options]
      */
+    // Throttle: tránh spam toast cùng loại lỗi liên tục (network/unknown có thể bùng phát nhanh)
+    var _errorThrottle = {}; // { code: lastShownAt }
+    var ERROR_THROTTLE_MS = 12000; // 12s — cùng lỗi chỉ hiện 1 lần mỗi 12 giây
+
     function handleAppError(errorCode, debugData, options) {
         options = options || {};
         var n = normalizeCode(errorCode);
@@ -435,6 +440,18 @@
         if (n === 'stale_data' && !options.ui) {
             options.ui = 'toast';
             options.durationMs = options.durationMs || 3500;
+        }
+
+        // Throttle: network_error và unknown_error chỉ hiện toast tối đa 1 lần / 12s
+        // tránh spam khi server thoáng lỗi rồi tự hồi phục.
+        if ((n === 'network_error' || n === 'unknown_error') && !options.force) {
+            var lastShown = _errorThrottle[n] || 0;
+            if (Date.now() - lastShown < ERROR_THROTTLE_MS) return;
+            _errorThrottle[n] = Date.now();
+        } else if (n !== 'network_error' && n !== 'unknown_error') {
+            // Reset throttle cho lỗi khác loại → cho phép hiện lại ngay
+            delete _errorThrottle.network_error;
+            delete _errorThrottle.unknown_error;
         }
 
         var message = userMessageFor(n);
