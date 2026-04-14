@@ -5451,14 +5451,20 @@ class HamobileBanhang {
                     ${customersWithActualDebt.length === 0 ? '<p style="color: #6b7280;">Không có khách hàng nào đang nợ.</p>' : ''}
                     ${customersWithActualDebt.map(customer => {
                         const actualDebt = this.getActualDebtForCustomer(customer);
+                        const debtDays = this.getCustomerDebtDays(customer);
+                        const oldestDate = this.getCustomerDebtOldestDateStr(customer);
+                        const oldestDateStr = oldestDate ? this.formatViDateFromYMD(oldestDate) : '';
+                        const dayColor = debtDays >= 30 ? '#dc2626' : debtDays >= 14 ? '#d97706' : '#6b7280';
+                        const dayBg = debtDays >= 30 ? '#fee2e2' : debtDays >= 14 ? '#fef3c7' : '#f3f4f6';
                         return `
                         <div class="activity-item debt-customer-row">
                             <div class="activity-icon warning">💳</div>
                             <div class="activity-content">
                                 <div class="activity-title">${escapeHtml(customer.name)} (${escapeHtml(customer.id)})</div>
-                                <div class="activity-desc">📞 ${escapeHtml(customer.phone || '-')} | 📍 ${escapeHtml(customer.address || '-')}</div>
+                                <div class="activity-desc">📞 ${escapeHtml(customer.phone || '-')} | 📍 ${escapeHtml(customer.address || '-')}${oldestDateStr ? ` | 📅 Từ ${oldestDateStr}` : ''}</div>
                             </div>
                             <div class="debt-customer-actions">
+                                ${debtDays > 0 ? `<span style="background:${dayBg};color:${dayColor};font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;white-space:nowrap;">${debtDays} ngày</span>` : ''}
                                 <span class="debt-amount">${actualDebt.toLocaleString('vi-VN')} VNĐ</span>
                                 <button ondblclick="app.toggleCustomerDebtStatus('${customer.id}')" class="debt-status-btn" title="Double click để chuyển trạng thái">Công nợ</button>
                                 <button onclick="app.showPaymentFormForCustomer('${customer.id}')" class="debt-pay-btn">Ghi nhận thanh toán</button>
