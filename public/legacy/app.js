@@ -1257,16 +1257,29 @@ class HamobileBanhang {
             });
         }
 
-        // Sửa trùng ID sản phẩm (khi nhiều SP cùng ID, find() trả về SP đầu tiên → Sửa sai sản phẩm)
+        // Sửa trùng ID sản phẩm + đổi mã SP_DUP* thành mã chuẩn SPxxx
         if (this.demoData.products && this.demoData.products.length > 0) {
+            // Tìm số SP lớn nhất đang dùng
+            const getSpNum = id => { const m = (id||'').match(/^SP(\d+)$/i); return m ? parseInt(m[1], 10) : 0; };
+            let nextSpNum = Math.max(0, ...this.demoData.products.map(p => getSpNum(p.id)));
+
+            // Bước 1: đổi tên SP_DUP* còn tồn tại thành mã SPxxx kế tiếp
+            this.demoData.products.forEach((p) => {
+                if ((p.id || '').toString().startsWith('SP_DUP')) {
+                    nextSpNum++;
+                    p.id = 'SP' + nextSpNum;
+                    needsSave = true;
+                }
+            });
+
+            // Bước 2: sửa trùng ID (nếu còn)
             const seen = new Set();
-            let dupCounter = 0;
             this.demoData.products.forEach((p) => {
                 const currentId = (p.id || '').toString().trim();
                 if (!currentId) return;
                 if (seen.has(currentId)) {
-                    dupCounter++;
-                    p.id = 'SP_DUP' + String(Date.now()).slice(-8) + '_' + dupCounter;
+                    nextSpNum++;
+                    p.id = 'SP' + nextSpNum;
                     needsSave = true;
                 } else {
                     seen.add(currentId);
@@ -4673,11 +4686,26 @@ class HamobileBanhang {
             const canSell = stock > 0;
             const inCart = this.posCart.items.find(x => x.productId === p.id);
             const qty = inCart ? (inCart.quantity || 1) : 0;
-            return `<div class="pos-product-card pos-mobile-step1-card" data-product-id="${p.id}" onclick="${canSell ? `app.addProductToPOS('${p.id}')` : ''}" style="display: block; padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: ${canSell ? 'pointer' : 'not-allowed'}; margin-bottom: 10px; background: ${canSell ? 'white' : '#f9fafb'}; opacity: ${canSell ? 1 : 0.6};">
-                <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.4; margin-bottom: 4px;">${(p.name||'').replace(/</g,'&lt;')}</div>
-                <div style="font-size: 12px; color: #6b7280; line-height: 1.4; margin-bottom: 2px;">${(p.id||'').replace(/</g,'&lt;')}${qty ? ' • ' + qty + ' KH đặt: 0' : ''}</div>
-                ${this.buildPosImeiLineForProductList(p)}
-                <div style="font-weight: 600; font-size: 15px; color: #059669; margin-top: 4px;">${(p.price||0).toLocaleString('vi-VN')}</div>
+            const cartBadge = qty > 0
+                ? `<span style="display:inline-block;background:#059669;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;white-space:nowrap;vertical-align:middle;margin-left:4px;">GH:${qty}</span>`
+                : '';
+            const imeiLine = this.buildPosImeiLineForProductList(p);
+            // Tồn kho chỉ hiện cho SP quản lý số lượng (không IMEI)
+            const stockText = !p.hasImei
+                ? `<div style="font-size:11px;color:${stock > 0 ? '#6b7280' : '#ef4444'};font-weight:600;text-align:right;margin-top:2px;white-space:nowrap;">Tồn: ${stock}</div>`
+                : '';
+            return `<div class="pos-product-card pos-mobile-step1-card" data-product-id="${p.id}" onclick="${canSell ? `app.addProductToPOS('${p.id}')` : ''}" style="display:block;padding:10px 12px;border:2px solid ${qty > 0 ? '#059669' : '#e5e7eb'};border-radius:10px;cursor:${canSell ? 'pointer' : 'not-allowed'};margin-bottom:8px;background:${canSell ? 'white' : '#f9fafb'};opacity:${canSell ? 1 : 0.6};">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:700;font-size:14px;color:${canSell ? '#1f2937' : '#9ca3af'};line-height:1.4;">${(p.name||'').replace(/</g,'&lt;')}${cartBadge}</div>
+                        <div style="font-weight:700;font-size:14px;color:#059669;margin-top:4px;">${(p.price||0).toLocaleString('vi-VN')}</div>
+                        ${imeiLine}
+                    </div>
+                    <div style="flex-shrink:0;text-align:right;">
+                        <div style="font-size:12px;color:#6b7280;font-weight:500;white-space:nowrap;">${(p.id||'').replace(/</g,'&lt;')}</div>
+                        ${stockText}
+                    </div>
+                </div>
             </div>`;
         }).join('');
     }
@@ -12179,11 +12207,15 @@ class HamobileBanhang {
                                 ${supplierOptions}
                             </select>
                         </div>
-                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                            <button type="button" onclick="closeModal(this.closest('div[style*=fixed]'))" 
-                                    style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Hủy</button>
-                            <button type="submit" 
-                                    style="padding: 12px 24px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer;">Cập nhật</button>
+                        <div style="display: flex; gap: 12px; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                            <button type="button" onclick="app.deleteProductById('${productId}'); closeModal(this.closest('div[style*=fixed]'));"
+                                    style="padding: 12px 20px; background: #fee2e2; color: #dc2626; border: 2px solid #fca5a5; border-radius: 8px; cursor: pointer; font-weight: 600;">🗑 Xóa</button>
+                            <div style="display: flex; gap: 12px;">
+                                <button type="button" onclick="closeModal(this.closest('div[style*=fixed]'))"
+                                        style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer;">Hủy</button>
+                                <button type="submit"
+                                        style="padding: 12px 24px; background: var(--primary-blue); color: white; border: none; border-radius: 8px; cursor: pointer;">Cập nhật</button>
+                            </div>
                         </div>
                     </form>
                 </div>
