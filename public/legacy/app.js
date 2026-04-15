@@ -281,7 +281,6 @@ function haMergePosDataOnConflict(originalLocal, pendingLocal, serverLatest) {
                 if (!haIsLoadedPosPackage(loaded)) return;
                 app.demoData = loaded.data;
                 if (window.companyAssets) {
-                    window.companyAssets.logo = (loaded.company && loaded.company.logo) || null;
                     window.companyAssets.qr = (loaded.company && (loaded.company.qrCode || loaded.company.qr)) || null;
                 }
                 if (typeof app.migrateProductData === 'function') app.migrateProductData();
@@ -772,16 +771,7 @@ function isSafeImageUrl(url) {
 }
 function updateCompanyAssets() {
     const company = window.FirebaseStorage.getCompany();
-    const logo = company.logo || null;
     const qr = company.qrCode || company.qr || null;
-    if (logo && isSafeImageUrl(logo)) {
-        window.companyAssets = window.companyAssets || {};
-        window.companyAssets.logo = logo;
-        const logoDisplay = document.getElementById('logo-display');
-        if (logoDisplay && !logoDisplay.innerHTML.includes('<img')) {
-            logoDisplay.innerHTML = '<img src="' + logo.replace(/"/g, '&quot;') + '" alt="Logo" style="max-width: 100%; max-height: 140px; object-fit: contain;">';
-        }
-    }
     if (qr && isSafeImageUrl(qr)) {
         window.companyAssets = window.companyAssets || {};
         window.companyAssets.qr = qr;
@@ -792,7 +782,7 @@ function updateCompanyAssets() {
     }
 }
 
-window.companyAssets = { logo: null, qr: null };
+window.companyAssets = { qr: null };
 setInterval(function() { updateCompanyAssets(); }, 30000);
 
 class HamobileBanhang {
@@ -910,7 +900,6 @@ class HamobileBanhang {
                     const reloadPkg = await window.FirebaseStorage.load();
                     const pick = haIsLoadedPosPackage(reloadPkg) ? reloadPkg : loaded;
                     this.demoData = pick.data;
-                    window.companyAssets.logo = pick.company?.logo || null;
                     window.companyAssets.qr = pick.company?.qrCode || pick.company?.qr || null;
                     this.migrateProductData();
                     this._ready = true;
@@ -922,7 +911,6 @@ class HamobileBanhang {
                 const recovered = await this.tryRecoverCloudDataByAlternateKeys(cfgNow);
                 if (recovered && recovered.loaded && recovered.loaded.data) {
                     this.demoData = recovered.loaded.data;
-                    window.companyAssets.logo = recovered.loaded.company?.logo || null;
                     window.companyAssets.qr = recovered.loaded.company?.qrCode || recovered.loaded.company?.qr || null;
                     this.migrateProductData();
                     this._ready = true;
@@ -951,7 +939,6 @@ class HamobileBanhang {
                 return;
             }
             this.demoData = loaded.data;
-            window.companyAssets.logo = loaded.company?.logo || null;
             window.companyAssets.qr = loaded.company?.qrCode || loaded.company?.qr || null;
             this.migrateProductData();
         } else if (!window._haSyncLoadFailed) {
@@ -963,7 +950,6 @@ class HamobileBanhang {
                 const again = window.FirebaseStorage.getData();
                 if (again && typeof again === 'object' && !Array.isArray(again)) {
                     this.demoData = again;
-                    window.companyAssets.logo = window.FirebaseStorage.getCompany()?.logo || null;
                     window.companyAssets.qr = window.FirebaseStorage.getCompany()?.qrCode || window.FirebaseStorage.getCompany()?.qr || null;
                     this.migrateProductData();
                     this._ready = true;
@@ -975,7 +961,6 @@ class HamobileBanhang {
             const loadedRetry = await window.FirebaseStorage.load();
             if (haIsLoadedPosPackage(loadedRetry)) {
                 this.demoData = loadedRetry.data;
-                window.companyAssets.logo = loadedRetry.company?.logo || null;
                 window.companyAssets.qr = loadedRetry.company?.qrCode || loadedRetry.company?.qr || null;
                 this.migrateProductData();
                 this._ready = true;
@@ -988,7 +973,6 @@ class HamobileBanhang {
                 const loadedThird = await window.FirebaseStorage.load();
                 if (haIsLoadedPosPackage(loadedThird)) {
                     this.demoData = loadedThird.data;
-                    window.companyAssets.logo = loadedThird.company?.logo || null;
                     window.companyAssets.qr = loadedThird.company?.qrCode || loadedThird.company?.qr || null;
                     this.migrateProductData();
                     this._ready = true;
@@ -1076,7 +1060,6 @@ class HamobileBanhang {
             return;
         }
         this.demoData = loaded.data;
-        window.companyAssets.logo = loaded.company?.logo || null;
         window.companyAssets.qr = loaded.company?.qrCode || loaded.company?.qr || null;
         this.migrateProductData();
         this._ready = true;
@@ -2186,9 +2169,9 @@ class HamobileBanhang {
         setTimeout(() => {
             document.getElementById('main-content').classList.remove('fade-in');
             
-            // Restore logo/QR for company-info page
+            // Restore company assets for company-info page
             if (pageName === 'company-info') {
-                this.restoreLogoAndQR();
+                this.restoreCompanyAssets();
             }
 
             // Trang Bán hàng POS — gợi ý giảm giá / còn nợ (mobile bước 2 có #pos-amount-paid)
@@ -6993,7 +6976,6 @@ class HamobileBanhang {
         const amountPaid = Number(r.amountPaid) ?? 0;
         const debtAmount = (r.status || '') === 'Đã trả' && paymentStatus === 'Công nợ' ? Math.max(0, repairCost - amountPaid) : 0;
         const companySettings = this.getCompanySettings();
-        if (window.companyAssets && window.companyAssets.logo) companySettings.logo = window.companyAssets.logo;
 
         const pw = window.open('', '_blank', 'width=800,height=900');
         if (!pw) {
@@ -8877,102 +8859,107 @@ class HamobileBanhang {
     getCompanyInfoContent() {
         // Get company settings from Firebase
         const companySettings = this.getCompanySettings();
+        const companyName = String(companySettings.companyName || '');
+        const taxCode = String(companySettings.taxCode || '');
+        const address = String(companySettings.address || '');
+        const phone = String(companySettings.phone || '');
+        const email = String(companySettings.email || '');
+        const representative = String(companySettings.representative || '');
+        const position = String(companySettings.position || '');
+        const description = String(companySettings.description || '');
         console.log('=== LOADING COMPANY INFO PAGE ===');
-        console.log('Logo exists:', !!companySettings.logo);
         console.log('QR exists:', !!companySettings.qrCode);
-        if (companySettings.logo) {
-            console.log('Logo data length:', companySettings.logo.length);
-        }
-        if (companySettings.qrCode) {
-            console.log('QR data length:', companySettings.qrCode.length);
-        }
         
         return `
-            <div class="fade-in">
-                <!-- Company Information Settings -->
-                <div class="quick-actions" style="margin-bottom: 24px;">
-                    <h2 class="section-title">🏢 Thông tin Công ty/Cửa hàng</h2>
-                    
-                    <div style="background: white; padding: 24px; border-radius: 12px; border: 2px solid #e5e7eb;">
-                        <h3 style="margin-bottom: 16px; color: var(--text-primary); border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">📋 Thông tin chi tiết</h3>
-                        <form onsubmit="app.saveCompanySettings(event)" style="display: grid; gap: 16px;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                                <div>
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Tên công ty/cửa hàng: *</label>
-                                    <input type="text" name="companyName" value="${companySettings.companyName || ''}" 
-                                           placeholder="VD: Công ty TNHH Điện máy Sài Gòn" required
-                                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                                </div>
-                                
-                                <div>
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Mã số thuế:</label>
-                                    <input type="text" name="taxCode" value="${companySettings.taxCode || ''}" 
-                                           placeholder="VD: 0123456789"
-                                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Địa chỉ: *</label>
-                                <input type="text" name="address" value="${companySettings.address || ''}" 
-                                       placeholder="VD: 123 Trần Hưng Đạo, Quận 1, TP.HCM" required
-                                       style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                            </div>
-                            
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                                <div>
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Số điện thoại: *</label>
-                                    <input type="tel" name="phone" value="${companySettings.phone || ''}" 
-                                           placeholder="VD: 0123456789" required
-                                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                                </div>
-                                
-                                <div>
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Email:</label>
-                                    <input type="email" name="email" value="${companySettings.email || ''}" 
-                                           placeholder="VD: info@company.com"
-                                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                                </div>
-                            </div>
-                            
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                                <div>
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Người đại diện:</label>
-                                    <input type="text" name="representative" value="${companySettings.representative || ''}" 
-                                           placeholder="VD: Trần Văn Minh"
-                                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                                </div>
-                                
-                                <div>
-                                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Chức vụ:</label>
-                                    <input type="text" name="position" value="${companySettings.position || ''}" 
-                                           placeholder="VD: Giám đốc"
-                                           style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Slogan/Mô tả:</label>
-                                <textarea name="description" rows="2" placeholder="VD: Chất lượng - Uy tín - Giá tốt"
-                                          style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; resize: vertical;">${companySettings.description || ''}</textarea>
-                            </div>
-                            
-                            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px;">
-                                <button type="button" onclick="app.resetCompanySettings()" 
-                                        style="padding: 12px 24px; border: 2px solid #ef4444; color: #ef4444; background: white; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                                    🔄 Reset
-                                </button>
-                                <button type="submit" 
-                                        style="padding: 12px 24px; background: var(--success-gradient); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                                    💾 Lưu thông tin
-                                </button>
-                            </div>
-                        </form>
-                        
-                        <div style="margin-top: 16px; padding: 12px; background: #f0f9ff; border-radius: 8px; font-size: 14px; color: #1e40af;">
-                            <strong>💡 Lưu ý:</strong> Thông tin này sẽ hiển thị trên tất cả hóa đơn in ra. Vui lòng kiểm tra kỹ trước khi lưu.
+            <div class="fade-in" style="background: #f8fafc; border-radius: 16px; padding: 20px;">
+                <style>
+                    .company-settings-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 28px; box-shadow: 0 10px 30px rgba(15,23,42,0.06); }
+                    .company-title { margin: 0; font-size: 28px; line-height: 1.2; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; }
+                    .company-subtitle { margin: 10px 0 0; color: #475569; font-size: 14px; line-height: 1.6; }
+                    .company-form-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 22px; margin-top: 24px; }
+                    .company-col { display: grid; gap: 14px; align-content: start; }
+                    .company-field label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 600; color: #334155; }
+                    .company-field input, .company-field textarea { width: 100%; height: 46px; border-radius: 12px; border: 1px solid #cbd5e1; background: #fff; padding: 0 13px; font-size: 14px; color: #0f172a; outline: none; transition: all 0.2s ease; }
+                    .company-field textarea { min-height: 108px; height: auto; padding: 12px 13px; resize: vertical; }
+                    .company-field input::placeholder, .company-field textarea::placeholder { color: #94a3b8; }
+                    .company-field input:focus, .company-field textarea:focus { border-color: #10b981; box-shadow: 0 0 0 2px rgba(16,185,129,0.2); }
+                    .company-preview-card { margin-top: 4px; border: 1px solid #d1fae5; border-radius: 12px; background: linear-gradient(160deg, #ecfdf5 0%, #f8fafc 100%); padding: 14px; }
+                    .company-preview-title { margin: 0 0 10px; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: #065f46; font-weight: 700; }
+                    .company-preview-body { border-radius: 10px; border: 1px dashed #86efac; background: #fff; padding: 12px; color: #0f172a; font-size: 13px; line-height: 1.55; }
+                    .company-actions { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+                    .btn-secondary { height: 42px; padding: 0 18px; border-radius: 11px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+                    .btn-secondary:hover { background: #f8fafc; border-color: #94a3b8; }
+                    .btn-primary { height: 42px; padding: 0 20px; border-radius: 11px; border: none; background: linear-gradient(180deg, #10b981 0%, #059669 100%); color: #fff; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.08); transition: all 0.2s ease; }
+                    .btn-primary:hover { background: linear-gradient(180deg, #059669 0%, #047857 100%); }
+                    @media (max-width: 1100px) { .company-form-grid { grid-template-columns: 1fr; } }
+                </style>
+                <div class="company-settings-card">
+                    <form id="company-info-form" onsubmit="app.saveCompanySettings(event)">
+                        <div>
+                            <h2 class="company-title">Thông tin Công ty / Cửa hàng</h2>
+                            <p class="company-subtitle">Thông tin này sẽ hiển thị trên hóa đơn và hệ thống</p>
                         </div>
-                    </div>
+
+                        <div class="company-form-grid">
+                            <div class="company-col">
+                                <div class="company-field">
+                                    <label for="companyName">Tên cửa hàng *</label>
+                                    <input id="companyName" type="text" name="companyName" value="${companyName.replace(/"/g, '&quot;')}"
+                                           required oninput="app.updateCompanyInfoPreview()">
+                                </div>
+                                <div class="company-field">
+                                    <label for="address">Địa chỉ *</label>
+                                    <input id="address" type="text" name="address" value="${address.replace(/"/g, '&quot;')}"
+                                           required oninput="app.updateCompanyInfoPreview()">
+                                </div>
+                                <div class="company-field">
+                                    <label for="phone">Số điện thoại *</label>
+                                    <input id="phone" type="tel" name="phone" value="${phone.replace(/"/g, '&quot;')}"
+                                           required oninput="app.updateCompanyInfoPreview()">
+                                </div>
+                                <div class="company-field">
+                                    <label for="description">Slogan / Mô tả</label>
+                                    <textarea id="description" name="description" oninput="app.updateCompanyInfoPreview()">${description}</textarea>
+                                </div>
+                                <div class="company-preview-card">
+                                    <p class="company-preview-title">Hóa đơn xem trước</p>
+                                    <div class="company-preview-body">
+                                        <div id="preview-company-name" style="font-size: 14px; font-weight: 700; color: #065f46;">${companyName || 'Cửa hàng Minh Phát'}</div>
+                                        <div id="preview-phone">${phone || '0123456789'}</div>
+                                        <div id="preview-address">${address || '123 Trần Hưng Đạo'}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="company-col">
+                                <div class="company-field">
+                                    <label for="taxCode">Mã số thuế</label>
+                                    <input id="taxCode" type="text" name="taxCode" value="${taxCode.replace(/"/g, '&quot;')}"
+                                           oninput="app.updateCompanyInfoPreview()">
+                                </div>
+                                <div class="company-field">
+                                    <label for="email">Email</label>
+                                    <input id="email" type="email" name="email" value="${email.replace(/"/g, '&quot;')}"
+                                           oninput="app.updateCompanyInfoPreview()">
+                                </div>
+                                <div class="company-field">
+                                    <label for="representative">Người đại diện</label>
+                                    <input id="representative" type="text" name="representative" value="${representative.replace(/"/g, '&quot;')}"
+                                           oninput="app.updateCompanyInfoPreview()">
+                                </div>
+                                <div class="company-field">
+                                    <label for="position">Chức vụ</label>
+                                    <input id="position" type="text" name="position" value="${position.replace(/"/g, '&quot;')}"
+                                           oninput="app.updateCompanyInfoPreview()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="company-actions">
+                            <button type="button" class="btn-secondary" onclick="app.resetCompanySettings()">Khôi phục</button>
+                            <button type="submit" class="btn-primary">Lưu thay đổi</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         `;
@@ -8987,145 +8974,228 @@ class HamobileBanhang {
             const lastBackupStr = lastBackupTime ? (() => { try { return new Date(lastBackupTime).toLocaleString('vi-VN'); } catch(e) { return 'Chưa có'; } })() : 'Chưa có';
             const lastSync = window.FirebaseStorage.getMeta('last_sync');
             const lastSyncStr = lastSync ? (() => { try { return new Date(lastSync).toLocaleString('vi-VN'); } catch(e) { return ''; } })() : '';
-            
-        return `
-            <div class="fade-in">
-                <div class="quick-actions" style="margin-bottom: 24px;">
-                    <h2 class="section-title">⚙️ Cài đặt Sao lưu</h2>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
-                        <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid #e5e7eb;">
-                            <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                                <span>🔄</span> Tự động sao lưu
-                            </h3>
-                            <div style="margin-bottom: 16px;">
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                    <input type="checkbox" id="auto-backup-toggle" ${autoBackupEnabled ? 'checked' : ''} 
-                                           onchange="app.toggleAutoBackup(this.checked)" 
-                                           style="width: 16px; height: 16px;">
-                                    <span>Bật tự động sao lưu</span>
-                                </label>
+            const customerCount = (this.demoData.customers || []).length;
+            const supplierCount = (this.demoData.suppliers || []).length;
+            const productCount = (this.demoData.products || []).length;
+            const orderCount = (this.demoData.orders || []).length;
+            const totalRecords = Object.values(this.demoData || {}).reduce((total, arr) => total + (Array.isArray(arr) ? arr.length : 0), 0);
+            const maxDataCount = Math.max(1, customerCount, supplierCount, productCount, orderCount);
+            const backupStatusText = autoBackupEnabled ? (backupInterval === '0' ? '🟢 Ngay khi thay đổi' : '🟢 Đang hoạt động') : '🔴 Đã tắt';
+            const backupBadgeStyle = autoBackupEnabled
+                ? 'background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;'
+                : 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;';
+            const settingsData = window.FirebaseStorage.getData() || this.demoData || {};
+            const settingsCompany = window.FirebaseStorage.getCompany() || {};
+            const storageBytes = new Blob([JSON.stringify(settingsData), JSON.stringify(settingsCompany)]).size;
+            const storagePercent = Math.min(100, Math.max(10, Math.round((storageBytes / (2 * 1024 * 1024)) * 100)));
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            const weeklyOrders = (this.demoData.orders || []).filter(o => {
+                if (!o || !o.date) return false;
+                const dt = new Date(o.date);
+                return !Number.isNaN(dt.getTime()) && dt >= oneWeekAgo;
+            }).length;
+            const trendText = weeklyOrders > 0 ? `+${weeklyOrders} tuần này` : 'Ổn định tuần này';
+
+            return `
+                <div class="fade-in" style="background:#f8fafc; border-radius:18px; padding:22px;">
+                    <style>
+                        .settings-shell { display:grid; gap:18px; }
+                        .settings-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; box-shadow:0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.04); }
+                        .settings-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:2px 2px 4px; }
+                        .settings-kicker { font-size:11px; letter-spacing:0.09em; text-transform:uppercase; color:#64748b; font-weight:700; margin-bottom:8px; }
+                        .settings-title { margin:0; font-size:30px; font-weight:750; line-height:1.18; color:#0f172a; letter-spacing:-0.02em; }
+                        .settings-subtitle { margin:10px 0 0; font-size:14px; color:#475569; line-height:1.6; }
+                        .status-chip { display:inline-flex; align-items:center; gap:8px; border-radius:999px; border:1px solid #bbf7d0; background:#ecfdf5; color:#065f46; font-size:12px; font-weight:700; padding:8px 14px; white-space:nowrap; }
+                        .grid-two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+                        .card-pad { padding:20px; }
+                        .card-title { margin:0; font-size:18px; color:#0f172a; font-weight:700; }
+                        .card-desc { margin:8px 0 16px; font-size:13px; color:#64748b; line-height:1.5; }
+                        .field-label { display:block; margin-bottom:8px; color:#334155; font-size:13px; font-weight:600; }
+                        .premium-select, .premium-input { width:100%; height:42px; border-radius:11px; border:1px solid #cbd5e1; background:#fff; color:#0f172a; font-size:13px; padding:0 12px; outline:none; transition:all .2s ease; }
+                        .premium-select:focus, .premium-input:focus { border-color:#059669; box-shadow:0 0 0 2px rgba(16,185,129,.15); }
+                        .switch-wrap { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+                        .switch-label { color:#0f172a; font-size:14px; font-weight:600; }
+                        .switch { position:relative; width:50px; height:28px; display:inline-block; }
+                        .switch input { opacity:0; width:0; height:0; }
+                        .slider { position:absolute; cursor:pointer; inset:0; border-radius:999px; background:#cbd5e1; transition:.2s; }
+                        .slider:before { content:''; position:absolute; height:22px; width:22px; left:3px; top:3px; border-radius:50%; background:#fff; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+                        .switch input:checked + .slider { background:#059669; }
+                        .switch input:checked + .slider:before { transform:translateX(22px); }
+                        .status-row { margin-top:16px; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; background:#f8fafc; }
+                        .status-meta { font-size:12px; color:#64748b; line-height:1.5; }
+                        .btn-main { width:100%; height:44px; border:none; border-radius:12px; background:linear-gradient(180deg, #059669 0%, #047857 100%); color:#fff; font-weight:700; cursor:pointer; transition:all .2s ease; box-shadow:0 1px 2px rgba(0,0,0,.08); }
+                        .btn-main:hover { filter:brightness(.98); transform:translateY(-1px); }
+                        .btn-sub { width:100%; height:42px; border:1px solid #cbd5e1; border-radius:12px; background:#fff; color:#334155; font-weight:650; cursor:pointer; transition:all .2s ease; }
+                        .btn-sub:hover { background:#f8fafc; border-color:#94a3b8; }
+                        .chip-row { margin-top:12px; display:flex; flex-wrap:wrap; gap:8px; }
+                        .mini-chip { border-radius:999px; background:#f1f5f9; color:#475569; font-size:11px; font-weight:700; padding:6px 10px; }
+                        .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+                        .stat-card { padding:18px; border-radius:14px; border:1px solid #e2e8f0; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+                        .stat-kicker { color:#64748b; font-size:12px; font-weight:600; margin-bottom:10px; }
+                        .stat-value { color:#0f172a; font-size:30px; font-weight:750; letter-spacing:-.02em; line-height:1.1; }
+                        .stat-sub { color:#64748b; font-size:12px; margin-top:6px; }
+                        .mini-progress { margin-top:12px; height:6px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
+                        .mini-progress > span { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, #10b981 0%, #059669 100%); }
+                        .analytics-card { padding:18px; border-radius:14px; border:1px solid #e2e8f0; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+                        .analytics-row { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; padding:12px 10px; border-radius:10px; transition:all .2s ease; }
+                        .analytics-row:hover { background:#f8fafc; }
+                        .analytics-icon { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; background:#ecfdf5; }
+                        .analytics-name { color:#0f172a; font-size:14px; font-weight:650; }
+                        .analytics-count { color:#475569; font-size:12px; margin-top:3px; }
+                        .analytics-right { min-width:120px; }
+                        .analytics-line { height:6px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
+                        .analytics-line > span { display:block; height:100%; border-radius:999px; background:#10b981; }
+                        .analytics-number { text-align:right; font-size:12px; color:#475569; margin-top:5px; }
+                        .cloud-wrap { padding:18px; }
+                        .cloud-info { font-size:13px; color:#64748b; line-height:1.6; }
+                        .cloud-note { margin:10px 0 14px; border-radius:10px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-size:12px; padding:10px 12px; }
+                        .cloud-btns { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+                        .cloud-btn { height:38px; border:none; border-radius:10px; padding:0 14px; color:#fff; font-weight:650; cursor:pointer; }
+                        @media (max-width: 1100px) { .grid-two, .stats-grid { grid-template-columns:1fr; } }
+                    </style>
+
+                    <div class="settings-shell">
+                        <div class="settings-header">
+                            <div>
+                                <div class="settings-kicker">System</div>
+                                <h2 class="settings-title">Sao lưu & Dữ liệu</h2>
+                                <p class="settings-subtitle">Quản lý an toàn dữ liệu cửa hàng và tình trạng hệ thống.</p>
                             </div>
-                            
-                            <div style="margin-bottom: 16px;">
-                                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Tần suất:</label>
-                                <select id="backup-interval" onchange="app.setBackupInterval(this.value)" 
-                                        style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            <div class="status-chip">🟢 Offline Safe</div>
+                        </div>
+
+                        <div class="grid-two">
+                            <div class="settings-card card-pad">
+                                <h3 class="card-title">🔄 Tự động sao lưu</h3>
+                                <p class="card-desc">Hệ thống tự động tạo bản sao lưu định kỳ.</p>
+                                <div class="switch-wrap">
+                                    <span class="switch-label">Bật tự động sao lưu</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="auto-backup-toggle" ${autoBackupEnabled ? 'checked' : ''} onchange="app.toggleAutoBackup(this.checked)">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <label class="field-label" for="backup-interval">Tần suất</label>
+                                <select id="backup-interval" class="premium-select" onchange="app.setBackupInterval(this.value)">
                                     <option value="0" ${backupInterval === '0' ? 'selected' : ''}>Ngay khi có thay đổi</option>
                                     <option value="15" ${backupInterval === '15' ? 'selected' : ''}>15 phút</option>
                                     <option value="30" ${backupInterval === '30' ? 'selected' : ''}>30 phút</option>
-                                    <option value="60" ${backupInterval === '60' ? 'selected' : ''}>60 phút</option>
+                                    <option value="60" ${backupInterval === '60' ? 'selected' : ''}>1 giờ</option>
+                                    <option value="1440" ${backupInterval === '1440' ? 'selected' : ''}>1 ngày</option>
                                 </select>
+                                <div class="status-row">
+                                    <span id="backup-status" style="display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;${backupBadgeStyle}">${backupStatusText}</span>
+                                    <div class="status-meta">Lần gần nhất: <span id="backup-last-time">${lastBackupStr}</span></div>
+                                </div>
                             </div>
-                            
-                            <div style="font-size: 12px; color: #6b7280;">
-                                Trạng thái: <span id="backup-status">${autoBackupEnabled ? (backupInterval === '0' ? '🟢 Ngay khi thay đổi' : '🟢 Đang hoạt động') : '🔴 Tắt'}</span><br>
-                                Lần cuối: <span id="backup-last-time">${lastBackupStr}</span>
-                            </div>
-                        </div>
-                        
-                        <div style="background: white; padding: 20px; border-radius: 12px; border: 2px solid #e5e7eb;">
-                            <h3 style="margin-bottom: 16px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                                <span>💾</span> Sao lưu thủ công
-                            </h3>
-                            <button onclick="app.manualBackup()" 
-                                    style="width: 100%; background: var(--success-gradient); color: white; padding: 12px; 
-                                           border: none; border-radius: 8px; cursor: pointer; margin-bottom: 12px; font-weight: 600;">
-                                📁 Tải xuống bản sao lưu
-                            </button>
-                            
-                            <div style="margin-bottom: 12px;">
-                                <input type="file" id="restore-file" accept=".json" style="display: none;" onchange="app.restoreFromFile(event)">
-                                <button onclick="document.getElementById('restore-file').click()" 
-                                        style="width: 100%; background: var(--header-gradient); color: white; padding: 12px; 
-                                               border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                                    📤 Khôi phục từ file
-                                </button>
-                            </div>
-                            
-                            <div style="font-size: 12px; color: #6b7280; text-align: center;">
-                                File được lưu định dạng JSON<br>
-                                Tự động tải về thư mục Downloads
+
+                            <div class="settings-card card-pad">
+                                <h3 class="card-title">💾 Sao lưu thủ công</h3>
+                                <p class="card-desc">Xuất hoặc phục hồi dữ liệu bất kỳ lúc nào.</p>
+                                <button class="btn-main" onclick="app.manualBackup()">Tạo bản sao lưu</button>
+                                <div style="height:10px;"></div>
+                                <input type="file" id="restore-file" accept=".json" style="display:none;" onchange="app.restoreFromFile(event)">
+                                <button class="btn-sub" onclick="document.getElementById('restore-file').click()">Khôi phục dữ liệu</button>
+                                <div class="chip-row">
+                                    <span class="mini-chip">JSON</span>
+                                    <span class="mini-chip">Downloads</span>
+                                    <span class="mini-chip">1-click restore</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div style="display:none;" aria-hidden="true">
-                        <span id="firebase-sync-status">${lastSyncStr ? 'Đồng bộ lúc: ' + lastSyncStr : 'Đang chờ đồng bộ'}</span>
+
+                        <div class="settings-card cloud-wrap" style="display:none;">
+                            <h3 class="card-title" style="margin-bottom:8px;">☁️ Đồng bộ đám mây thời gian thực</h3>
+                            <p class="cloud-info">Cấu hình đồng bộ giúp dữ liệu an toàn khi đổi thiết bị, xóa cache hoặc làm việc trên nhiều máy.</p>
+                            <div class="cloud-note"><strong>Tự động 100%:</strong> Đồng bộ mỗi 15 giây • Offline lưu chờ • Có mạng sẽ tự đồng bộ lại.</div>
+                            <div class="grid-two" style="gap:12px;">
+                                <div>
+                                    <label class="field-label">URL máy chủ dữ liệu (Realtime Database)</label>
+                                    <input type="text" id="firebase-url" class="premium-input" placeholder="https://xxx.firebasedatabase.app" value="${(window.FirebaseStorage.getConfig()?.url || '').replace(/\/+$/, '')}">
+                                </div>
+                                <div>
+                                    <label class="field-label">Khóa sao lưu</label>
+                                    <input type="password" id="firebase-key" class="premium-input" placeholder="Nhập khóa đồng bộ bảo mật" value="${window.FirebaseStorage.getConfig()?.key || ''}">
+                                </div>
+                            </div>
+                            <div class="cloud-btns">
+                                <button type="button" class="cloud-btn" onclick="app.saveFirebaseConfig(document.getElementById('firebase-url').value, document.getElementById('firebase-key').value); app.showNotification('Đã lưu cấu hình. Dữ liệu sẽ tự đồng bộ khi có thay đổi.', 'success');" style="background:#2563eb;">Lưu cấu hình</button>
+                                <button type="button" class="cloud-btn" onclick="app.testFirebaseConnection();" style="background:#f59e0b;">Kiểm tra kết nối</button>
+                                <button type="button" class="cloud-btn" onclick="void app.confirmLoadFromFirebaseCloud()" style="background:#059669;">Khôi phục từ đám mây</button>
+                                <span id="firebase-sync-status" style="font-size:12px; color:#64748b;">${lastSyncStr ? 'Đồng bộ lúc: ' + lastSyncStr : 'Chưa cấu hình hoặc chưa đồng bộ'}</span>
+                            </div>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-kicker">Dung lượng dữ liệu</div>
+                                <div class="stat-value" id="storage-size">${this.calculateStorageSize()}</div>
+                                <div class="mini-progress"><span style="width:${storagePercent}%;"></span></div>
+                                <div class="stat-sub">Mức sử dụng dữ liệu cục bộ</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-kicker">Tổng bản ghi</div>
+                                <div class="stat-value">${totalRecords}</div>
+                                <div class="stat-sub" style="color:#059669; font-weight:600;">${trendText}</div>
+                            </div>
+                        </div>
+
+                        <div class="analytics-card">
+                            <h3 class="card-title" style="margin-bottom:10px;">Phân tích dữ liệu</h3>
+                            <div class="analytics-row">
+                                <div class="analytics-icon">👥</div>
+                                <div>
+                                    <div class="analytics-name">Khách hàng</div>
+                                    <div class="analytics-count">${customerCount} bản ghi</div>
+                                </div>
+                                <div class="analytics-right">
+                                    <div class="analytics-line"><span style="width:${Math.max(6, Math.round((customerCount / maxDataCount) * 100))}%;"></span></div>
+                                    <div class="analytics-number">${customerCount}</div>
+                                </div>
+                            </div>
+                            <div class="analytics-row">
+                                <div class="analytics-icon">🏢</div>
+                                <div>
+                                    <div class="analytics-name">Nhà cung cấp</div>
+                                    <div class="analytics-count">${supplierCount} bản ghi</div>
+                                </div>
+                                <div class="analytics-right">
+                                    <div class="analytics-line"><span style="width:${Math.max(6, Math.round((supplierCount / maxDataCount) * 100))}%;"></span></div>
+                                    <div class="analytics-number">${supplierCount}</div>
+                                </div>
+                            </div>
+                            <div class="analytics-row">
+                                <div class="analytics-icon">📦</div>
+                                <div>
+                                    <div class="analytics-name">Sản phẩm</div>
+                                    <div class="analytics-count">${productCount} bản ghi</div>
+                                </div>
+                                <div class="analytics-right">
+                                    <div class="analytics-line"><span style="width:${Math.max(6, Math.round((productCount / maxDataCount) * 100))}%;"></span></div>
+                                    <div class="analytics-number">${productCount}</div>
+                                </div>
+                            </div>
+                            <div class="analytics-row">
+                                <div class="analytics-icon">🧾</div>
+                                <div>
+                                    <div class="analytics-name">Đơn hàng</div>
+                                    <div class="analytics-count">${orderCount} bản ghi</div>
+                                </div>
+                                <div class="analytics-right">
+                                    <div class="analytics-line"><span style="width:${Math.max(6, Math.round((orderCount / maxDataCount) * 100))}%;"></span></div>
+                                    <div class="analytics-number">${orderCount}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card" style="padding:18px;">
+                            <h3 class="card-title" style="margin-bottom:12px;">📋 Lịch sử hoạt động</h3>
+                            ${this.getSystemActivityHistory()}
+                        </div>
                     </div>
                 </div>
-                
-                <div class="quick-actions">
-                    <h2 class="section-title">📊 Thông tin Hệ thống</h2>
-                    <div class="stats-grid" style="margin-bottom: 20px;">
-                        <div class="stat-card info">
-                            <div class="stat-header">
-                                <span class="stat-title">Dữ liệu lưu trữ</span>
-                                <span class="stat-icon">💾</span>
-                            </div>
-                            <div class="stat-value" id="storage-size">${this.calculateStorageSize()}</div>
-                            <div class="stat-change">Đám mây</div>
-                        </div>
-                        
-                        <div class="stat-card success">
-                            <div class="stat-header">
-                                <span class="stat-title">Tổng bản ghi</span>
-                                <span class="stat-icon">📋</span>
-                            </div>
-                            <div class="stat-value">${Object.values(this.demoData || {}).reduce((total, arr) => total + (Array.isArray(arr) ? arr.length : 0), 0)}</div>
-                            <div class="stat-change">Bản ghi</div>
-                        </div>
-                    </div>
-                    
-                    <div class="recent-activity">
-                        <h3 style="margin-bottom: 16px;">Chi tiết dữ liệu:</h3>
-                        <div class="activity-item">
-                            <div class="activity-icon info">👥</div>
-                            <div class="activity-content">
-                                <div class="activity-title">Khách hàng</div>
-                                <div class="activity-desc">${(this.demoData.customers || []).length} khách hàng đã được lưu trữ</div>
-                            </div>
-                            <div class="activity-time">${(this.demoData.customers || []).length}</div>
-                        </div>
-                        
-                        <div class="activity-item">
-                            <div class="activity-icon info">🏢</div>
-                            <div class="activity-content">
-                                <div class="activity-title">Nhà cung cấp</div>
-                                <div class="activity-desc">${(this.demoData.suppliers || []).length} nhà cung cấp đã được lưu trữ</div>
-                            </div>
-                            <div class="activity-time">${(this.demoData.suppliers || []).length}</div>
-                        </div>
-                        
-                        <div class="activity-item">
-                            <div class="activity-icon info">📦</div>
-                            <div class="activity-content">
-                                <div class="activity-title">Sản phẩm</div>
-                                <div class="activity-desc">${(this.demoData.products || []).length} sản phẩm trong danh mục</div>
-                            </div>
-                            <div class="activity-time">${(this.demoData.products || []).length}</div>
-                        </div>
-                        
-                        <div class="activity-item">
-                            <div class="activity-icon info">💰</div>
-                            <div class="activity-content">
-                                <div class="activity-title">Đơn hàng</div>
-                                <div class="activity-desc">${(this.demoData.orders || []).length} đơn bán hàng đã lưu trữ</div>
-                            </div>
-                            <div class="activity-time">${(this.demoData.orders || []).length}</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Phần lịch sử hoạt động -->
-                <div class="quick-actions" style="margin-top: 24px;">
-                    <h2 class="section-title">📋 Lịch sử Hoạt động</h2>
-                    <div style="background: white; border-radius: 12px; border: 2px solid #e5e7eb; padding: 20px;">
-                        ${this.getSystemActivityHistory()}
-                    </div>
-                </div>
-            </div>
-        `;
+            `;
         } catch (err) {
             console.error('getSettingsContent error:', err);
             return `<div class="quick-actions" style="padding: 24px;"><h2 class="section-title">⚙️ Cài đặt</h2><p style="color: #dc2626;">Đã xảy ra lỗi khi tải trang cài đặt: ${escapeHtml((err && err.message) || 'Lỗi không xác định')}</p><button onclick="app.loadPage('settings')" style="margin-top: 16px; padding: 10px 20px; background: var(--primary-green); color: white; border: none; border-radius: 8px; cursor: pointer;">Thử lại</button></div>`;
@@ -10992,14 +11062,22 @@ class HamobileBanhang {
     toggleAutoBackup(enabled) {
         window.FirebaseStorage.setMeta('auto_backup_enabled', enabled.toString());
         window.FirebaseStorage.save({ meta: { auto_backup_enabled: enabled.toString() } });
+        const statusEl = document.getElementById('backup-status');
+        const setStatusBadge = (text, active) => {
+            if (!statusEl) return;
+            statusEl.innerHTML = text;
+            statusEl.style.background = active ? '#ecfdf5' : '#fef2f2';
+            statusEl.style.color = active ? '#047857' : '#b91c1c';
+            statusEl.style.border = active ? '1px solid #a7f3d0' : '1px solid #fecaca';
+        };
         if (enabled) {
             this.startAutoBackup();
             const iv = window.FirebaseStorage.getMeta('backup_interval') || '15';
-            document.getElementById('backup-status').innerHTML = iv === '0' ? '🟢 Ngay khi thay đổi' : '🟢 Đang hoạt động';
+            setStatusBadge(iv === '0' ? '🟢 Ngay khi thay đổi' : '🟢 Đang hoạt động', true);
             this.showNotification(iv === '0' ? 'Đã bật sao lưu ngay khi thay đổi' : 'Đã bật tự động sao lưu', 'success');
         } else {
             this.stopAutoBackup();
-            document.getElementById('backup-status').innerHTML = '🔴 Tắt';
+            setStatusBadge('🔴 Đã tắt', false);
             this.showNotification('Đã tắt tự động sao lưu', 'info');
         }
     }
@@ -11007,10 +11085,14 @@ class HamobileBanhang {
     setBackupInterval(minutes) {
         window.FirebaseStorage.setMeta('backup_interval', minutes);
         window.FirebaseStorage.save({ meta: { backup_interval: minutes } });
+        const statusEl = document.getElementById('backup-status');
         if (window.FirebaseStorage.getMeta('auto_backup_enabled') !== 'false') {
             this.stopAutoBackup();
             this.startAutoBackup();
-            const msg = minutes === '0' ? 'Đã bật sao lưu ngay khi có thay đổi' : `Đã đặt tần suất sao lưu ${minutes} phút`;
+            if (statusEl) statusEl.innerHTML = minutes === '0' ? '🟢 Ngay khi thay đổi' : '🟢 Đang hoạt động';
+            const msg = minutes === '0'
+                ? 'Đã bật sao lưu ngay khi có thay đổi'
+                : (minutes === '1440' ? 'Đã đặt tần suất sao lưu 1 ngày' : `Đã đặt tần suất sao lưu ${minutes} phút`);
             this.showNotification(msg, 'success');
         }
     }
@@ -11242,7 +11324,24 @@ class HamobileBanhang {
         
         console.log('💾 Company settings saved:', companySettings);
     }
-    
+
+    updateCompanyInfoPreview() {
+        const form = document.getElementById('company-info-form');
+        if (!form) return;
+        const companyNameInput = form.querySelector('input[name="companyName"]');
+        const phoneInput = form.querySelector('input[name="phone"]');
+        const addressInput = form.querySelector('input[name="address"]');
+
+        const previewName = document.getElementById('preview-company-name');
+        const previewPhone = document.getElementById('preview-phone');
+        const previewAddress = document.getElementById('preview-address');
+        if (!previewName || !previewPhone || !previewAddress) return;
+
+        previewName.textContent = (companyNameInput && companyNameInput.value.trim()) || 'Cửa hàng Minh Phát';
+        previewPhone.textContent = (phoneInput && phoneInput.value.trim()) || '0123456789';
+        previewAddress.textContent = (addressInput && addressInput.value.trim()) || '123 Trần Hưng Đạo';
+    }
+
     async resetCompanySettings() {
         if (await confirmAsync({
             title: 'Xác nhận',
@@ -11266,7 +11365,6 @@ class HamobileBanhang {
             if (!parsed || typeof parsed !== 'object') return {};
             
             console.log('Loading company settings...');
-            console.log('Logo exists:', !!parsed.logo);
             console.log('QR exists:', !!parsed.qrCode);
             
             return parsed;
@@ -11286,7 +11384,6 @@ class HamobileBanhang {
             try {
                 console.log('Parsed successfully');
                 console.log('Company name:', parsed.companyName || 'Not set');
-                console.log('Logo exists:', !!parsed.logo, parsed.logo ? `(${(parsed.logo.length/1024).toFixed(1)}KB)` : '');
                 console.log('QR exists:', !!parsed.qrCode, parsed.qrCode ? `(${(parsed.qrCode.length/1024).toFixed(1)}KB)` : '');
             } catch (error) {
                 console.error('JSON Parse Error:', error);
@@ -11302,7 +11399,7 @@ class HamobileBanhang {
         return `${(total / 1024).toFixed(1)} KB`;
     }
 
-    restoreLogoAndQR() {
+    restoreCompanyAssets() {
         updateCompanyAssets();
     }
 
@@ -11349,31 +11446,6 @@ class HamobileBanhang {
         });
     }
 
-    // Simple logo upload - lưu Firebase
-    uploadLogoSimple(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        if (!file.type.startsWith('image/')) {
-            alert('Vui lòng chọn file hình ảnh!');
-            return;
-        }
-        
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const imageData = e.target.result;
-            
-            window.companyAssets.logo = imageData;
-            const company = window.FirebaseStorage.getCompany();
-            company.logo = imageData;
-            window.FirebaseStorage.setCompany(company);
-            window.FirebaseStorage.save({ company });
-            updateCompanyAssets();
-            alert('✅ Upload logo thành công! Logo đã lưu lên đám mây.');
-        };
-        reader.readAsDataURL(file);
-    }
-    
     // Simple QR upload - lưu Firebase
     uploadQRSimple(event) {
         const file = event.target.files[0];
@@ -11397,112 +11469,6 @@ class HamobileBanhang {
             alert('✅ Upload QR code thành công! QR đã lưu lên đám mây.');
         };
         reader.readAsDataURL(file);
-    }
-
-    // Logo upload function - Save to uploads folder
-    uploadLogo(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        // Check file type
-        if (!file.type.startsWith('image/')) {
-            this.showNotification('Vui lòng chọn file hình ảnh (PNG, JPG, GIF)', 'error');
-            return;
-        }
-        
-        // Check file size (max 2MB)
-        if (file.size > 2 * 1024 * 1024) {
-            this.showNotification('Kích thước file quá lớn. Vui lòng chọn file dưới 2MB', 'error');
-            return;
-        }
-        
-        // Create unique filename
-        const timestamp = Date.now();
-        const fileName = `logo_${timestamp}.${file.name.split('.').pop()}`;
-        const logoPath = `uploads/${fileName}`;
-        
-        this.compressImage(file, 0.7, 300, 300).then(async (compressedImageData) => {
-            
-            // Save logo to company settings with error handling
-            const companySettings = this.getCompanySettings();
-            companySettings.logo = compressedImageData;
-            companySettings.logoPath = logoPath;
-            companySettings.logoFileName = fileName;
-            companySettings.logoTimestamp = timestamp;
-            
-            try {
-                window.FirebaseStorage.setCompany(companySettings);
-                await window.FirebaseStorage.save({ company: companySettings });
-                if (window.FirebaseStorage.getCompany().logo) {
-                    console.log('Logo successfully saved to Firebase');
-                } else {
-                    throw new Error('Save verification failed');
-                }
-            } catch (error) {
-                console.error('Error saving logo:', error);
-                this.showNotification('Lỗi lưu logo. Thử lại với file nhỏ hơn.', 'error');
-                return;
-            }
-            
-            console.log('Logo saved with path:', logoPath);
-            console.log('Logo data saved:', !!companySettings.logo);
-            
-            // Update display
-            const logoDisplay = document.getElementById('logo-display');
-            logoDisplay.innerHTML = `<img src="${compressedImageData}" alt="Logo" style="max-width: 100%; max-height: 140px; object-fit: contain;">`;
-            
-            // Add remove button
-            const buttonContainer = logoDisplay.parentElement.querySelector('div:last-child');
-            if (!buttonContainer.querySelector('button[onclick*="removeLogo"]')) {
-                buttonContainer.innerHTML = `
-                    <button type="button" onclick="document.getElementById('logo-input').click()" 
-                            style="background: var(--primary-blue); color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                        📁 Chọn Logo
-                    </button>
-                    <button type="button" onclick="app.removeLogo()" 
-                            style="background: #dc2626; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                        🗑️ Xóa
-                    </button>
-                `;
-            }
-            
-            this.showNotification(`Đã lưu logo nén vào ${logoPath}!`, 'success');
-            console.log('Compressed logo size:', (compressedImageData.length/1024).toFixed(1) + 'KB');
-        }).catch(error => {
-            console.error('Compression error:', error);
-            this.showNotification('Lỗi nén ảnh. Thử với file khác.', 'error');
-        });
-    }
-
-    // Remove logo function
-    async removeLogo() {
-        if (!(await confirmAsync({
-            title: 'Xác nhận xóa logo',
-            message: 'Bạn có chắc chắn muốn xóa logo?',
-            confirmLabel: 'Xóa',
-            cancelLabel: 'Hủy',
-            variant: 'danger',
-        }))) return;
-        
-        const companySettings = this.getCompanySettings();
-        delete companySettings.logo;
-        window.FirebaseStorage.setCompany(companySettings);
-        window.FirebaseStorage.save({ company: companySettings });
-        
-        // Update display
-        const logoDisplay = document.getElementById('logo-display');
-        logoDisplay.innerHTML = '<div style="color: #9ca3af; font-size: 14px;">Chưa có logo</div>';
-        
-        // Remove delete button
-        const buttonContainer = logoDisplay.parentElement.querySelector('div:last-child');
-        buttonContainer.innerHTML = `
-            <button type="button" onclick="document.getElementById('logo-input').click()" 
-                    style="background: var(--primary-blue); color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                📁 Chọn Logo
-            </button>
-        `;
-        
-        this.showNotification('Đã xóa logo', 'success');
     }
 
     // Generate QR Code function
@@ -18106,15 +18072,11 @@ class HamobileBanhang {
             const companySettings = this.getCompanySettings();
             
             // Override with global assets if available (for hosting)
-            if (window.companyAssets && window.companyAssets.logo) {
-                companySettings.logo = window.companyAssets.logo;
-            }
             if (window.companyAssets && window.companyAssets.qr) {
                 companySettings.qrCode = window.companyAssets.qr;
             }
             
-            console.log('✅ HOSTING READY - Logo/QR from global assets');
-            console.log('Logo data:', companySettings.logo ? 'Found' : 'Not found');
+            console.log('✅ HOSTING READY - QR from global assets');
             console.log('QR data:', companySettings.qrCode ? 'Found' : 'Not found');
             
             // Professional invoice window
@@ -18511,15 +18473,11 @@ class HamobileBanhang {
             const companySettings = this.getCompanySettings();
             
             // Override with global assets if available (for hosting)
-            if (window.companyAssets && window.companyAssets.logo) {
-                companySettings.logo = window.companyAssets.logo;
-            }
             if (window.companyAssets && window.companyAssets.qr) {
                 companySettings.qrCode = window.companyAssets.qr;
             }
             
-            console.log('✅ HOSTING READY - Logo/QR from global assets');
-            console.log('Logo data:', companySettings.logo ? 'Found' : 'Not found');
+            console.log('✅ HOSTING READY - QR from global assets');
             console.log('QR data:', companySettings.qrCode ? 'Found' : 'Not found');
 
             // Calculate VAT amounts
@@ -18775,9 +18733,6 @@ class HamobileBanhang {
             }
 
             const companySettings = this.getCompanySettings();
-            if (window.companyAssets && window.companyAssets.logo) {
-                companySettings.logo = window.companyAssets.logo;
-            }
             if (window.companyAssets && window.companyAssets.qr) {
                 companySettings.qrCode = window.companyAssets.qr;
             }
