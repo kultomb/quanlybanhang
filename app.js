@@ -12304,7 +12304,10 @@ class HamobileBanhang {
                 if (owed <= 0 || remaining <= 0) return;
                 const pay = Math.min(remaining, owed);
                 order.amountPaid = (order.amountPaid != null ? order.amountPaid : 0) + pay;
-                if (order.amountPaid >= (order.total || 0)) order.paymentStatus = 'Đã thanh toán';
+                if (order.amountPaid >= (order.total || 0)) {
+                    order.paymentStatus = 'Đã thanh toán';
+                    if (this.isOrderFinalizedForRevenue(order)) order.status = 'Hoàn thành';
+                }
                 remaining -= pay;
             });
             unpaidRepairs.forEach(r => {
