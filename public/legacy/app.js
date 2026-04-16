@@ -4986,9 +4986,14 @@ class HamobileBanhang {
         const totalGoods = products.reduce((s, x) => s + x.subtotal, 0);
         const discount = Math.max(0, parseInt(this.posCart.discount, 10) || 0);
         const total = Math.max(0, totalGoods - discount);
-        let amountPaid = Math.max(0, this.parsePrice(document.getElementById('pos-amount-paid')?.value) || 0);
+        const amountPaidInput = document.getElementById('pos-amount-paid');
+        const amountPaidRaw = amountPaidInput && typeof amountPaidInput.value === 'string'
+            ? amountPaidInput.value.trim()
+            : '';
+        let amountPaid = amountPaidRaw === ''
+            ? total
+            : Math.max(0, this.parsePrice(amountPaidRaw) || 0);
         if (this.posCart._saveAsDebt) amountPaid = 0;
-        else if (amountPaid === 0) amountPaid = total;
         amountPaid = Math.min(total, amountPaid);
         const orderDebt = Math.max(0, total - amountPaid);
         if (orderDebt > 0 && customerId === 'KH_LE') {
