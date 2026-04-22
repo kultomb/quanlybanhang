@@ -14354,7 +14354,7 @@ class HamobileBanhang {
                         </div>
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Số tiền thanh toán:</label>
-                            <input type="number" name="amount" required min="0" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                            <input type="text" inputmode="numeric" name="amount" required autocomplete="off" oninput="app.formatPaymentAmountInput(this)" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
                         </div>
                         <div style="margin-bottom: 24px;">
                             <div id="debt-info" style="padding: 12px; background: #f3f4f6; border-radius: 8px; color: #374151;"></div>
@@ -14382,14 +14382,36 @@ class HamobileBanhang {
             debtInfo.innerHTML = '';
         }
     }
+
+    parseCurrencyInputValue(rawValue) {
+        const cleaned = String(rawValue || '').replace(/[^\d]/g, '');
+        return cleaned ? parseInt(cleaned, 10) : 0;
+    }
+
+    formatPaymentAmountInput(inputElement) {
+        if (!inputElement) return;
+        const amount = this.parseCurrencyInputValue(inputElement.value);
+        inputElement.value = amount > 0 ? amount.toLocaleString('vi-VN') : '';
+        inputElement.setAttribute('data-raw-value', String(amount));
+    }
     
     async recordPayment(event) {
         event.preventDefault();
         const form = event.target;
         const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn && submitBtn.disabled) return;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.7';
+            submitBtn.textContent = 'Đang xử lý...';
+        }
         
         const customerId = String(formData.get('customer') || '').trim();
-        const amount = parseInt(formData.get('amount'), 10);
+        const amountInput = form.querySelector('input[name="amount"]');
+        const amount = this.parseCurrencyInputValue(
+            amountInput?.getAttribute('data-raw-value') || formData.get('amount')
+        );
         
         let customer = (this.demoData.customers || []).find(c =>
             String(c.id || '').trim() === customerId || String(c.name || '').trim() === customerId
@@ -14397,8 +14419,36 @@ class HamobileBanhang {
         if (!customer) customer = this.getCustomersWithDebt().find(c =>
             String(c.id || '').trim() === customerId || String(c.name || '').trim() === customerId
         );
+        if (!customer) {
+            this.showNotification('Không tìm thấy khách hàng', 'error');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+                submitBtn.textContent = 'Ghi nhận';
+            }
+            return;
+        }
+        const oldDebt = this.getActualDebtForCustomer(customer);
+        if (amount <= 0) {
+            this.showNotification('Vui lòng nhập số tiền hợp lệ', 'warning');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+                submitBtn.textContent = 'Ghi nhận';
+            }
+            return;
+        }
+        if (amount > oldDebt) {
+            this.showNotification(`Số tiền thanh toán không được vượt quá công nợ (${oldDebt.toLocaleString('vi-VN')} VNĐ)`, 'warning');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+                submitBtn.textContent = 'Ghi nhận';
+            }
+            return;
+        }
+
         if (customer && amount > 0) {
-            const oldDebt = this.getActualDebtForCustomer(customer);
             const todayStr = this.getVietnamDateKey();
             (this.demoData.debtPayments || []).push({ customerId, customerName: customer.name, amount, date: todayStr });
             
@@ -14441,8 +14491,6 @@ class HamobileBanhang {
             this.syncCustomerDebt();
             customer.debt = this.getActualDebtForCustomer(customer);
             this.updateDebtorsList();
-            const saved = await this.saveToFirebaseImmediate();
-            if (!saved) this.saveToLocalStorage();
             
             let syncMessage = '';
             if (customer.debt === 0 && amount >= oldDebt) {
@@ -14453,13 +14501,16 @@ class HamobileBanhang {
             }
             
             this.showNotification(`✅ Đã ghi nhận thanh toán ${amount.toLocaleString('vi-VN')} VNĐ từ ${customer.name}. Nợ còn lại: ${customer.debt.toLocaleString('vi-VN')} VNĐ${syncMessage}`, 'success');
-            
-            // Delay để đảm bảo dữ liệu được cập nhật
-            setTimeout(() => {
-                this.loadPage('debts');
-            }, 100);
+
+            const modal = form.closest("div[style*=\"fixed\"]");
+            if (modal) modal.remove();
+            requestAnimationFrame(() => this.loadPage('debts'));
+
+            // Lưu bất đồng bộ để UI không bị khựng khi mạng chậm
+            this.saveToFirebaseImmediate()
+                .then(saved => { if (!saved) this.saveToLocalStorage(); })
+                .catch(() => this.saveToLocalStorage());
         }
-        const modal = form.closest("div[style*=\"fixed\"]"); if(modal) modal.remove();
     }
     
     // Hiển thị form thanh toán với khách hàng được chọn sẵn
@@ -14489,7 +14540,7 @@ class HamobileBanhang {
                         </div>
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Số tiền thanh toán:</label>
-                            <input type="number" name="amount" required min="0" max="${actualDebt}" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" placeholder="Tối đa: ${actualDebt.toLocaleString('vi-VN')} VNĐ">
+                            <input type="text" inputmode="numeric" name="amount" required autocomplete="off" oninput="app.formatPaymentAmountInput(this)" data-max="${actualDebt}" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;" placeholder="Tối đa: ${actualDebt.toLocaleString('vi-VN')} VNĐ">
                         </div>
                         <div style="margin-bottom: 24px;">
                             <div style="padding: 12px; background: #fef3c7; border-radius: 8px; color: #92400e;">
